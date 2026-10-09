@@ -127,7 +127,7 @@ function Login({ onLogin }) {
       <style>{GLOBAL_CSS}</style>
       {/* Left panel */}
       <div className="hide-mobile" style={{width:420,background:`linear-gradient(160deg,${C.navy} 0%,${C.teal} 100%)`,display:'flex',flexDirection:'column',justifyContent:'center',padding:56,color:C.white}}>
-        <div style={{fontSize:28,fontWeight:800,letterSpacing:-1,marginBottom:8}}>Visão Ideal</div>
+        <img src="/logo-clinica.png" alt="Clínica Visão Ideal" style={{width:180,marginBottom:32,filter:'brightness(0) invert(1)'}}/>
         <div style={{fontSize:15,opacity:.8,marginBottom:40}}>Sistema de Gestão Clínica</div>
         {['Agenda inteligente por optometrista','Fluxo completo de atendimento','Controle de conversão e no-show','Relatórios e indicadores em tempo real'].map(t=>(
           <div key={t} style={{display:'flex',alignItems:'center',gap:10,marginBottom:14,fontSize:14,opacity:.9}}>
@@ -186,16 +186,16 @@ function Layout({ user, tab, setTab, onLogout, children }) {
       {/* Mobile header */}
       <div style={{position:'fixed',top:0,left:0,right:0,height:52,background:C.white,borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px',zIndex:200}}>
         <button onClick={()=>setDrawer(true)} style={{background:'none',fontSize:22,color:C.navy,border:'none',fontWeight:700}}>&#9776;</button>
-        <span style={{fontWeight:700,color:C.navy,fontSize:15}}>Visão Ideal</span>
+        <img src="/logo-clinica.png" alt="Clínica Visão Ideal" style={{height:32,objectFit:'contain'}}/>
         <Badge color={perfil?.cor||C.teal}>{perfil?.label}</Badge>
       </div>
       {/* Drawer */}
       {drawer && <>
         <div onClick={()=>setDrawer(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.4)',zIndex:300}}/>
         <div style={{position:'fixed',top:0,left:0,bottom:0,width:260,background:C.white,zIndex:400,overflowY:'auto',boxShadow:'4px 0 16px rgba(0,0,0,.1)'}}>
-          <div style={{padding:'20px 16px',background:`linear-gradient(135deg,${C.navy},${C.teal})`,color:C.white}}>
-            <div style={{fontWeight:700,fontSize:16}}>Visão Ideal</div>
-            <div style={{fontSize:13,opacity:.8,marginTop:4}}>{user.nome} · {perfil?.label}</div>
+          <div style={{padding:'16px',background:`linear-gradient(135deg,${C.navy},${C.teal})`,color:C.white,display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
+            <img src="/logo-clinica.png" alt="Clínica Visão Ideal" style={{width:120,filter:'brightness(0) invert(1)'}}/>
+            <div style={{fontSize:12,opacity:.8}}>{user.nome} · {perfil?.label}</div>
           </div>
           <SideNav onItemClick={()=>setDrawer(false)}/>
         </div>
@@ -220,9 +220,8 @@ function Layout({ user, tab, setTab, onLogout, children }) {
       <style>{GLOBAL_CSS}</style>
       {/* Sidebar */}
       <div style={{width:200,background:C.white,borderRight:`1px solid ${C.border}`,position:'fixed',top:0,left:0,bottom:0,overflowY:'auto',display:'flex',flexDirection:'column'}}>
-        <div style={{padding:'20px 16px',background:`linear-gradient(135deg,${C.navy},${C.teal})`,color:C.white}}>
-          <div style={{fontWeight:800,fontSize:15}}>Visão Ideal</div>
-          <div style={{fontSize:11,opacity:.75,marginTop:3}}>Sistema Clínico</div>
+        <div style={{padding:'16px',background:`linear-gradient(135deg,${C.navy},${C.teal})`,color:C.white,display:'flex',flexDirection:'column',alignItems:'center'}}>
+          <img src="/logo-clinica.png" alt="Clínica Visão Ideal" style={{width:140,filter:'brightness(0) invert(1)'}}/>
         </div>
         <div style={{flex:1,overflowY:'auto'}}><SideNav/></div>
         <div style={{padding:'12px 16px',borderTop:`1px solid ${C.border}`,fontSize:12}}>
@@ -955,19 +954,63 @@ function Atendimento({ user, agendaItem, clearAgendaItem }) {
           </div>
           <div style={{textAlign:'right',marginTop:16}}>
             <Btn color={C.teal} onClick={()=>{
+              const logoUrl = window.location.origin + '/logo-clinica.png';
               const w=window.open('','_blank');
-              w.document.write(`<html><head><title>Receita</title></head><body style="font-family:sans-serif;padding:40px">
-                <h2>Receita Optica — Visao Ideal</h2>
-                <p><b>Paciente:</b> ${receita.paciente_nome} &nbsp;&nbsp; <b>Data:</b> ${fmtDate(receita.data)}</p>
-                <p><b>Optometrista:</b> ${receita.opto_nome}</p>
-                <table border="1" cellpadding="10" style="margin-top:20px;border-collapse:collapse;width:100%">
-                  <tr style="background:#16AFA3;color:white"><th>Olho</th><th>Esf</th><th>Cil</th><th>Eixo</th><th>Adicao</th><th>DNP</th></tr>
-                  <tr><td><b>OD</b></td><td>${receita.od_esf}</td><td>${receita.od_cil}</td><td>${receita.od_eixo}</td><td>${receita.od_adicao}</td><td>${receita.od_dnp}</td></tr>
-                  <tr><td><b>OE</b></td><td>${receita.oe_esf}</td><td>${receita.oe_cil}</td><td>${receita.oe_eixo}</td><td>${receita.oe_adicao}</td><td>${receita.oe_dnp}</td></tr>
+              w.document.write(`<!DOCTYPE html><html><head><title>Receita Optometrica</title>
+                <style>
+                  *{box-sizing:border-box;margin:0;padding:0}
+                  body{font-family:'Segoe UI',sans-serif;background:#fff;color:#173D43;padding:40px 50px}
+                  .header{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #16AFA3;padding-bottom:20px;margin-bottom:24px}
+                  .logo{height:70px;object-fit:contain}
+                  .titulo{font-size:22px;font-weight:800;color:#173D43}
+                  .subtitulo{font-size:13px;color:#6c757d;margin-top:4px}
+                  .info{display:flex;gap:32px;margin-bottom:24px;background:#e8f8f7;padding:14px 18px;border-radius:10px}
+                  .info-item label{font-size:11px;color:#6c757d;font-weight:600;text-transform:uppercase}
+                  .info-item span{display:block;font-size:14px;font-weight:700;color:#173D43;margin-top:2px}
+                  table{width:100%;border-collapse:collapse;font-size:14px}
+                  th{background:#16AFA3;color:#fff;padding:10px 14px;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+                  td{padding:10px 14px;border-bottom:1px solid #dee2e6}
+                  tr:last-child td{border-bottom:none}
+                  .olho{font-weight:800;color:#16AFA3;font-size:15px}
+                  .footer{margin-top:40px;padding-top:16px;border-top:1px solid #dee2e6;display:flex;justify-content:space-between;font-size:12px;color:#6c757d}
+                  .assinatura{margin-top:48px;text-align:center}
+                  .assinatura .linha{border-top:1px solid #173D43;width:240px;margin:0 auto 6px}
+                  .assinatura p{font-size:12px;color:#555}
+                  @media print{body{padding:20px 30px}}
+                </style>
+              </head><body>
+                <div class="header">
+                  <img src="${logoUrl}" alt="Clínica Visão Ideal" class="logo"/>
+                  <div style="text-align:right">
+                    <div class="titulo">Receita Optométrica</div>
+                    <div class="subtitulo">Data: ${fmtDate(receita.data)}</div>
+                  </div>
+                </div>
+                <div class="info">
+                  <div class="info-item"><label>Paciente</label><span>${receita.paciente_nome}</span></div>
+                  <div class="info-item"><label>Optometrista</label><span>${receita.opto_nome}</span></div>
+                  ${receita.paciente_telefone ? `<div class="info-item"><label>WhatsApp</label><span>${receita.paciente_telefone}</span></div>` : ''}
+                </div>
+                <table>
+                  <thead><tr><th>Olho</th><th>Esférico</th><th>Cilíndrico</th><th>Eixo</th><th>Adição</th><th>DNP</th></tr></thead>
+                  <tbody>
+                    <tr><td class="olho">OD</td><td>${receita.od_esf||'—'}</td><td>${receita.od_cil||'—'}</td><td>${receita.od_eixo||'—'}</td><td>${receita.od_adicao||'—'}</td><td>${receita.od_dnp||'—'}</td></tr>
+                    <tr><td class="olho">OE</td><td>${receita.oe_esf||'—'}</td><td>${receita.oe_cil||'—'}</td><td>${receita.oe_eixo||'—'}</td><td>${receita.oe_adicao||'—'}</td><td>${receita.oe_dnp||'—'}</td></tr>
+                  </tbody>
                 </table>
+                ${receita.observacoes ? `<div style="margin-top:20px;padding:12px 16px;background:#fff8f0;border-left:3px solid #F47700;border-radius:0 8px 8px 0;font-size:13px"><b>Observações:</b> ${receita.observacoes}</div>` : ''}
+                <div class="assinatura">
+                  <div class="linha"></div>
+                  <p>${receita.opto_nome}${receita.opto_cro ? ' · CRO ' + receita.opto_cro : ''}</p>
+                </div>
+                <div class="footer">
+                  <span>Clínica Visão Ideal</span>
+                  <span>Documento gerado em ${new Date().toLocaleString('pt-BR')}</span>
+                </div>
+                <script>window.onload=()=>window.print();</script>
               </body></html>`);
-              w.print();
-            }}>Imprimir</Btn>
+              w.document.close();
+            }}>Imprimir Receita</Btn>
           </div>
         </Card>
       )}
