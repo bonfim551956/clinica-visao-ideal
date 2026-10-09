@@ -166,11 +166,26 @@ function Login({ onLogin }) {
 /* ══════════════════════════════════════════════════════
    LAYOUT
 ══════════════════════════════════════════════════════ */
-function Layout({ user, tab, setTab, onLogout, children }) {
+function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnidade, children }) {
   const isMobile = useIsMobile();
   const [drawer, setDrawer] = useState(false);
   const navItems = NAV_ITEMS.filter(n => PERFIS[user.perfil]?.nav.includes(n.id));
   const perfil = PERFIS[user.perfil];
+
+  const UnidadeFilter = () => (
+    <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
+      {['Todas',...UNIDADES].map(u=>{
+        const val = u==='Todas'?'':u;
+        const active = selectedUnidade===val;
+        return (
+          <button key={u} onClick={()=>setSelectedUnidade(val)}
+            style={{padding:'4px 12px',borderRadius:20,fontSize:12,fontWeight:600,cursor:'pointer',border:`1.5px solid ${active?C.teal:C.border}`,background:active?C.teal:'transparent',color:active?C.white:C.gray,transition:'all .15s',whiteSpace:'nowrap'}}>
+            {u}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   const SideNav = ({ onItemClick }) => (
     <nav style={{display:'flex',flexDirection:'column',gap:2,padding:'8px 0'}}>
@@ -194,10 +209,15 @@ function Layout({ user, tab, setTab, onLogout, children }) {
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',background:C.bg}}>
       <style>{GLOBAL_CSS}</style>
       {/* Mobile header */}
-      <div style={{position:'fixed',top:0,left:0,right:0,height:52,background:C.white,borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px',zIndex:200}}>
+      <div style={{position:'fixed',top:0,left:0,right:0,background:C.white,borderBottom:`1px solid ${C.border}`,zIndex:200}}>
+      <div style={{height:52,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px'}}>
         <button onClick={()=>setDrawer(true)} style={{background:'none',fontSize:22,color:C.navy,border:'none',fontWeight:700}}>&#9776;</button>
         <img src="/logo-clinica.png" alt="Clínica Visão Ideal" style={{height:30,objectFit:'contain'}}/>
         <Badge color={perfil?.cor||C.teal}>{perfil?.label}</Badge>
+      </div>
+      <div style={{padding:'6px 12px 8px',overflowX:'auto',display:'flex',gap:6,borderTop:`1px solid ${C.border}11`}}>
+        <UnidadeFilter/>
+      </div>
       </div>
       {/* Drawer */}
       {drawer && <>
@@ -211,7 +231,7 @@ function Layout({ user, tab, setTab, onLogout, children }) {
         </div>
       </>}
       {/* Content */}
-      <div style={{flex:1,marginTop:52,padding:'16px 12px 80px'}}>
+      <div style={{flex:1,marginTop:88,padding:'16px 12px 80px'}}>
         {children}
       </div>
       {/* Bottom nav */}
@@ -243,9 +263,15 @@ function Layout({ user, tab, setTab, onLogout, children }) {
       </div>
       {/* Main */}
       <div style={{marginLeft:200,flex:1,display:'flex',flexDirection:'column',minHeight:'100vh'}}>
-        <div style={{height:52,background:C.white,borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 24px',position:'sticky',top:0,zIndex:100}}>
-          <h1 style={{fontSize:16,fontWeight:700,color:C.navy}}>{NAV_ITEMS.find(n=>n.id===tab)?.label}</h1>
-          <span style={{color:C.gray,fontSize:13}}>{fmtDate(today())}</span>
+        <div style={{background:C.white,borderBottom:`1px solid ${C.border}`,position:'sticky',top:0,zIndex:100}}>
+          <div style={{height:52,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 24px'}}>
+            <h1 style={{fontSize:16,fontWeight:700,color:C.navy}}>{NAV_ITEMS.find(n=>n.id===tab)?.label}</h1>
+            <span style={{color:C.gray,fontSize:13}}>{fmtDate(today())}</span>
+          </div>
+          <div style={{padding:'8px 24px 10px',borderTop:`1px solid ${C.border}11`,background:C.bg,display:'flex',alignItems:'center',gap:10}}>
+            <span style={{fontSize:12,fontWeight:600,color:C.textSm,whiteSpace:'nowrap'}}>Unidade:</span>
+            <UnidadeFilter/>
+          </div>
         </div>
         <div style={{flex:1,padding:24,maxWidth:1200}}>{children}</div>
       </div>
@@ -256,18 +282,19 @@ function Layout({ user, tab, setTab, onLogout, children }) {
 /* ══════════════════════════════════════════════════════
    DASHBOARD
 ══════════════════════════════════════════════════════ */
-function Dashboard({ user }) {
+function Dashboard({ user, selectedUnidade='' }) {
   const [stats, setStats] = useState({ agendados:0, compareceu:0, naoComp:0, receitas:0, conversoes:0, valorTotal:0, noshow:0 });
   const [loading, setLoading] = useState(true);
   const [proximos, setProximos] = useState([]);
 
   useEffect(() => {
     const load = async () => {
+      const applyU = q => selectedUnidade ? q.eq('unidade', selectedUnidade) : q;
       const [ag, rec, conv, prox] = await Promise.all([
-        supabase.from('agenda').select('status').gte('data', today()),
-        supabase.from('receitas').select('id').gte('data', today()),
-        supabase.from('conversoes').select('converteu,valor_venda'),
-        supabase.from('agenda').select('*').eq('data', today()).eq('status','Agendado').order('hora').limit(8),
+        applyU(supabase.from('agenda').select('status').gte('data', today())),
+        applyU(supabase.from('receitas').select('id').gte('data', today())),
+        applyU(supabase.from('conversoes').select('converteu,valor_venda')),
+        applyU(supabase.from('agenda').select('*').eq('data', today()).eq('status','Agendado').order('hora').limit(8)),
       ]);
       const agenda = ag.data || [];
       const cvs = conv.data || [];
@@ -289,7 +316,7 @@ function Dashboard({ user }) {
       setLoading(false);
     };
     load();
-  }, []);
+  }, [selectedUnidade]);
 
   const KPI = ({label, value, sub, color=C.teal}) => (
     <Card style={{textAlign:'center'}}>
@@ -349,7 +376,7 @@ function Dashboard({ user }) {
 /* ══════════════════════════════════════════════════════
    AGENDA
 ══════════════════════════════════════════════════════ */
-function Agenda({ user }) {
+function Agenda({ user, selectedUnidade='' }) {
   const [slots, setSlots] = useState([]);
   const [optos, setOptos] = useState([]);
   const [selOpto, setSelOpto] = useState('');
@@ -372,10 +399,11 @@ function Agenda({ user }) {
 
   const loadSlots = async (opto, data) => {
     if (!opto || !data) return;
+    const applyU = q => selectedUnidade ? q.eq('unidade', selectedUnidade) : q;
     // Busca agendamentos do opto selecionado + agendamentos da IA (opto_id null) na mesma data
     const [res1, res2] = await Promise.all([
-      supabase.from('agenda').select('*').eq('opto_id', opto).eq('data', data),
-      supabase.from('agenda').select('*').is('opto_id', null).eq('data', data)
+      applyU(supabase.from('agenda').select('*').eq('opto_id', opto).eq('data', data)),
+      applyU(supabase.from('agenda').select('*').is('opto_id', null).eq('data', data))
     ]);
     const combined = [...(res1.data||[]), ...(res2.data||[])];
     // Deduplica por id e ordena por hora
@@ -389,7 +417,7 @@ function Agenda({ user }) {
     if (!selOpto || !selData) return;
     setLoading(true);
     loadSlots(selOpto, selData).then(data => { setSlots(data||[]); setLoading(false); });
-  }, [selOpto, selData]);
+  }, [selOpto, selData, selectedUnidade]);
 
   // Realtime: atualiza slots automaticamente
   useRealtime('agenda', () => {
@@ -728,7 +756,7 @@ function AgendaModal({ hora, existing, pacientes, optos, onSave, onDelete, onClo
 /* ══════════════════════════════════════════════════════
    AGENDAMENTOS (lista filtrada)
 ══════════════════════════════════════════════════════ */
-function Agendamentos({ user, onAtender }) {
+function Agendamentos({ user, onAtender, selectedUnidade='' }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filtros, setFiltros] = useState({ data: today(), opto:'', status:'', proc:'', agendadoPor:'', unidade:'' });
@@ -756,11 +784,13 @@ function Agendamentos({ user, onAtender }) {
     if (filtros.status) q = q.eq('status', filtros.status);
     if (filtros.proc) q = q.eq('procedimento', filtros.proc);
     if (filtros.agendadoPor) q = q.eq('agendado_por', filtros.agendadoPor);
-    if (filtros.unidade) q = q.eq('unidade', filtros.unidade);
+    // Global unit filter takes priority over local unidade filter
+    const unidadeFilter = selectedUnidade || filtros.unidade;
+    if (unidadeFilter) q = q.eq('unidade', unidadeFilter);
     const {data} = await q;
     setRows(data||[]);
     setLoading(false);
-  }, [filtros]);
+  }, [filtros, selectedUnidade]);
 
   useEffect(()=>{ load(); },[load]);
 
@@ -845,7 +875,7 @@ function Agendamentos({ user, onAtender }) {
 /* ══════════════════════════════════════════════════════
    ATENDIMENTO
 ══════════════════════════════════════════════════════ */
-function Atendimento({ user, agendaItem, clearAgendaItem }) {
+function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) {
   const [fila, setFila] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sel, setSel] = useState(null);
@@ -859,9 +889,10 @@ function Atendimento({ user, agendaItem, clearAgendaItem }) {
   const setF = (k,v) => setForm(f=>({...f,[k]:v}));
 
   const loadFila = useCallback(() => {
-    supabase.from('agenda').select('*').eq('data',today()).eq('status','Compareceu').order('hora')
-      .then(({data})=>{ setFila(data||[]); setLoading(false); });
-  }, []);
+    let q = supabase.from('agenda').select('*').eq('data',today()).eq('status','Compareceu').order('hora');
+    if (selectedUnidade) q = q.eq('unidade', selectedUnidade);
+    q.then(({data})=>{ setFila(data||[]); setLoading(false); });
+  }, [selectedUnidade]);
 
   useEffect(()=>{ loadFila(); },[loadFila]);
 
@@ -1218,7 +1249,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem }) {
 /* ══════════════════════════════════════════════════════
    CONVERSÃO
 ══════════════════════════════════════════════════════ */
-function Conversao({ user }) {
+function Conversao({ user, selectedUnidade='' }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
@@ -1235,14 +1266,17 @@ function Conversao({ user }) {
     let q = supabase.from('receitas').select('*,agenda(*)').order('data',{ascending:false});
     if (filtro.de) q = q.gte('data', filtro.de);
     if (filtro.ate) q = q.lte('data', filtro.ate);
+    if (selectedUnidade) q = q.eq('unidade', selectedUnidade);
     const {data: receitas} = await q;
     // buscar conversoes para cada receita
-    const {data: convs} = await supabase.from('conversoes').select('*');
+    let qc = supabase.from('conversoes').select('*');
+    if (selectedUnidade) qc = qc.eq('unidade', selectedUnidade);
+    const {data: convs} = await qc;
     const convMap = {};
     (convs||[]).forEach(c=>{ convMap[c.receita_id]=c; });
     setRows((receitas||[]).map(r=>({...r, conversao: convMap[r.id]||null})));
     setLoading(false);
-  }, [filtro]);
+  }, [filtro, selectedUnidade]);
 
   useEffect(()=>{ load(); },[load]);
 
@@ -1356,7 +1390,7 @@ function ConvModal({ receita, onSave, onClose }) {
 /* ══════════════════════════════════════════════════════
    NO-SHOW
 ══════════════════════════════════════════════════════ */
-function NoShow({ user }) {
+function NoShow({ user, selectedUnidade='' }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState({ de:'', ate:'' });
@@ -1372,19 +1406,21 @@ function NoShow({ user }) {
     let q1 = supabase.from('agenda').select('*').eq('status','Não Compareceu');
     if (filtro.de) q1 = q1.gte('data', filtro.de);
     if (filtro.ate) q1 = q1.lte('data', filtro.ate);
+    if (selectedUnidade) q1 = q1.eq('unidade', selectedUnidade);
     const {data: agNComp} = await q1;
 
     // 2. Conversões não convertidas
     let q2 = supabase.from('conversoes').select('*').eq('converteu',false);
     if (filtro.de) q2 = q2.gte('data', filtro.de);
     if (filtro.ate) q2 = q2.lte('data', filtro.ate);
+    if (selectedUnidade) q2 = q2.eq('unidade', selectedUnidade);
     const {data: convNao} = await q2;
 
     const r1 = (agNComp||[]).map(a=>({...a, tipo:'Não Compareceu', paciente:a.paciente_nome, opto:a.opto_nome, dtRef:a.data}));
     const r2 = (convNao||[]).map(c=>({...c, tipo:'Não Converteu', paciente:c.paciente_nome, opto:c.opto_nome, dtRef:c.data}));
     setRows([...r1,...r2].sort((a,b)=>b.dtRef.localeCompare(a.dtRef)));
     setLoading(false);
-  }, [filtro]);
+  }, [filtro, selectedUnidade]);
 
   useEffect(()=>{ load(); },[load]);
 
@@ -1437,7 +1473,7 @@ function NoShow({ user }) {
 /* ══════════════════════════════════════════════════════
    RELATÓRIOS
 ══════════════════════════════════════════════════════ */
-function Relatorios() {
+function Relatorios({ selectedUnidade='' }) {
   const [optos, setOptos] = useState([]);
   const [stats, setStats] = useState([]);
   const [statsPrev, setStatsPrev] = useState([]);
@@ -1446,11 +1482,12 @@ function Relatorios() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    const applyU = q => selectedUnidade ? q.eq('unidade', selectedUnidade) : q;
     const [oRes, agRes, recRes, convRes] = await Promise.all([
       supabase.from('usuarios').select('*').eq('perfil','opto').eq('ativo',true),
-      supabase.from('agenda').select('*'),
-      supabase.from('receitas').select('*'),
-      supabase.from('conversoes').select('*'),
+      applyU(supabase.from('agenda').select('*')),
+      applyU(supabase.from('receitas').select('*')),
+      applyU(supabase.from('conversoes').select('*')),
     ]);
     const os = oRes.data||[];
     const ag = agRes.data||[];
@@ -1492,7 +1529,7 @@ function Relatorios() {
     setStatsPrev(rankPrev);
 
     setLoading(false);
-  }, [filtro]);
+  }, [filtro, selectedUnidade]);
 
   useEffect(()=>{ load(); },[load]);
 
@@ -1608,7 +1645,7 @@ function Relatorios() {
 /* ══════════════════════════════════════════════════════
    USUÁRIOS
 ══════════════════════════════════════════════════════ */
-function Usuarios() {
+function Usuarios({ selectedUnidade='' }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
@@ -1616,11 +1653,13 @@ function Usuarios() {
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(''),3000); };
 
   const load = async () => {
-    const {data} = await supabase.from('usuarios').select('*').order('nome');
+    let q = supabase.from('usuarios').select('*').order('nome');
+    if (selectedUnidade) q = q.eq('unidade', selectedUnidade);
+    const {data} = await q;
     setRows(data||[]);
     setLoading(false);
   };
-  useEffect(()=>{ load(); },[]);
+  useEffect(()=>{ load(); },[selectedUnidade]);
 
   const handleSave = async (form) => {
     if (form.id) {
@@ -1721,7 +1760,7 @@ function UsuarioModal({ user, onSave, onClose }) {
 /* ══════════════════════════════════════════════════════
    RECEITAS
 ══════════════════════════════════════════════════════ */
-function Receitas({ user }) {
+function Receitas({ user, selectedUnidade='' }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState({ de:'', ate:'' });
@@ -1733,10 +1772,11 @@ function Receitas({ user }) {
     if (filtro.de) q = q.gte('data', filtro.de);
     if (filtro.ate) q = q.lte('data', filtro.ate);
     if (user.perfil === 'opto') q = q.eq('opto_id', user.id);
+    if (selectedUnidade) q = q.eq('unidade', selectedUnidade);
     const { data } = await q;
     setRows(data || []);
     setLoading(false);
-  }, [filtro, user]);
+  }, [filtro, user, selectedUnidade]);
 
   useEffect(() => { load(); }, [load]);
   useRealtime('receitas', () => load());
@@ -1878,35 +1918,36 @@ export default function App() {
   const [usuario, setUsuario] = useState(null);
   const [tab, setTab] = useState('inicio');
   const [agendaItem, setAgendaItem] = useState(null);
+  const [selectedUnidade, setSelectedUnidade] = useState('');
 
   const handleAtender = (item) => {
     setAgendaItem(item);
     setTab('atendimento');
   };
 
-  if (!usuario) return <Login onLogin={u => { setUsuario(u); const nav=PERFIS[u.perfil]?.nav||[]; setTab(nav[0]||'inicio'); }}/>;
+  if (!usuario) return <Login onLogin={u => { setUsuario(u); const nav=PERFIS[u.perfil]?.nav||[]; setTab(nav[0]||'inicio'); setSelectedUnidade(u.unidade||''); }}/>;
 
   const navPerm = PERFIS[usuario.perfil]?.nav || [];
   if (!navPerm.includes(tab)) return (
-    <Layout user={usuario} tab={tab} setTab={setTab} onLogout={()=>setUsuario(null)}>
+    <Layout user={usuario} tab={tab} setTab={setTab} onLogout={()=>setUsuario(null)} selectedUnidade={selectedUnidade} setSelectedUnidade={setSelectedUnidade}>
       <Card><p style={{textAlign:'center',padding:40,color:C.gray}}>Sem permissão para acessar esta seção.</p></Card>
     </Layout>
   );
 
   const pages = {
-    inicio:       <Dashboard user={usuario}/>,
-    agenda:       <Agenda user={usuario}/>,
-    agendamentos: <Agendamentos user={usuario} onAtender={handleAtender}/>,
-    atendimento:  <Atendimento user={usuario} agendaItem={agendaItem} clearAgendaItem={()=>setAgendaItem(null)}/>,
-    receitas:     <Receitas user={usuario}/>,
-    conversao:    <Conversao user={usuario}/>,
-    noshow:       <NoShow user={usuario}/>,
-    relatorios:   <Relatorios/>,
-    usuarios:     <Usuarios/>,
+    inicio:       <Dashboard user={usuario} selectedUnidade={selectedUnidade}/>,
+    agenda:       <Agenda user={usuario} selectedUnidade={selectedUnidade}/>,
+    agendamentos: <Agendamentos user={usuario} onAtender={handleAtender} selectedUnidade={selectedUnidade}/>,
+    atendimento:  <Atendimento user={usuario} agendaItem={agendaItem} clearAgendaItem={()=>setAgendaItem(null)} selectedUnidade={selectedUnidade}/>,
+    receitas:     <Receitas user={usuario} selectedUnidade={selectedUnidade}/>,
+    conversao:    <Conversao user={usuario} selectedUnidade={selectedUnidade}/>,
+    noshow:       <NoShow user={usuario} selectedUnidade={selectedUnidade}/>,
+    relatorios:   <Relatorios selectedUnidade={selectedUnidade}/>,
+    usuarios:     <Usuarios selectedUnidade={selectedUnidade}/>,
   };
 
   return (
-    <Layout user={usuario} tab={tab} setTab={setTab} onLogout={()=>setUsuario(null)}>
+    <Layout user={usuario} tab={tab} setTab={setTab} onLogout={()=>setUsuario(null)} selectedUnidade={selectedUnidade} setSelectedUnidade={setSelectedUnidade}>
       {pages[tab] || <div>Página não encontrada</div>}
     </Layout>
   );
