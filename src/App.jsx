@@ -21,7 +21,7 @@ const C = {
 
 const HORARIOS = (() => {
   const h = [];
-  for (let t = 7*60; t <= 18*60+45; t += 15) {
+  for (let t = 8*60; t <= 18*60+45; t += 15) {
     h.push(`${pad(Math.floor(t/60))}:${pad(t%60)}`);
   }
   return h;
@@ -455,6 +455,7 @@ function AgendaModal({ hora, existing, pacientes, optos, onSave, onDelete, onClo
     pacienteId: existing?.paciente_id||'',
     pacienteNome: existing?.paciente_nome||'',
     telefone: existing?.paciente_telefone||'',
+    dataNasc: '',
     procedimento: existing?.procedimento||PROCEDIMENTOS[0],
     meioContato: existing?.meio_contato||MEIOS_CONTATO[0],
     obs: existing?.observacoes||'',
@@ -462,12 +463,15 @@ function AgendaModal({ hora, existing, pacientes, optos, onSave, onDelete, onClo
   const [busca, setBusca] = useState(existing?.paciente_nome||'');
   const [sugestoes, setSugestoes] = useState([]);
   const [showSug, setShowSug] = useState(false);
+  const [novoCliente, setNovoCliente] = useState(false);
+  const [salvandoPac, setSalvandoPac] = useState(false);
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
 
   const handleBusca = (val) => {
     setBusca(val);
     set('pacienteNome', val);
     set('pacienteId', '');
+    setNovoCliente(false);
     if (val.length >= 2) {
       const filtrados = pacientes.filter(p => p.nome.toLowerCase().includes(val.toLowerCase()));
       setSugestoes(filtrados.slice(0, 8));
@@ -483,80 +487,166 @@ function AgendaModal({ hora, existing, pacientes, optos, onSave, onDelete, onClo
     set('pacienteId', p.id);
     set('pacienteNome', p.nome);
     if (p.telefone) set('telefone', p.telefone);
+    if (p.data_nascimento) set('dataNasc', p.data_nascimento);
     setSugestoes([]);
     setShowSug(false);
+    setNovoCliente(false);
   };
+
+  const abrirCadastro = () => {
+    setShowSug(false);
+    setNovoCliente(true);
+    set('pacienteNome', busca);
+    set('telefone', '');
+    set('dataNasc', '');
+  };
+
+  const handleSalvar = async () => {
+    if (!form.pacienteNome.trim()) { alert('Informe o nome do paciente.'); return; }
+    if (!form.telefone.trim()) { alert('WhatsApp é obrigatório.'); return; }
+
+    let pacId = form.pacienteId;
+
+    // Se é novo cliente, cadastra na tabela pacientes antes
+    if (novoCliente && !form.pacienteId) {
+      setSalvandoPac(true);
+      const novoPac = {
+        id: uid(),
+        nome: form.pacienteNome.trim(),
+        telefone: form.telefone.trim(),
+        data_nascimento: form.dataNasc || null,
+      };
+      const { data: pacData, error } = await supabase.from('pacientes').insert(novoPac).select().single();
+      setSalvandoPac(false);
+      if (!error && pacData) {
+        pacId = pacData.id;
+        set('pacienteId', pacId);
+      }
+    }
+
+    onSave({ ...form, pacienteId: pacId });
+  };
+
+  const inputStyle = (val, obrig=false) => ({
+    width:'100%', padding:'8px 12px',
+    border:`1px solid ${obrig && !val ? C.danger : C.border}`,
+    borderRadius:8, fontSize:14, color:C.text, background:C.white,
+    boxSizing:'border-box', outline:'none'
+  });
 
   return (
     <Modal title={existing?'Editar Agendamento':'Novo Agendamento'} onClose={onClose}>
       <div style={{display:'flex',flexDirection:'column',gap:14}}>
-        <Select label="Horário" value={form.hora} onChange={e=>set('hora',e.target.value)}
-          options={HORARIOS}/>
+        <Select label="Horário" value={form.hora} onChange={e=>set('hora',e.target.value)} options={HORARIOS}/>
 
         {/* Busca de paciente com lupa */}
         <div style={{position:'relative'}}>
-          <label style={{display:'block',fontSize:12,fontWeight:600,color:C.navy,marginBottom:4}}>Paciente</label>
-          <div style={{position:'relative'}}>
-            <input
-              value={busca}
-              onChange={e=>handleBusca(e.target.value)}
-              onFocus={()=>busca.length>=2&&setShowSug(true)}
-              onBlur={()=>setTimeout(()=>setShowSug(false),150)}
-              placeholder="🔍 Buscar por nome..."
-              style={{width:'100%',padding:'8px 12px',border:`1px solid ${C.border}`,borderRadius:8,
-                fontSize:14,color:C.text,background:C.white,boxSizing:'border-box',outline:'none'}}
-            />
-          </div>
-          {showSug && sugestoes.length > 0 && (
-            <div style={{position:'absolute',top:'100%',left:0,right:0,background:C.white,
-              border:`1px solid ${C.border}`,borderRadius:8,boxShadow:'0 4px 12px rgba(0,0,0,0.1)',
+          <label style={{display:'block',fontSize:12,fontWeight:600,color:C.navy,marginBottom:4}}>
+            Buscar Paciente
+          </label>
+          <input
+            value={busca}
+            onChange={e=>handleBusca(e.target.value)}
+            onFocus={()=>busca.length>=2&&setShowSug(true)}
+            onBlur={()=>setTimeout(()=>setShowSug(false),180)}
+            placeholder="🔍 Digite o nome para buscar..."
+            style={inputStyle(busca)}
+          />
+          {/* Dropdown de sugestões */}
+          {showSug && (
+            <div style={{position:'absolute',top:'calc(100% + 2px)',left:0,right:0,background:C.white,
+              border:`1px solid ${C.border}`,borderRadius:8,boxShadow:'0 4px 16px rgba(0,0,0,0.12)',
               zIndex:999,maxHeight:200,overflowY:'auto'}}>
-              {sugestoes.map(p=>(
+              {sugestoes.length > 0 ? sugestoes.map(p=>(
                 <div key={p.id} onMouseDown={()=>selecionarPaciente(p)}
                   style={{padding:'8px 12px',cursor:'pointer',fontSize:14,color:C.text,
-                    borderBottom:`1px solid ${C.grayL}`}}
+                    borderBottom:`1px solid ${C.grayL}`,display:'flex',justifyContent:'space-between'}}
                   onMouseEnter={e=>e.currentTarget.style.background=C.tealBg}
                   onMouseLeave={e=>e.currentTarget.style.background=C.white}>
-                  {p.nome} {p.telefone?<span style={{color:C.gray,fontSize:12}}>— {p.telefone}</span>:''}
+                  <span>{p.nome}</span>
+                  {p.telefone && <span style={{color:C.gray,fontSize:12}}>{p.telefone}</span>}
                 </div>
-              ))}
-            </div>
-          )}
-          {showSug && sugestoes.length === 0 && busca.length >= 2 && (
-            <div style={{position:'absolute',top:'100%',left:0,right:0,background:C.white,
-              border:`1px solid ${C.border}`,borderRadius:8,padding:'8px 12px',
-              fontSize:13,color:C.gray,zIndex:999}}>
-              Paciente não encontrado — será criado como novo
+              )) : (
+                <div style={{padding:'10px 12px'}}>
+                  <div style={{fontSize:13,color:C.gray,marginBottom:8}}>Nenhum paciente encontrado</div>
+                  <div onMouseDown={abrirCadastro}
+                    style={{fontSize:13,fontWeight:600,color:C.teal,cursor:'pointer',
+                      padding:'6px 10px',background:C.tealBg,borderRadius:6,textAlign:'center'}}>
+                    + Cadastrar "{busca}" como novo paciente
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* Telefone/WhatsApp obrigatório */}
-        <div>
-          <label style={{display:'block',fontSize:12,fontWeight:600,color:C.navy,marginBottom:4}}>
-            WhatsApp <span style={{color:C.danger}}>*</span>
-          </label>
-          <input
-            value={form.telefone}
-            onChange={e=>set('telefone',e.target.value)}
-            placeholder="(00) 00000-0000"
-            required
-            style={{width:'100%',padding:'8px 12px',border:`1px solid ${form.telefone?C.border:C.danger}`,
-              borderRadius:8,fontSize:14,color:C.text,background:C.white,boxSizing:'border-box',outline:'none'}}
-          />
-        </div>
+        {/* Paciente selecionado — badge */}
+        {form.pacienteId && !novoCliente && (
+          <div style={{background:C.tealBg,borderRadius:8,padding:'8px 12px',display:'flex',
+            justifyContent:'space-between',alignItems:'center',fontSize:13}}>
+            <span style={{fontWeight:600,color:C.tealD}}>✓ {form.pacienteNome}</span>
+            <span style={{color:C.gray,cursor:'pointer',fontSize:12}} onClick={()=>{
+              setBusca(''); set('pacienteId',''); set('pacienteNome',''); set('telefone',''); set('dataNasc','');
+            }}>Trocar</span>
+          </div>
+        )}
+
+        {/* Mini-cadastro de novo paciente */}
+        {novoCliente && (
+          <div style={{background:'#fff8f0',border:`1px solid ${C.orange}`,borderRadius:10,padding:14}}>
+            <div style={{fontSize:13,fontWeight:700,color:C.orange,marginBottom:12}}>
+              📋 Cadastro Rápido de Paciente
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:10}}>
+              <div>
+                <label style={{display:'block',fontSize:12,fontWeight:600,color:C.navy,marginBottom:4}}>
+                  Nome completo <span style={{color:C.danger}}>*</span>
+                </label>
+                <input value={form.pacienteNome} onChange={e=>set('pacienteNome',e.target.value)}
+                  placeholder="Nome do paciente" style={inputStyle(form.pacienteNome, true)}/>
+              </div>
+              <div>
+                <label style={{display:'block',fontSize:12,fontWeight:600,color:C.navy,marginBottom:4}}>
+                  WhatsApp <span style={{color:C.danger}}>*</span>
+                </label>
+                <input value={form.telefone} onChange={e=>set('telefone',e.target.value)}
+                  placeholder="(00) 00000-0000" style={inputStyle(form.telefone, true)}/>
+              </div>
+              <div>
+                <label style={{display:'block',fontSize:12,fontWeight:600,color:C.navy,marginBottom:4}}>
+                  Data de Nascimento
+                </label>
+                <input type="date" value={form.dataNasc} onChange={e=>set('dataNasc',e.target.value)}
+                  style={inputStyle(form.dataNasc)}/>
+              </div>
+            </div>
+            <div style={{fontSize:11,color:C.gray,marginTop:8}}>
+              O paciente será cadastrado automaticamente ao salvar o agendamento.
+            </div>
+          </div>
+        )}
+
+        {/* WhatsApp — quando paciente já selecionado mas sem telefone, ou paciente novo */}
+        {!novoCliente && !form.pacienteId && busca.length === 0 && (
+          <div>
+            <label style={{display:'block',fontSize:12,fontWeight:600,color:C.navy,marginBottom:4}}>
+              WhatsApp <span style={{color:C.danger}}>*</span>
+            </label>
+            <input value={form.telefone} onChange={e=>set('telefone',e.target.value)}
+              placeholder="(00) 00000-0000" style={inputStyle(form.telefone, true)}/>
+          </div>
+        )}
 
         <Select label="Procedimento" value={form.procedimento} onChange={e=>set('procedimento',e.target.value)} options={PROCEDIMENTOS}/>
         <Select label="Meio de Contato" value={form.meioContato} onChange={e=>set('meioContato',e.target.value)} options={MEIOS_CONTATO}/>
         <Input label="Observações" value={form.obs} onChange={e=>set('obs',e.target.value)} placeholder="Opcional"/>
+
         <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:8}}>
           {existing && <Btn color={C.danger} outline onClick={()=>onDelete(existing.id)}>Remover</Btn>}
           <Btn color={C.gray} outline onClick={onClose}>Cancelar</Btn>
-          <Btn color={C.teal} onClick={()=>{
-            if (!form.pacienteNome.trim()) { alert('Informe o nome do paciente.'); return; }
-            if (!form.telefone.trim()) { alert('WhatsApp é obrigatório.'); return; }
-            onSave(form);
-          }}>Salvar</Btn>
+          <Btn color={C.teal} onClick={handleSalvar} disabled={salvandoPac}>
+            {salvandoPac ? 'Salvando...' : 'Salvar'}
+          </Btn>
         </div>
       </div>
     </Modal>
