@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabase';
 
@@ -19,9 +18,13 @@ const C = {
   text:'#173D43', textSm:'#555'
 };
 
-const HORARIOS = ['07:00','07:30','08:00','08:30','09:00','09:30','10:00','10:30',
-  '11:00','11:30','12:00','12:30','13:00','13:30','14:00','14:30',
-  '15:00','15:30','16:00','16:30','17:00','17:30','18:00','18:30'];
+const HORARIOS = (() => {
+  const h = [];
+  for (let t = 7*60; t <= 18*60+45; t += 15) {
+    h.push(`${pad(Math.floor(t/60))}:${pad(t%60)}`);
+  }
+  return h;
+})();
 
 const PROCEDIMENTOS = ['Consulta','Retorno'];
 const MEIOS_CONTATO = ['Loja','Visão Ideal'];
