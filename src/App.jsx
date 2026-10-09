@@ -47,6 +47,16 @@ const PERFIS = {
   diretor:   { label:'Diretor',      cor:C.navy,     nav:['inicio','agenda','agendamentos','atendimento','receitas','conversao','noshow','relatorios','usuarios'] },
 };
 
+const UNIDADES = ['São Vicente','Piracicaba','Sorocaba','Campinas'];
+
+// Endereços por unidade — para cabeçalho da receita e rodapé
+const ENDERECOS_UNIDADES = {
+  'São Vicente': 'Av. Antônio Emerich, 477 - Vila Melo – São Vicente – SP',
+  'Piracicaba':  'Rua Benjamin Constant, 1379 - Centro – Piracicaba – SP',
+  'Sorocaba':    'R. Comendador Hermelino Matarazzo, 468 - Vila Santana – Sorocaba – SP',
+  'Campinas':    'Rua Conceição, 233, Sala 604 - Centro – Campinas – SP',
+};
+
 // Perfis que veem os KPIs comerciais (Conversões, Faturamento, No-Show, Taxa Conv.)
 const PERFIS_COMERCIAL = ['prevenda','supervisor','diretor','gerente'];
 
@@ -227,7 +237,8 @@ function Layout({ user, tab, setTab, onLogout, children }) {
         <div style={{padding:'12px 16px',borderTop:`1px solid ${C.border}`,fontSize:12}}>
           <div style={{fontWeight:600,color:C.navy}}>{user.nome}</div>
           <Badge color={perfil?.cor||C.teal} style={{marginTop:4}}>{perfil?.label}</Badge>
-          {user.cro && <div style={{color:C.gray,marginTop:4}}>CRO: {user.cro}</div>}
+          {user.unidade && <div style={{color:C.teal,marginTop:4,fontWeight:600,fontSize:11}}>📍 {user.unidade}</div>}
+          {user.cro && <div style={{color:C.gray,marginTop:2}}>CRO: {user.cro}</div>}
         </div>
       </div>
       {/* Main */}
@@ -410,7 +421,7 @@ function Agenda({ user }) {
       paciente_telefone:form.telefone||'',
       opto_id:selOpto, opto_nome:opto?.nome, data:form.data||selData, hora:form.hora,
       procedimento:form.procedimento, meio_contato:form.meioContato, status:'Agendado', observacoes:form.obs||'',
-      agendado_por: user?.nome||'' };
+      agendado_por: user?.nome||'', unidade: opto?.unidade||'' };
     if (modal.existing) {
       await supabase.from('agenda').update(row).eq('id',modal.existing.id);
     } else {
@@ -694,7 +705,7 @@ function AgendaModal({ hora, existing, pacientes, optos, onSave, onDelete, onClo
 function Agendamentos({ user, onAtender }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filtros, setFiltros] = useState({ data: today(), opto:'', status:'', proc:'', agendadoPor:'' });
+  const [filtros, setFiltros] = useState({ data: today(), opto:'', status:'', proc:'', agendadoPor:'', unidade:'' });
   const [optos, setOptos] = useState([]);
   const [prevs, setPrevs] = useState([]);
   const [toast, setToast] = useState('');
@@ -719,6 +730,7 @@ function Agendamentos({ user, onAtender }) {
     if (filtros.status) q = q.eq('status', filtros.status);
     if (filtros.proc) q = q.eq('procedimento', filtros.proc);
     if (filtros.agendadoPor) q = q.eq('agendado_por', filtros.agendadoPor);
+    if (filtros.unidade) q = q.eq('unidade', filtros.unidade);
     const {data} = await q;
     setRows(data||[]);
     setLoading(false);
@@ -746,6 +758,8 @@ function Agendamentos({ user, onAtender }) {
             options={[{value:'',label:'Todos'},...PROCEDIMENTOS.map(p=>({value:p,label:p}))]}/>
           <Select label="Agendado por" value={filtros.agendadoPor} onChange={e=>setFiltros(f=>({...f,agendadoPor:e.target.value}))}
             options={[{value:'',label:'Todos'},...prevs.map(n=>({value:n,label:n}))]}/>
+          <Select label="Unidade" value={filtros.unidade} onChange={e=>setFiltros(f=>({...f,unidade:e.target.value}))}
+            options={[{value:'',label:'Todas'},...UNIDADES.map(u=>({value:u,label:u}))]}/>
         </div>
       </Card>
       {loading ? <Spinner/> : (
@@ -862,10 +876,11 @@ function Atendimento({ user, agendaItem, clearAgendaItem }) {
     const row = {
       id:uid(), agenda_id:sel.id, paciente_nome:sel.paciente_nome,
       paciente_telefone:sel.paciente_telefone||'',
-      opto_id:opto.id, opto_nome:opto.nome, data:today(),
-      data_hora_atendimento: dataHora,
-      meio_contato: sel.meio_contato||'',
-      agendado_por: sel.agendado_por||'',
+      opto_id:opto.id, opto_nome:opto.nome, opto_cro:opto.cro||'', opto_unidade:opto.unidade||'',
+      opto_endereco:opto.endereco||ENDERECOS_UNIDADES[opto.unidade]||'',
+      data:today(), data_hora_atendimento: dataHora,
+      meio_contato: sel.meio_contato||'', agendado_por: sel.agendado_por||'',
+      unidade: opto.unidade||'',
       od_esf:form.od_esf, od_cil:form.od_cil, od_eixo:form.od_eixo, od_adicao:form.od_add, od_dnp:form.od_dnp,
       oe_esf:form.oe_esf, oe_cil:form.oe_cil, oe_eixo:form.oe_eixo, oe_adicao:form.oe_add, oe_dnp:form.oe_dnp,
       observacoes:form.anamnese,
@@ -1160,7 +1175,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem }) {
 
                 <!-- RODAPÉ -->
                 <div class="footer">
-                  <div>Clínica Visão Ideal &nbsp;·&nbsp; Avenida Antonio Emerick, São Vicente – SP</div>
+                  <div>Clínica Visão Ideal &nbsp;·&nbsp; ${receita.opto_endereco||ENDERECOS_UNIDADES[receita.opto_unidade]||'Av. Antônio Emerich, 477 - Vila Melo – São Vicente – SP'}</div>
                 </div>
 
                 <script>window.onload=()=>{ setTimeout(()=>window.print(),200); };</script>
@@ -1608,7 +1623,7 @@ function Usuarios() {
           <div className="tbl-wrap">
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
               <thead><tr style={{background:C.navy,color:C.white}}>
-                {['Nome','Perfil','CRO','Senha','Status',''].map(h=>(
+                {['Nome','Perfil','Unidade','CRO','Senha','Status',''].map(h=>(
                   <th key={h} style={{padding:'9px 12px',textAlign:'left'}}>{h}</th>
                 ))}
               </tr></thead>
@@ -1617,6 +1632,7 @@ function Usuarios() {
                   <tr key={u.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`,opacity:u.ativo?1:.5}}>
                     <td style={{padding:'8px 12px',fontWeight:600}}>{u.nome}</td>
                     <td style={{padding:'8px 12px'}}><Badge color={PERFIS[u.perfil]?.cor||C.gray}>{PERFIS[u.perfil]?.label||u.perfil}</Badge></td>
+                    <td style={{padding:'8px 12px',fontSize:12,color:C.teal,fontWeight:600}}>{u.unidade||'—'}</td>
                     <td style={{padding:'8px 12px',fontSize:11,color:C.gray}}>{u.cro||'—'}</td>
                     <td style={{padding:'8px 12px',fontFamily:'monospace'}}>{u.senha}</td>
                     <td style={{padding:'8px 12px'}}><Badge color={u.ativo?C.success:C.danger}>{u.ativo?'Ativo':'Inativo'}</Badge></td>
@@ -1639,14 +1655,31 @@ function Usuarios() {
 }
 
 function UsuarioModal({ user, onSave, onClose }) {
-  const [form, setForm] = useState({id:user.id||null,nome:user.nome||'',perfil:user.perfil||'opto',senha:user.senha||'',cro:user.cro||'',ativo:user.ativo??true});
+  const [form, setForm] = useState({
+    id:user.id||null, nome:user.nome||'', perfil:user.perfil||'opto',
+    senha:user.senha||'', cro:user.cro||'', ativo:user.ativo??true,
+    unidade:user.unidade||'', endereco:user.endereco||'',
+  });
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
+
+  // Ao selecionar unidade, preenche endereço automaticamente se vazio ou padrão
+  const handleUnidade = (val) => {
+    set('unidade', val);
+    if (val && (!form.endereco || ENDERECOS_UNIDADES[form.unidade]===form.endereco)) {
+      set('endereco', ENDERECOS_UNIDADES[val]||'');
+    }
+  };
+
   return (
     <Modal title={user.id?'Editar Usuário':'Novo Usuário'} onClose={onClose}>
       <div style={{display:'flex',flexDirection:'column',gap:14}}>
         <Input label="Nome" value={form.nome} onChange={e=>set('nome',e.target.value)} placeholder="Nome completo"/>
         <Select label="Perfil" value={form.perfil} onChange={e=>set('perfil',e.target.value)}
           options={Object.entries(PERFIS).map(([v,p])=>({value:v,label:p.label}))}/>
+        <Select label="Unidade" value={form.unidade} onChange={e=>handleUnidade(e.target.value)}
+          options={[{value:'',label:'Selecionar unidade'},...UNIDADES.map(u=>({value:u,label:u}))]}/>
+        <Input label="Endereço da Unidade" value={form.endereco} onChange={e=>set('endereco',e.target.value)}
+          placeholder="Endereço completo da clínica"/>
         {form.perfil==='opto' && <Input label="CRO" value={form.cro} onChange={e=>set('cro',e.target.value)} placeholder="CRO-SP 12345"/>}
         <Input label="Senha" value={form.senha} onChange={e=>set('senha',e.target.value)} placeholder="Senha de acesso"/>
         <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:8}}>
