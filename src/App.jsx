@@ -186,7 +186,7 @@ function Layout({ user, tab, setTab, onLogout, children }) {
       {/* Mobile header */}
       <div style={{position:'fixed',top:0,left:0,right:0,height:52,background:C.white,borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px',zIndex:200}}>
         <button onClick={()=>setDrawer(true)} style={{background:'none',fontSize:22,color:C.navy,border:'none',fontWeight:700}}>&#9776;</button>
-        <img src="/logo-clinica.png" alt="Clínica Visão Ideal" style={{height:32,objectFit:'contain'}}/>
+        <img src="/logo-clinica.png" alt="Clínica Visão Ideal" style={{height:30,objectFit:'contain'}}/>
         <Badge color={perfil?.cor||C.teal}>{perfil?.label}</Badge>
       </div>
       {/* Drawer */}
@@ -1008,97 +1008,140 @@ function Atendimento({ user, agendaItem, clearAgendaItem }) {
                 <meta charset="utf-8"/>
                 <style>
                   *{box-sizing:border-box;margin:0;padding:0}
-                  body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#173D43;padding:40px 48px;max-width:800px;margin:0 auto}
-                  .header{display:flex;align-items:center;justify-content:space-between;padding-bottom:16px;border-bottom:2px solid #16AFA3;margin-bottom:24px}
-                  .logo{height:64px;object-fit:contain}
-                  .titulo{font-size:16px;font-weight:700;color:#173D43;text-align:center;letter-spacing:.5px}
-                  .paciente-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:20px}
-                  .paciente-nome{font-size:14px}
-                  .paciente-nome b{font-size:15px}
-                  .paciente-idade{font-size:13px;color:#555}
-                  table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:20px}
-                  table th,table td{border:1px solid #ccc;padding:9px 12px;text-align:center}
-                  table thead tr{background:#f5f5f5}
-                  table thead th{font-weight:700;font-size:13px}
-                  table tbody tr:first-child td:first-child,
-                  table tbody tr:nth-child(2) td:first-child,
-                  table tbody tr:nth-child(3) td:first-child{font-weight:700;text-align:left}
-                  .lente-row{font-size:13px;margin-bottom:6px}
-                  .lente-row b{font-weight:700}
-                  .obs-row{font-size:13px;margin-bottom:20px;line-height:1.5}
-                  .info-meta{font-size:12px;color:#555;margin-bottom:24px;border-top:1px solid #eee;border-bottom:1px solid #eee;padding:10px 0;display:flex;gap:24px;flex-wrap:wrap}
-                  .info-meta span b{color:#173D43}
-                  .disclaimer{font-size:11px;color:#555;line-height:1.5;margin-bottom:32px;text-align:justify;border:1px solid #ddd;padding:12px 14px;background:#fafafa;border-radius:4px}
-                  .assinatura{display:flex;flex-direction:column;align-items:center;margin-bottom:20px}
-                  .assinatura .linha{border-top:1px solid #173D43;width:240px;margin-bottom:6px}
-                  .assinatura p{font-size:13px;color:#173D43;text-align:center}
-                  .footer{border-top:1px solid #ddd;padding-top:10px;font-size:11px;color:#888;text-align:center}
-                  .data-local{text-align:center;font-size:13px;margin-bottom:24px;color:#173D43}
-                  @media print{body{padding:20px 28px}@page{margin:1cm}}
+                  body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#173D43;padding:20mm 22mm 16mm 22mm;width:210mm;min-height:297mm;position:relative}
+                  /* HEADER */
+                  .header{display:flex;align-items:center;gap:20px;padding-bottom:14px;border-bottom:3px solid #16AFA3;margin-bottom:22px}
+                  .logo{height:58px;object-fit:contain}
+                  .titulo{font-size:18px;font-weight:800;color:#173D43;letter-spacing:.5px;text-transform:uppercase}
+                  .subtitulo{font-size:12px;color:#16AFA3;font-weight:600;margin-top:3px;letter-spacing:.3px}
+                  /* PACIENTE BOX */
+                  .section-box{border:1.5px solid #e0e0e0;border-radius:8px;padding:12px 16px;margin-bottom:20px;background:#fafaf8}
+                  .field-row{display:flex;gap:24px;flex-wrap:wrap}
+                  .field{display:flex;flex-direction:column;gap:2px;flex:1}
+                  .label{font-size:10px;font-weight:700;color:#16AFA3;text-transform:uppercase;letter-spacing:.5px}
+                  .value{font-size:14px;font-weight:600;color:#173D43;border-bottom:1px solid #d0d0d0;padding-bottom:4px;margin-top:2px;min-height:22px}
+                  /* SECTION TITLE */
+                  .section-title{font-size:11px;font-weight:700;color:#16AFA3;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+                  /* TABELA */
+                  table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:22px}
+                  table th{background:#173D43;color:#fff;padding:10px 12px;text-align:center;font-size:12px;font-weight:700;letter-spacing:.3px}
+                  table th:first-child{border-radius:6px 0 0 0}
+                  table th:last-child{border-radius:0 6px 0 0}
+                  table td{border:1px solid #e0e0e0;padding:10px 12px;text-align:center;font-size:13px}
+                  table tbody tr:nth-child(even){background:#f7fffe}
+                  .olho{font-weight:800;color:#173D43;font-size:14px;background:#e8f8f7!important}
+                  .adicao-row td{background:#fff8f0!important;color:#F47700;font-weight:700;font-size:13px}
+                  /* OBS */
+                  .obs-box{font-size:13px;line-height:1.6;color:#333;background:#fafaf8;border:1px solid #e0e0e0;border-radius:6px;padding:10px 14px;margin-bottom:22px}
+                  /* ASSINATURA */
+                  .assinatura-area{display:flex;align-items:flex-end;justify-content:space-between;margin-top:28px;margin-bottom:20px;gap:24px}
+                  .assinatura-col{display:flex;flex-direction:column;align-items:center;gap:4px}
+                  .assinatura-linha{border-top:1.5px solid #173D43;width:220px;margin-bottom:6px}
+                  .assinatura-nome{font-size:13px;font-weight:700;color:#173D43;text-align:center}
+                  .assinatura-cargo{font-size:11px;color:#555;text-align:center}
+                  .data-local{font-size:13px;color:#173D43;text-align:right;flex:1}
+                  /* DISCLAIMER */
+                  .disclaimer{font-size:10px;color:#666;line-height:1.6;text-align:justify;border:1px solid #ddd;padding:10px 14px;background:#fafafa;border-radius:6px;margin-bottom:18px}
+                  /* INFO META */
+                  .info-meta{font-size:10px;color:#888;border-top:1px solid #eee;padding-top:8px;display:flex;gap:20px;flex-wrap:wrap;margin-bottom:16px}
+                  .info-meta b{color:#555}
+                  /* FOOTER */
+                  .footer{border-top:1px solid #ddd;padding-top:10px;font-size:10px;color:#999;text-align:center}
+                  @media print{
+                    html,body{width:210mm;height:297mm;margin:0;padding:0}
+                    body{padding:18mm 20mm 14mm 20mm}
+                    @page{size:A4 portrait;margin:0}
+                    .no-print{display:none}
+                  }
                 </style>
               </head><body>
+                <!-- CABEÇALHO -->
                 <div class="header">
-                  <img src="${logoUrl}" alt="Clínica Visão Ideal" class="logo"/>
-                  <div class="titulo">PRESCRIÇÃO DE ÓCULOS</div>
-                  <div style="width:100px"></div>
+                  <img src="${logoUrl}" alt="Clínica Visão Ideal" class="logo" onerror="this.style.display='none'"/>
+                  <div>
+                    <div class="titulo">PRESCRIÇÃO DE ÓCULOS</div>
+                    <div class="subtitulo">Clínica Visão Ideal</div>
+                  </div>
                 </div>
-                <div class="paciente-row">
-                  <div class="paciente-nome"><b>Paciente:</b> ${receita.paciente_nome}</div>
-                  <div class="paciente-idade">Idade:</div>
+
+                <!-- PACIENTE -->
+                <div class="section-box">
+                  <div class="field-row">
+                    <div class="field"><span class="label">Paciente</span><span class="value">${receita.paciente_nome}</span></div>
+                    <div class="field" style="flex:0 0 auto;min-width:180px"><span class="label">Data do Atendimento</span><span class="value">${dtAtend}</span></div>
+                  </div>
                 </div>
+
+                <!-- TABELA DE GRAU -->
+                <div class="section-title">Grau de Correção Visual</div>
                 <table>
                   <thead>
                     <tr>
-                      <th></th>
+                      <th style="width:60px"></th>
                       <th>Esférico</th>
                       <th>Cilíndrico</th>
                       <th>Eixo</th>
                       <th>AV</th>
-                      <th>DNP</th>
+                      <th>DNP (mm)</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                      <td><b>OD</b></td>
+                      <td class="olho">OD</td>
                       <td>${receita.od_esf||'—'}</td>
                       <td>${receita.od_cil||'—'}</td>
-                      <td>${receita.od_eixo||'—'}${receita.od_eixo&&receita.od_eixo!=='—'?'°':''}</td>
+                      <td>${receita.od_eixo&&receita.od_eixo!=='—'?receita.od_eixo+'°':'—'}</td>
                       <td></td>
-                      <td>${receita.od_dnp&&receita.od_dnp!=='N/A'?receita.od_dnp:''}</td>
+                      <td>${receita.od_dnp&&receita.od_dnp!=='N/A'?receita.od_dnp:'—'}</td>
                     </tr>
                     <tr>
-                      <td><b>OE</b></td>
+                      <td class="olho">OE</td>
                       <td>${receita.oe_esf||'—'}</td>
                       <td>${receita.oe_cil||'—'}</td>
-                      <td>${receita.oe_eixo||'—'}${receita.oe_eixo&&receita.oe_eixo!=='—'?'°':''}</td>
+                      <td>${receita.oe_eixo&&receita.oe_eixo!=='—'?receita.oe_eixo+'°':'—'}</td>
                       <td></td>
-                      <td>${receita.oe_dnp&&receita.oe_dnp!=='N/A'?receita.oe_dnp:''}</td>
+                      <td>${receita.oe_dnp&&receita.oe_dnp!=='N/A'?receita.oe_dnp:'—'}</td>
                     </tr>
                     ${(receita.od_adicao&&receita.od_adicao!=='N/A')||(receita.oe_adicao&&receita.oe_adicao!=='N/A') ? `
-                    <tr>
-                      <td><b>Adição</b></td>
-                      <td colspan="5">${receita.od_adicao||receita.oe_adicao||''}</td>
+                    <tr class="adicao-row">
+                      <td class="olho" colspan="2">Adição</td>
+                      <td colspan="4" style="text-align:left;padding-left:16px">OD: ${receita.od_adicao||'—'} &nbsp;&nbsp; OE: ${receita.oe_adicao||'—'}</td>
                     </tr>` : ''}
                   </tbody>
                 </table>
-                ${receita.observacoes ? `<div class="obs-row"><b>Observações:</b> ${receita.observacoes}</div>` : ''}
+
+                ${receita.observacoes ? `
+                <div class="section-title">Observações</div>
+                <div class="obs-box">${receita.observacoes}</div>` : ''}
+
+                <!-- ÁREA DE ASSINATURA -->
+                <div class="assinatura-area">
+                  <div class="assinatura-col">
+                    <div class="assinatura-linha"></div>
+                    <div class="assinatura-nome">${receita.opto_nome}</div>
+                    <div class="assinatura-cargo">Optometrista${receita.opto_cro?' · CRO-SP '+receita.opto_cro:''}</div>
+                  </div>
+                  <div class="data-local">${dtExtenso}</div>
+                </div>
+
+                <!-- DISCLAIMER -->
+                <div class="disclaimer">
+                  O presente exame efetuado pelo optometrista tem por finalidade a correção dos defeitos refrativos, a avaliação sensorial e motora, através da indicação de lentes corretivas refrativas e/ou exercícios ortópticos. O diagnóstico de doenças oculares e seu tratamento são de competência do profissional médico.
+                </div>
+
+                <!-- INFO META (interno) -->
                 <div class="info-meta">
                   <span><b>Profissional:</b> ${receita.opto_nome}</span>
-                  ${receita.meio_contato ? `<span><b>Meio de contato:</b> ${receita.meio_contato}</span>` : ''}
-                  ${receita.agendado_por ? `<span><b>Agendado por:</b> ${receita.agendado_por}</span>` : ''}
-                  <span><b>Atendimento:</b> ${dtAtend}</span>
+                  ${receita.meio_contato?`<span><b>Canal:</b> ${receita.meio_contato}</span>`:''}
+                  ${receita.agendado_por?`<span><b>Agendado por:</b> ${receita.agendado_por}</span>`:''}
                 </div>
-                <div class="assinatura">
-                  <div class="linha"></div>
-                  <p>${receita.opto_nome}</p>
-                  <p>Optometrista${receita.opto_cro ? ' · CRO-SP '+receita.opto_cro : ''}</p>
+
+                <!-- RODAPÉ -->
+                <div class="footer">
+                  <div>Clínica Visão Ideal &nbsp;·&nbsp; Avenida Antonio Emerick, São Vicente – SP</div>
                 </div>
-                <div class="data-local">${dtExtenso}</div>
-                <div class="disclaimer">
-                  O presente exame efetuado pelo optometrista, tem por finalidade a correção dos defeitos refrativos, a avaliação sensorial e motora, através da indicação de lentes corretivas refrativas e/ou exercícios ortópticos. O diagnóstico de doenças oculares e seu tratamento são de competência do profissional médico.
-                </div>
-                <div class="footer">Clínica Visão Ideal · Avenida Antonio Emerick, São Vicente</div>
-                <script>window.onload=()=>window.print();</script>
+
+                <script>window.onload=()=>{ setTimeout(()=>window.print(),200); };</script>
               </body></html>`);
               w.document.close();
             }}>Imprimir Receita</Btn>
