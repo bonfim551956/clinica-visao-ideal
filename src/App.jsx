@@ -373,6 +373,34 @@ function Agenda({ user }) {
       .then(({data})=>setSlots(data||[]));
   });
 
+  // Auto-update: agendamentos da data atual com mais de 1h sem atendimento → Não Compareceu
+  useEffect(()=>{
+    const checkNoshow = async () => {
+      const now = new Date();
+      const dd = today();
+      const { data: agendados } = await supabase.from('agenda')
+        .select('id,hora,data').eq('status','Agendado').eq('data',dd);
+      if (!agendados?.length) return;
+      const vencidos = agendados.filter(a => {
+        const [h,m] = a.hora.split(':').map(Number);
+        const agendadoMs = new Date(dd+'T'+a.hora+':00').getTime();
+        return now.getTime() - agendadoMs > 60*60*1000; // mais de 1 hora
+      });
+      if (!vencidos.length) return;
+      await Promise.all(vencidos.map(a =>
+        supabase.from('agenda').update({status:'Não Compareceu'}).eq('id',a.id)
+      ));
+      // Recarrega slots se a data exibida for hoje
+      if (selData === dd && selOpto) {
+        const {data} = await supabase.from('agenda').select('*').eq('opto_id',selOpto).eq('data',dd);
+        setSlots(data||[]);
+      }
+    };
+    checkNoshow();
+    const interval = setInterval(checkNoshow, 5*60*1000); // verifica a cada 5 min
+    return () => clearInterval(interval);
+  }, [selOpto, selData]);
+
   const getSlot = hora => slots.find(s=>s.hora===hora);
 
   const handleSave = async (form) => {
@@ -380,8 +408,9 @@ function Agenda({ user }) {
     const opto = optos.find(o=>o.id===selOpto);
     const row = { id:uid(), paciente_id:form.pacienteId||null, paciente_nome:pac?.nome||form.pacienteNome,
       paciente_telefone:form.telefone||'',
-      opto_id:selOpto, opto_nome:opto?.nome, data:selData, hora:form.hora,
-      procedimento:form.procedimento, meio_contato:form.meioContato, status:'Agendado', observacoes:form.obs||'' };
+      opto_id:selOpto, opto_nome:opto?.nome, data:form.data||selData, hora:form.hora,
+      procedimento:form.procedimento, meio_contato:form.meioContato, status:'Agendado', observacoes:form.obs||'',
+      agendado_por: user?.nome||'' };
     if (modal.existing) {
       await supabase.from('agenda').update(row).eq('id',modal.existing.id);
     } else {
@@ -452,6 +481,7 @@ function Agenda({ user }) {
 function AgendaModal({ hora, existing, pacientes, optos, onSave, onDelete, onClose }) {
   const [form, setForm] = useState({
     hora: existing?.hora||hora,
+    data: existing?.data||today(),
     pacienteId: existing?.paciente_id||'',
     pacienteNome: existing?.paciente_nome||'',
     telefone: existing?.paciente_telefone||'',
@@ -537,7 +567,10 @@ function AgendaModal({ hora, existing, pacientes, optos, onSave, onDelete, onClo
   return (
     <Modal title={existing?'Editar Agendamento':'Novo Agendamento'} onClose={onClose}>
       <div style={{display:'flex',flexDirection:'column',gap:14}}>
-        <Select label="Horário" value={form.hora} onChange={e=>set('hora',e.target.value)} options={HORARIOS}/>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+          <Input label="Data" type="date" value={form.data} onChange={e=>set('data',e.target.value)}/>
+          <Select label="Horário" value={form.hora} onChange={e=>set('hora',e.target.value)} options={HORARIOS}/>
+        </div>
 
         {/* Seção paciente: duas opções lado a lado */}
         {!novoCliente && !form.pacienteId && (
@@ -802,9 +835,15 @@ function Atendimento({ user, agendaItem, clearAgendaItem }) {
 
   const gerarReceita = async () => {
     const opto = user;
+    const agora = new Date();
+    const dataHora = `${agora.getFullYear()}-${pad(agora.getMonth()+1)}-${pad(agora.getDate())} ${pad(agora.getHours())}:${pad(agora.getMinutes())}`;
     const row = {
       id:uid(), agenda_id:sel.id, paciente_nome:sel.paciente_nome,
+      paciente_telefone:sel.paciente_telefone||'',
       opto_id:opto.id, opto_nome:opto.nome, data:today(),
+      data_hora_atendimento: dataHora,
+      meio_contato: sel.meio_contato||'',
+      agendado_por: sel.agendado_por||'',
       od_esf:form.od_esf, od_cil:form.od_cil, od_eixo:form.od_eixo, od_adicao:form.od_add, od_dnp:form.od_dnp,
       oe_esf:form.oe_esf, oe_cil:form.oe_cil, oe_eixo:form.oe_eixo, oe_adicao:form.oe_add, oe_dnp:form.oe_dnp,
       observacoes:form.anamnese,
@@ -955,58 +994,110 @@ function Atendimento({ user, agendaItem, clearAgendaItem }) {
           <div style={{textAlign:'right',marginTop:16}}>
             <Btn color={C.teal} onClick={()=>{
               const logoUrl = window.location.origin + '/logo-clinica.png';
+              // Formata a data/hora do atendimento
+              const dtAtend = receita.data_hora_atendimento
+                ? (() => { const [d,t]=(receita.data_hora_atendimento||'').split(' '); return fmtDate(d)+(t?' às '+t:''); })()
+                : fmtDate(receita.data);
+              // Monta cidade + data por extenso
+              const dtExtenso = (() => {
+                const d=new Date(receita.data+'T12:00:00');
+                return 'São Vicente, '+d.toLocaleDateString('pt-BR',{day:'numeric',month:'long',year:'numeric'});
+              })();
               const w=window.open('','_blank');
-              w.document.write(`<!DOCTYPE html><html><head><title>Receita Optometrica</title>
+              w.document.write(`<!DOCTYPE html><html><head><title>Prescrição de Óculos</title>
+                <meta charset="utf-8"/>
                 <style>
                   *{box-sizing:border-box;margin:0;padding:0}
-                  body{font-family:'Segoe UI',sans-serif;background:#fff;color:#173D43;padding:40px 50px}
-                  .header{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #16AFA3;padding-bottom:20px;margin-bottom:24px}
-                  .logo{height:70px;object-fit:contain}
-                  .titulo{font-size:22px;font-weight:800;color:#173D43}
-                  .subtitulo{font-size:13px;color:#6c757d;margin-top:4px}
-                  .info{display:flex;gap:32px;margin-bottom:24px;background:#e8f8f7;padding:14px 18px;border-radius:10px}
-                  .info-item label{font-size:11px;color:#6c757d;font-weight:600;text-transform:uppercase}
-                  .info-item span{display:block;font-size:14px;font-weight:700;color:#173D43;margin-top:2px}
-                  table{width:100%;border-collapse:collapse;font-size:14px}
-                  th{background:#16AFA3;color:#fff;padding:10px 14px;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
-                  td{padding:10px 14px;border-bottom:1px solid #dee2e6}
-                  tr:last-child td{border-bottom:none}
-                  .olho{font-weight:800;color:#16AFA3;font-size:15px}
-                  .footer{margin-top:40px;padding-top:16px;border-top:1px solid #dee2e6;display:flex;justify-content:space-between;font-size:12px;color:#6c757d}
-                  .assinatura{margin-top:48px;text-align:center}
-                  .assinatura .linha{border-top:1px solid #173D43;width:240px;margin:0 auto 6px}
-                  .assinatura p{font-size:12px;color:#555}
-                  @media print{body{padding:20px 30px}}
+                  body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#173D43;padding:40px 48px;max-width:800px;margin:0 auto}
+                  .header{display:flex;align-items:center;justify-content:space-between;padding-bottom:16px;border-bottom:2px solid #16AFA3;margin-bottom:24px}
+                  .logo{height:64px;object-fit:contain}
+                  .titulo{font-size:16px;font-weight:700;color:#173D43;text-align:center;letter-spacing:.5px}
+                  .paciente-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:20px}
+                  .paciente-nome{font-size:14px}
+                  .paciente-nome b{font-size:15px}
+                  .paciente-idade{font-size:13px;color:#555}
+                  table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:20px}
+                  table th,table td{border:1px solid #ccc;padding:9px 12px;text-align:center}
+                  table thead tr{background:#f5f5f5}
+                  table thead th{font-weight:700;font-size:13px}
+                  table tbody tr:first-child td:first-child,
+                  table tbody tr:nth-child(2) td:first-child,
+                  table tbody tr:nth-child(3) td:first-child{font-weight:700;text-align:left}
+                  .lente-row{font-size:13px;margin-bottom:6px}
+                  .lente-row b{font-weight:700}
+                  .obs-row{font-size:13px;margin-bottom:20px;line-height:1.5}
+                  .info-meta{font-size:12px;color:#555;margin-bottom:24px;border-top:1px solid #eee;border-bottom:1px solid #eee;padding:10px 0;display:flex;gap:24px;flex-wrap:wrap}
+                  .info-meta span b{color:#173D43}
+                  .disclaimer{font-size:11px;color:#555;line-height:1.5;margin-bottom:32px;text-align:justify;border:1px solid #ddd;padding:12px 14px;background:#fafafa;border-radius:4px}
+                  .assinatura{display:flex;flex-direction:column;align-items:center;margin-bottom:20px}
+                  .assinatura .linha{border-top:1px solid #173D43;width:240px;margin-bottom:6px}
+                  .assinatura p{font-size:13px;color:#173D43;text-align:center}
+                  .footer{border-top:1px solid #ddd;padding-top:10px;font-size:11px;color:#888;text-align:center}
+                  .data-local{text-align:center;font-size:13px;margin-bottom:24px;color:#173D43}
+                  @media print{body{padding:20px 28px}@page{margin:1cm}}
                 </style>
               </head><body>
                 <div class="header">
                   <img src="${logoUrl}" alt="Clínica Visão Ideal" class="logo"/>
-                  <div style="text-align:right">
-                    <div class="titulo">Receita Optométrica</div>
-                    <div class="subtitulo">Data: ${fmtDate(receita.data)}</div>
-                  </div>
+                  <div class="titulo">PRESCRIÇÃO DE ÓCULOS</div>
+                  <div style="width:100px"></div>
                 </div>
-                <div class="info">
-                  <div class="info-item"><label>Paciente</label><span>${receita.paciente_nome}</span></div>
-                  <div class="info-item"><label>Optometrista</label><span>${receita.opto_nome}</span></div>
-                  ${receita.paciente_telefone ? `<div class="info-item"><label>WhatsApp</label><span>${receita.paciente_telefone}</span></div>` : ''}
+                <div class="paciente-row">
+                  <div class="paciente-nome"><b>Paciente:</b> ${receita.paciente_nome}</div>
+                  <div class="paciente-idade">Idade:</div>
                 </div>
                 <table>
-                  <thead><tr><th>Olho</th><th>Esférico</th><th>Cilíndrico</th><th>Eixo</th><th>Adição</th><th>DNP</th></tr></thead>
+                  <thead>
+                    <tr>
+                      <th></th>
+                      <th>Esférico</th>
+                      <th>Cilíndrico</th>
+                      <th>Eixo</th>
+                      <th>AV</th>
+                      <th>DNP</th>
+                    </tr>
+                  </thead>
                   <tbody>
-                    <tr><td class="olho">OD</td><td>${receita.od_esf||'—'}</td><td>${receita.od_cil||'—'}</td><td>${receita.od_eixo||'—'}</td><td>${receita.od_adicao||'—'}</td><td>${receita.od_dnp||'—'}</td></tr>
-                    <tr><td class="olho">OE</td><td>${receita.oe_esf||'—'}</td><td>${receita.oe_cil||'—'}</td><td>${receita.oe_eixo||'—'}</td><td>${receita.oe_adicao||'—'}</td><td>${receita.oe_dnp||'—'}</td></tr>
+                    <tr>
+                      <td><b>OD</b></td>
+                      <td>${receita.od_esf||'—'}</td>
+                      <td>${receita.od_cil||'—'}</td>
+                      <td>${receita.od_eixo||'—'}${receita.od_eixo&&receita.od_eixo!=='—'?'°':''}</td>
+                      <td></td>
+                      <td>${receita.od_dnp&&receita.od_dnp!=='N/A'?receita.od_dnp:''}</td>
+                    </tr>
+                    <tr>
+                      <td><b>OE</b></td>
+                      <td>${receita.oe_esf||'—'}</td>
+                      <td>${receita.oe_cil||'—'}</td>
+                      <td>${receita.oe_eixo||'—'}${receita.oe_eixo&&receita.oe_eixo!=='—'?'°':''}</td>
+                      <td></td>
+                      <td>${receita.oe_dnp&&receita.oe_dnp!=='N/A'?receita.oe_dnp:''}</td>
+                    </tr>
+                    ${(receita.od_adicao&&receita.od_adicao!=='N/A')||(receita.oe_adicao&&receita.oe_adicao!=='N/A') ? `
+                    <tr>
+                      <td><b>Adição</b></td>
+                      <td colspan="5">${receita.od_adicao||receita.oe_adicao||''}</td>
+                    </tr>` : ''}
                   </tbody>
                 </table>
-                ${receita.observacoes ? `<div style="margin-top:20px;padding:12px 16px;background:#fff8f0;border-left:3px solid #F47700;border-radius:0 8px 8px 0;font-size:13px"><b>Observações:</b> ${receita.observacoes}</div>` : ''}
+                ${receita.observacoes ? `<div class="obs-row"><b>Observações:</b> ${receita.observacoes}</div>` : ''}
+                <div class="info-meta">
+                  <span><b>Profissional:</b> ${receita.opto_nome}</span>
+                  ${receita.meio_contato ? `<span><b>Meio de contato:</b> ${receita.meio_contato}</span>` : ''}
+                  ${receita.agendado_por ? `<span><b>Agendado por:</b> ${receita.agendado_por}</span>` : ''}
+                  <span><b>Atendimento:</b> ${dtAtend}</span>
+                </div>
                 <div class="assinatura">
                   <div class="linha"></div>
-                  <p>${receita.opto_nome}${receita.opto_cro ? ' · CRO ' + receita.opto_cro : ''}</p>
+                  <p>${receita.opto_nome}</p>
+                  <p>Optometrista${receita.opto_cro ? ' · CRO-SP '+receita.opto_cro : ''}</p>
                 </div>
-                <div class="footer">
-                  <span>Clínica Visão Ideal</span>
-                  <span>Documento gerado em ${new Date().toLocaleString('pt-BR')}</span>
+                <div class="data-local">${dtExtenso}</div>
+                <div class="disclaimer">
+                  O presente exame efetuado pelo optometrista, tem por finalidade a correção dos defeitos refrativos, a avaliação sensorial e motora, através da indicação de lentes corretivas refrativas e/ou exercícios ortópticos. O diagnóstico de doenças oculares e seu tratamento são de competência do profissional médico.
                 </div>
+                <div class="footer">Clínica Visão Ideal · Avenida Antonio Emerick, São Vicente</div>
                 <script>window.onload=()=>window.print();</script>
               </body></html>`);
               w.document.close();
