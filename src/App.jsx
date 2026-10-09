@@ -39,10 +39,10 @@ const ADD_VALS = ['N/A','+0,75','+1,00','+1,25','+1,50','+1,75','+2,00','+2,25',
 const DNP_VALS = ['N/A','28','29','30','31','32','33','34','35','36','37','38','39','40'];
 
 const PERFIS = {
-  opto:      { label:'Optometrista', cor:C.teal,    nav:['inicio','agenda','agendamentos','atendimento'] },
-  comercial: { label:'Comercial',    cor:'#E91E8C',  nav:['inicio','agendamentos','atendimento'] },
+  opto:      { label:'Optometrista', cor:C.teal,    nav:['inicio','agenda','agendamentos','atendimento','receitas'] },
+  comercial: { label:'Comercial',    cor:'#E91E8C',  nav:['inicio','agendamentos','atendimento','receitas'] },
   prevenda:  { label:'Pré-Venda',    cor:'#6F42C1',  nav:['inicio','conversao','noshow'] },
-  gerente:   { label:'Gerente',      cor:C.orange,   nav:['inicio','agenda','agendamentos','atendimento','conversao','noshow','relatorios'] },
+  gerente:   { label:'Gerente',      cor:C.orange,   nav:['inicio','agenda','agendamentos','atendimento','receitas','conversao','noshow','relatorios'] },
   supervisor:{ label:'Supervisor',   cor:'#007BFF',  nav:['inicio','agenda','agendamentos','atendimento','conversao','noshow','relatorios','usuarios'] },
   diretor:   { label:'Diretor',      cor:C.navy,     nav:['inicio','agenda','agendamentos','atendimento','conversao','noshow','relatorios','usuarios'] },
 };
@@ -55,6 +55,7 @@ const NAV_ITEMS = [
   { id:'agenda',       label:'Agenda'       },
   { id:'agendamentos', label:'Agendamentos' },
   { id:'atendimento',  label:'Atendimento'  },
+  { id:'receitas',     label:'Receitas'     },
   { id:'conversao',    label:'Conversão'    },
   { id:'noshow',       label:'No-Show'      },
   { id:'relatorios',   label:'Relatórios'   },
@@ -549,7 +550,7 @@ function AgendaModal({ hora, existing, pacientes, optos, onSave, onDelete, onClo
             onChange={e=>handleBusca(e.target.value)}
             onFocus={()=>busca.length>=2&&setShowSug(true)}
             onBlur={()=>setTimeout(()=>setShowSug(false),180)}
-            placeholder="🔍 Digite o nome para buscar..."
+            placeholder="Digite o nome para buscar..."
             style={inputStyle(busca)}
           />
           {/* Dropdown de sugestões */}
@@ -584,7 +585,7 @@ function AgendaModal({ hora, existing, pacientes, optos, onSave, onDelete, onClo
         {form.pacienteId && !novoCliente && (
           <div style={{background:C.tealBg,borderRadius:8,padding:'8px 12px',display:'flex',
             justifyContent:'space-between',alignItems:'center',fontSize:13}}>
-            <span style={{fontWeight:600,color:C.tealD}}>✓ {form.pacienteNome}</span>
+            <span style={{fontWeight:600,color:C.tealD}}>{form.pacienteNome}</span>
             <span style={{color:C.gray,cursor:'pointer',fontSize:12}} onClick={()=>{
               setBusca(''); set('pacienteId',''); set('pacienteNome',''); set('telefone',''); set('dataNasc','');
             }}>Trocar</span>
@@ -595,7 +596,7 @@ function AgendaModal({ hora, existing, pacientes, optos, onSave, onDelete, onClo
         {novoCliente && (
           <div style={{background:'#fff8f0',border:`1px solid ${C.orange}`,borderRadius:10,padding:14}}>
             <div style={{fontSize:13,fontWeight:700,color:C.orange,marginBottom:12}}>
-              📋 Cadastro Rápido de Paciente
+              Cadastro Rápido de Paciente
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:10}}>
               <div>
@@ -1397,6 +1398,107 @@ function UsuarioModal({ user, onSave, onClose }) {
 
 
 /* ══════════════════════════════════════════════════════
+   RECEITAS
+══════════════════════════════════════════════════════ */
+function Receitas({ user }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filtro, setFiltro] = useState({ de:'', ate:'' });
+  const [detalhe, setDetalhe] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    let q = supabase.from('receitas').select('*').order('data',{ascending:false});
+    if (filtro.de) q = q.gte('data', filtro.de);
+    if (filtro.ate) q = q.lte('data', filtro.ate);
+    if (user.perfil === 'opto') q = q.eq('opto_id', user.id);
+    const { data } = await q;
+    setRows(data || []);
+    setLoading(false);
+  }, [filtro, user]);
+
+  useEffect(() => { load(); }, [load]);
+  useRealtime('receitas', () => load());
+
+  const fmtOlho = (o) => {
+    if (!o) return '—';
+    const parts = [];
+    if (o.sph && o.sph !== 'Plano') parts.push(`Esf ${o.sph}`);
+    if (o.cyl && o.cyl !== 'Plano') parts.push(`Cil ${o.cyl}`);
+    if (o.axis) parts.push(`Eixo ${o.axis}`);
+    if (o.add && o.add !== 'N/A') parts.push(`Add ${o.add}`);
+    return parts.length ? parts.join(' / ') : 'Plano';
+  };
+
+  return (
+    <div>
+      <Card style={{marginBottom:16}}>
+        <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end'}}>
+          <Input label="De" type="date" value={filtro.de} onChange={e=>setFiltro(f=>({...f,de:e.target.value}))}/>
+          <Input label="Até" type="date" value={filtro.ate} onChange={e=>setFiltro(f=>({...f,ate:e.target.value}))}/>
+        </div>
+      </Card>
+      {loading ? <Spinner/> : (
+        <Card>
+          <p style={{fontSize:13,color:C.gray,marginBottom:12}}>{rows.length} receita(s) encontrada(s)</p>
+          <div className="tbl-wrap">
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+              <thead><tr style={{background:C.teal,color:C.white}}>
+                {['Data','Paciente','Optometrista','OD (resumo)','OE (resumo)',''].map(h=>(
+                  <th key={h} style={{padding:'9px 12px',textAlign:'left'}}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {rows.length===0 && <tr><td colSpan={6} style={{padding:24,textAlign:'center',color:C.gray}}>Nenhuma receita no período</td></tr>}
+                {rows.map((r,i)=>(
+                  <tr key={r.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
+                    <td style={{padding:'8px 12px'}}>{fmtDate(r.data)}</td>
+                    <td style={{padding:'8px 12px',fontWeight:600}}>{r.paciente_nome}</td>
+                    <td style={{padding:'8px 12px'}}>{r.opto_nome}</td>
+                    <td style={{padding:'8px 12px',fontSize:12,color:C.textSm}}>{fmtOlho(r.od)}</td>
+                    <td style={{padding:'8px 12px',fontSize:12,color:C.textSm}}>{fmtOlho(r.oe)}</td>
+                    <td style={{padding:'8px 12px'}}>
+                      <Btn size="sm" color={C.teal} outline onClick={()=>setDetalhe(r)}>Ver</Btn>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+      {detalhe && (
+        <Modal title="Receita" onClose={()=>setDetalhe(null)} width={560}>
+          <div style={{display:'flex',flexDirection:'column',gap:14}}>
+            <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
+              <div><span style={{fontSize:12,color:C.gray}}>Paciente</span><div style={{fontWeight:700,fontSize:15}}>{detalhe.paciente_nome}</div></div>
+              <div><span style={{fontSize:12,color:C.gray}}>Data</span><div style={{fontWeight:600}}>{fmtDate(detalhe.data)}</div></div>
+              <div><span style={{fontSize:12,color:C.gray}}>Optometrista</span><div style={{fontWeight:600}}>{detalhe.opto_nome}</div></div>
+            </div>
+            {[['OD (Olho Direito)', detalhe.od], ['OE (Olho Esquerdo)', detalhe.oe]].map(([lbl,o])=>(
+              <div key={lbl} style={{background:C.tealBg,borderRadius:10,padding:14}}>
+                <div style={{fontWeight:700,color:C.teal,marginBottom:8,fontSize:13}}>{lbl}</div>
+                {o ? (
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
+                    {[['Esf',o.sph],['Cil',o.cyl],['Eixo',o.axis],['Add',o.add],['DNP',o.dnp]].filter(([,v])=>v&&v!=='N/A'&&v!=='Plano').map(([k,v])=>(
+                      <div key={k} style={{background:C.white,borderRadius:8,padding:'8px 10px',textAlign:'center'}}>
+                        <div style={{fontSize:11,color:C.gray}}>{k}</div>
+                        <div style={{fontWeight:700,color:C.navy,fontSize:15}}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : <span style={{color:C.gray,fontSize:13}}>Não informado</span>}
+              </div>
+            ))}
+            {detalhe.obs && <div style={{background:C.bg,borderRadius:8,padding:12,fontSize:13}}><strong>Obs:</strong> {detalhe.obs}</div>}
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════
    HOOK REALTIME — escuta mudanças em tempo real
 ══════════════════════════════════════════════════════ */
 function useRealtime(table, onchange) {
@@ -1436,6 +1538,7 @@ export default function App() {
     agenda:       <Agenda user={usuario}/>,
     agendamentos: <Agendamentos user={usuario} onAtender={handleAtender}/>,
     atendimento:  <Atendimento user={usuario} agendaItem={agendaItem} clearAgendaItem={()=>setAgendaItem(null)}/>,
+    receitas:     <Receitas user={usuario}/>,
     conversao:    <Conversao user={usuario}/>,
     noshow:       <NoShow user={usuario}/>,
     relatorios:   <Relatorios/>,
