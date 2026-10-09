@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabase';
 
@@ -38,12 +39,16 @@ const ADD_VALS = ['N/A','+0,75','+1,00','+1,25','+1,50','+1,75','+2,00','+2,25',
 const DNP_VALS = ['N/A','28','29','30','31','32','33','34','35','36','37','38','39','40'];
 
 const PERFIS = {
-  opto:     { label:'Optometrista', cor:C.teal,   nav:['inicio','agenda','agendamentos','atendimento'] },
-  prevenda: { label:'Pré-Venda',    cor:'#6F42C1', nav:['inicio','conversao','noshow'] },
-  gerente:  { label:'Gerente',      cor:C.orange,  nav:['inicio','agenda','agendamentos','atendimento','conversao','noshow','relatorios'] },
-  supervisor:{ label:'Supervisor',  cor:'#007BFF', nav:['inicio','agenda','agendamentos','atendimento','conversao','noshow','relatorios','usuarios'] },
-  diretor:  { label:'Diretor',      cor:C.navy,    nav:['inicio','agenda','agendamentos','atendimento','conversao','noshow','relatorios','usuarios'] },
+  opto:      { label:'Optometrista', cor:C.teal,    nav:['inicio','agenda','agendamentos','atendimento'] },
+  comercial: { label:'Comercial',    cor:'#E91E8C',  nav:['inicio','agendamentos','atendimento'] },
+  prevenda:  { label:'Pré-Venda',    cor:'#6F42C1',  nav:['inicio','conversao','noshow'] },
+  gerente:   { label:'Gerente',      cor:C.orange,   nav:['inicio','agenda','agendamentos','atendimento','conversao','noshow','relatorios'] },
+  supervisor:{ label:'Supervisor',   cor:'#007BFF',  nav:['inicio','agenda','agendamentos','atendimento','conversao','noshow','relatorios','usuarios'] },
+  diretor:   { label:'Diretor',      cor:C.navy,     nav:['inicio','agenda','agendamentos','atendimento','conversao','noshow','relatorios','usuarios'] },
 };
+
+// Perfis que veem os KPIs comerciais (Conversões, Faturamento, No-Show, Taxa Conv.)
+const PERFIS_COMERCIAL = ['prevenda','supervisor','diretor','gerente'];
 
 const NAV_ITEMS = [
   { id:'inicio',       label:'Início'       },
@@ -283,6 +288,8 @@ function Dashboard({ user }) {
     </Card>
   );
 
+  const verComercial = PERFIS_COMERCIAL.includes(user.perfil);
+
   if (loading) return <Spinner/>;
   return (
     <div>
@@ -292,10 +299,10 @@ function Dashboard({ user }) {
         <KPI label="Compareceram" value={stats.compareceu} color={C.success}/>
         <KPI label="Não Compareceu" value={stats.naoComp} color={C.danger}/>
         <KPI label="Receitas Hoje" value={stats.receitas} color='#6F42C1'/>
-        <KPI label="Conversões" value={stats.conversoes} color={C.orange}/>
-        <KPI label="Faturamento" value={fmtMoney(stats.valorTotal)} color={C.teal}/>
-        <KPI label="Taxa No-Show" value={`${stats.noshow}%`} color={C.danger}/>
-        <KPI label="Taxa Conversão" value={`${stats.taxaConv||0}%`} color={C.success}/>
+        {verComercial && <KPI label="Conversões" value={stats.conversoes} color={C.orange}/>}
+        {verComercial && <KPI label="Faturamento" value={fmtMoney(stats.valorTotal)} color={C.teal}/>}
+        {verComercial && <KPI label="Taxa No-Show" value={`${stats.noshow}%`} color={C.danger}/>}
+        {verComercial && <KPI label="Taxa Conversão" value={`${stats.taxaConv||0}%`} color={C.success}/>}
       </div>
       <Card>
         <h3 style={{fontSize:15,fontWeight:700,marginBottom:14,color:C.navy}}>Proximas Consultas Hoje</h3>
@@ -372,6 +379,7 @@ function Agenda({ user }) {
     const pac = pacientes.find(p=>p.id===form.pacienteId)||{nome:form.pacienteNome};
     const opto = optos.find(o=>o.id===selOpto);
     const row = { id:uid(), paciente_id:form.pacienteId||null, paciente_nome:pac?.nome||form.pacienteNome,
+      paciente_telefone:form.telefone||'',
       opto_id:selOpto, opto_nome:opto?.nome, data:selData, hora:form.hora,
       procedimento:form.procedimento, meio_contato:form.meioContato, status:'Agendado', observacoes:form.obs||'' };
     if (modal.existing) {
@@ -446,29 +454,109 @@ function AgendaModal({ hora, existing, pacientes, optos, onSave, onDelete, onClo
     hora: existing?.hora||hora,
     pacienteId: existing?.paciente_id||'',
     pacienteNome: existing?.paciente_nome||'',
+    telefone: existing?.paciente_telefone||'',
     procedimento: existing?.procedimento||PROCEDIMENTOS[0],
     meioContato: existing?.meio_contato||MEIOS_CONTATO[0],
     obs: existing?.observacoes||'',
   });
+  const [busca, setBusca] = useState(existing?.paciente_nome||'');
+  const [sugestoes, setSugestoes] = useState([]);
+  const [showSug, setShowSug] = useState(false);
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
+
+  const handleBusca = (val) => {
+    setBusca(val);
+    set('pacienteNome', val);
+    set('pacienteId', '');
+    if (val.length >= 2) {
+      const filtrados = pacientes.filter(p => p.nome.toLowerCase().includes(val.toLowerCase()));
+      setSugestoes(filtrados.slice(0, 8));
+      setShowSug(true);
+    } else {
+      setSugestoes([]);
+      setShowSug(false);
+    }
+  };
+
+  const selecionarPaciente = (p) => {
+    setBusca(p.nome);
+    set('pacienteId', p.id);
+    set('pacienteNome', p.nome);
+    if (p.telefone) set('telefone', p.telefone);
+    setSugestoes([]);
+    setShowSug(false);
+  };
 
   return (
     <Modal title={existing?'Editar Agendamento':'Novo Agendamento'} onClose={onClose}>
       <div style={{display:'flex',flexDirection:'column',gap:14}}>
         <Select label="Horário" value={form.hora} onChange={e=>set('hora',e.target.value)}
           options={HORARIOS}/>
-        <Select label="Paciente" value={form.pacienteId} onChange={e=>{
-          const p=pacientes.find(x=>x.id===e.target.value);
-          set('pacienteId',e.target.value); set('pacienteNome',p?.nome||'');
-        }} options={[{value:'',label:'— Selecione —'},...pacientes.map(p=>({value:p.id,label:p.nome}))]}/>
-        {!form.pacienteId && <Input label="Ou digite o nome" value={form.pacienteNome} onChange={e=>set('pacienteNome',e.target.value)} placeholder="Nome do paciente"/>}
+
+        {/* Busca de paciente com lupa */}
+        <div style={{position:'relative'}}>
+          <label style={{display:'block',fontSize:12,fontWeight:600,color:C.navy,marginBottom:4}}>Paciente</label>
+          <div style={{position:'relative'}}>
+            <input
+              value={busca}
+              onChange={e=>handleBusca(e.target.value)}
+              onFocus={()=>busca.length>=2&&setShowSug(true)}
+              onBlur={()=>setTimeout(()=>setShowSug(false),150)}
+              placeholder="🔍 Buscar por nome..."
+              style={{width:'100%',padding:'8px 12px',border:`1px solid ${C.border}`,borderRadius:8,
+                fontSize:14,color:C.text,background:C.white,boxSizing:'border-box',outline:'none'}}
+            />
+          </div>
+          {showSug && sugestoes.length > 0 && (
+            <div style={{position:'absolute',top:'100%',left:0,right:0,background:C.white,
+              border:`1px solid ${C.border}`,borderRadius:8,boxShadow:'0 4px 12px rgba(0,0,0,0.1)',
+              zIndex:999,maxHeight:200,overflowY:'auto'}}>
+              {sugestoes.map(p=>(
+                <div key={p.id} onMouseDown={()=>selecionarPaciente(p)}
+                  style={{padding:'8px 12px',cursor:'pointer',fontSize:14,color:C.text,
+                    borderBottom:`1px solid ${C.grayL}`}}
+                  onMouseEnter={e=>e.currentTarget.style.background=C.tealBg}
+                  onMouseLeave={e=>e.currentTarget.style.background=C.white}>
+                  {p.nome} {p.telefone?<span style={{color:C.gray,fontSize:12}}>— {p.telefone}</span>:''}
+                </div>
+              ))}
+            </div>
+          )}
+          {showSug && sugestoes.length === 0 && busca.length >= 2 && (
+            <div style={{position:'absolute',top:'100%',left:0,right:0,background:C.white,
+              border:`1px solid ${C.border}`,borderRadius:8,padding:'8px 12px',
+              fontSize:13,color:C.gray,zIndex:999}}>
+              Paciente não encontrado — será criado como novo
+            </div>
+          )}
+        </div>
+
+        {/* Telefone/WhatsApp obrigatório */}
+        <div>
+          <label style={{display:'block',fontSize:12,fontWeight:600,color:C.navy,marginBottom:4}}>
+            WhatsApp <span style={{color:C.danger}}>*</span>
+          </label>
+          <input
+            value={form.telefone}
+            onChange={e=>set('telefone',e.target.value)}
+            placeholder="(00) 00000-0000"
+            required
+            style={{width:'100%',padding:'8px 12px',border:`1px solid ${form.telefone?C.border:C.danger}`,
+              borderRadius:8,fontSize:14,color:C.text,background:C.white,boxSizing:'border-box',outline:'none'}}
+          />
+        </div>
+
         <Select label="Procedimento" value={form.procedimento} onChange={e=>set('procedimento',e.target.value)} options={PROCEDIMENTOS}/>
         <Select label="Meio de Contato" value={form.meioContato} onChange={e=>set('meioContato',e.target.value)} options={MEIOS_CONTATO}/>
         <Input label="Observações" value={form.obs} onChange={e=>set('obs',e.target.value)} placeholder="Opcional"/>
         <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:8}}>
           {existing && <Btn color={C.danger} outline onClick={()=>onDelete(existing.id)}>Remover</Btn>}
           <Btn color={C.gray} outline onClick={onClose}>Cancelar</Btn>
-          <Btn color={C.teal} onClick={()=>onSave(form)}>Salvar</Btn>
+          <Btn color={C.teal} onClick={()=>{
+            if (!form.pacienteNome.trim()) { alert('Informe o nome do paciente.'); return; }
+            if (!form.telefone.trim()) { alert('WhatsApp é obrigatório.'); return; }
+            onSave(form);
+          }}>Salvar</Btn>
         </div>
       </div>
     </Modal>
