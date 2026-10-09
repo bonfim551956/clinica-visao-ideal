@@ -694,12 +694,22 @@ function AgendaModal({ hora, existing, pacientes, optos, onSave, onDelete, onClo
 function Agendamentos({ user, onAtender }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filtros, setFiltros] = useState({ data: today(), opto:'', status:'', proc:'' });
+  const [filtros, setFiltros] = useState({ data: today(), opto:'', status:'', proc:'', agendadoPor:'' });
   const [optos, setOptos] = useState([]);
+  const [prevs, setPrevs] = useState([]);
   const [toast, setToast] = useState('');
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(''),3000); };
 
-  useEffect(()=>{ supabase.from('usuarios').select('*').eq('perfil','opto').then(({data})=>setOptos(data||[])); },[]);
+  useEffect(()=>{
+    supabase.from('usuarios').select('*').eq('perfil','opto').then(({data})=>setOptos(data||[]));
+    // Carrega pré-vendas + IA para o filtro de responsável
+    supabase.from('usuarios').select('nome').in('perfil',['prevenda','supervisor','diretor','gerente'])
+      .then(({data})=>{
+        const nomes = (data||[]).map(u=>u.nome);
+        if (!nomes.includes('IA')) nomes.push('IA');
+        setPrevs(nomes.sort());
+      });
+  },[]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -708,6 +718,7 @@ function Agendamentos({ user, onAtender }) {
     if (filtros.opto) q = q.eq('opto_id', filtros.opto);
     if (filtros.status) q = q.eq('status', filtros.status);
     if (filtros.proc) q = q.eq('procedimento', filtros.proc);
+    if (filtros.agendadoPor) q = q.eq('agendado_por', filtros.agendadoPor);
     const {data} = await q;
     setRows(data||[]);
     setLoading(false);
@@ -733,6 +744,8 @@ function Agendamentos({ user, onAtender }) {
             options={[{value:'',label:'Todos'},{value:'Agendado',label:'Agendado'},{value:'Compareceu',label:'Compareceu'},{value:'Não Compareceu',label:'Não Compareceu'},{value:'Cancelado',label:'Cancelado'}]}/>
           <Select label="Procedimento" value={filtros.proc} onChange={e=>setFiltros(f=>({...f,proc:e.target.value}))}
             options={[{value:'',label:'Todos'},...PROCEDIMENTOS.map(p=>({value:p,label:p}))]}/>
+          <Select label="Agendado por" value={filtros.agendadoPor} onChange={e=>setFiltros(f=>({...f,agendadoPor:e.target.value}))}
+            options={[{value:'',label:'Todos'},...prevs.map(n=>({value:n,label:n}))]}/>
         </div>
       </Card>
       {loading ? <Spinner/> : (
@@ -742,7 +755,7 @@ function Agendamentos({ user, onAtender }) {
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
               <thead>
                 <tr style={{background:C.teal,color:C.white}}>
-                  {['Data','Hora','Paciente','Opto','Procedimento','Contato','Status','Ações'].map(h=>(
+                  {['Data','Hora','Paciente','Opto','Procedimento','Contato','Agendado por','Status','Ações'].map(h=>(
                     <th key={h} style={{padding:'9px 12px',textAlign:'left',whiteSpace:'nowrap'}}>{h}</th>
                   ))}
                 </tr>
@@ -756,6 +769,15 @@ function Agendamentos({ user, onAtender }) {
                     <td style={{padding:'8px 12px'}}>{a.opto_nome}</td>
                     <td style={{padding:'8px 12px'}}>{a.procedimento}</td>
                     <td style={{padding:'8px 12px'}}>{a.meio_contato}</td>
+                    <td style={{padding:'8px 12px'}}>
+                      {a.agendado_por
+                        ? <span style={{
+                            display:'inline-block',padding:'2px 10px',borderRadius:20,fontSize:12,fontWeight:600,
+                            background: a.agendado_por==='IA' ? C.orangeBg : C.tealBg,
+                            color: a.agendado_por==='IA' ? C.orange : C.teal
+                          }}>{a.agendado_por}</span>
+                        : <span style={{color:C.gray,fontSize:12}}>—</span>}
+                    </td>
                     <td style={{padding:'8px 12px'}}>
                       <Badge color={a.status==='Compareceu'?C.success:a.status==='Não Compareceu'?C.danger:a.status==='Cancelado'?C.gray:C.teal}>{a.status}</Badge>
                     </td>
@@ -1377,6 +1399,7 @@ function NoShow({ user }) {
 function Relatorios() {
   const [optos, setOptos] = useState([]);
   const [stats, setStats] = useState([]);
+  const [statsPrev, setStatsPrev] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState({ de:'', ate:'' });
 
@@ -1412,6 +1435,21 @@ function Relatorios() {
         valorTotal: valor,
       };
     }));
+
+    // Ranking por Pré-Venda (agendado_por)
+    const agFiltrado = ag.filter(a=>(!filtro.de||a.data>=filtro.de)&&(!filtro.ate||a.data<=filtro.ate));
+    const prevMap = {};
+    agFiltrado.forEach(a=>{
+      const nome = a.agendado_por||'(sem responsável)';
+      if (!prevMap[nome]) prevMap[nome] = {nome, agendados:0, compareceu:0, naoComp:0};
+      prevMap[nome].agendados++;
+      if (a.status==='Compareceu') prevMap[nome].compareceu++;
+      if (a.status==='Não Compareceu') prevMap[nome].naoComp++;
+    });
+    const rankPrev = Object.values(prevMap)
+      .sort((a,b)=>b.agendados-a.agendados);
+    setStatsPrev(rankPrev);
+
     setLoading(false);
   }, [filtro]);
 
@@ -1448,7 +1486,52 @@ function Relatorios() {
         ))}
       </div>
 
-      {loading ? <Spinner/> : (
+      {loading ? <Spinner/> : (<>
+        {/* RANKING PRÉ-VENDAS */}
+        <Card style={{marginBottom:20}}>
+          <h3 style={{fontSize:15,fontWeight:700,marginBottom:4,color:C.navy}}>Ranking por Responsável pelo Agendamento</h3>
+          <p style={{fontSize:12,color:C.gray,marginBottom:14}}>Inclui pré-vendas, gerentes e IA</p>
+          <div className="tbl-wrap">
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+              <thead><tr style={{background:C.orange,color:C.white}}>
+                {['#','Responsável','Agendamentos','Comparecimentos','No-Show','% Comparecimento'].map(h=>(
+                  <th key={h} style={{padding:'9px 12px',textAlign:'left',whiteSpace:'nowrap'}}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {statsPrev.map((s,i)=>{
+                  const taxaShow = s.agendados ? Math.round((s.compareceu/s.agendados)*100) : 0;
+                  const isIA = s.nome==='IA';
+                  return (
+                  <tr key={s.nome} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
+                    <td style={{padding:'8px 12px',fontWeight:800,color:i===0?C.orange:C.gray,fontSize:i===0?16:13}}>{i+1}°</td>
+                    <td style={{padding:'8px 12px'}}>
+                      <span style={{
+                        display:'inline-block',padding:'2px 10px',borderRadius:20,fontSize:12,fontWeight:700,
+                        background: isIA?C.orangeBg:C.tealBg,
+                        color: isIA?C.orange:C.teal
+                      }}>{s.nome}</span>
+                    </td>
+                    <td style={{padding:'8px 12px',fontWeight:700,color:C.navy}}>{s.agendados}</td>
+                    <td style={{padding:'8px 12px',color:C.success,fontWeight:600}}>{s.compareceu}</td>
+                    <td style={{padding:'8px 12px',color:C.danger}}>{s.naoComp}</td>
+                    <td style={{padding:'8px 12px'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        <div style={{flex:1,height:6,background:C.grayL,borderRadius:3,overflow:'hidden'}}>
+                          <div style={{height:'100%',width:`${taxaShow}%`,background:taxaShow>=70?C.success:taxaShow>=50?C.warn:C.danger,borderRadius:3,transition:'width .3s'}}/>
+                        </div>
+                        <span style={{fontSize:12,fontWeight:600,minWidth:32}}>{taxaShow}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                )})}
+                {statsPrev.length===0 && <tr><td colSpan={6} style={{padding:20,textAlign:'center',color:C.gray}}>Nenhum dado no período</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        {/* POR OPTOMETRISTA */}
         <Card>
           <h3 style={{fontSize:15,fontWeight:700,marginBottom:14,color:C.navy}}>Por Optometrista</h3>
           <div className="tbl-wrap">
@@ -1476,7 +1559,7 @@ function Relatorios() {
             </table>
           </div>
         </Card>
-      )}
+      </>)}
     </div>
   );
 }
