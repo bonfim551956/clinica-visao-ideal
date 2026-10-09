@@ -370,18 +370,31 @@ function Agenda({ user }) {
     supabase.from('pacientes').select('*').order('nome').then(({data})=>setPacientes(data||[]));
   }, []);
 
+  const loadSlots = async (opto, data) => {
+    if (!opto || !data) return;
+    // Busca agendamentos do opto selecionado + agendamentos da IA (opto_id null) na mesma data
+    const [res1, res2] = await Promise.all([
+      supabase.from('agenda').select('*').eq('opto_id', opto).eq('data', data),
+      supabase.from('agenda').select('*').is('opto_id', null).eq('data', data)
+    ]);
+    const combined = [...(res1.data||[]), ...(res2.data||[])];
+    // Deduplica por id e ordena por hora
+    const seen = new Set();
+    const unique = combined.filter(a => { if (seen.has(a.id)) return false; seen.add(a.id); return true; });
+    unique.sort((a,b) => a.hora.localeCompare(b.hora));
+    return unique;
+  };
+
   useEffect(() => {
     if (!selOpto || !selData) return;
     setLoading(true);
-    supabase.from('agenda').select('*').eq('opto_id',selOpto).eq('data',selData)
-      .then(({data})=>{ setSlots(data||[]); setLoading(false); });
+    loadSlots(selOpto, selData).then(data => { setSlots(data||[]); setLoading(false); });
   }, [selOpto, selData]);
 
   // Realtime: atualiza slots automaticamente
   useRealtime('agenda', () => {
     if (!selOpto || !selData) return;
-    supabase.from('agenda').select('*').eq('opto_id',selOpto).eq('data',selData)
-      .then(({data})=>setSlots(data||[]));
+    loadSlots(selOpto, selData).then(data => setSlots(data||[]));
   });
 
   // Auto-update: agendamentos da data atual com mais de 1h sem atendimento → Não Compareceu
@@ -403,8 +416,7 @@ function Agenda({ user }) {
       ));
       // Recarrega slots se a data exibida for hoje
       if (selData === dd && selOpto) {
-        const {data} = await supabase.from('agenda').select('*').eq('opto_id',selOpto).eq('data',dd);
-        setSlots(data||[]);
+        loadSlots(selOpto, dd).then(data => setSlots(data||[]));
       }
     };
     checkNoshow();
@@ -427,8 +439,7 @@ function Agenda({ user }) {
     } else {
       await supabase.from('agenda').insert(row);
     }
-    const {data} = await supabase.from('agenda').select('*').eq('opto_id',selOpto).eq('data',selData);
-    setSlots(data||[]);
+    loadSlots(selOpto, selData).then(data => setSlots(data||[]));
     setModal(null);
     showToast('Agendamento salvo!');
   };
@@ -462,21 +473,36 @@ function Agenda({ user }) {
               </thead>
               <tbody>
                 {HORARIOS.map((hora,i) => {
-                  const slot = getSlot(hora);
-                  return (
-                    <tr key={hora} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
-                      <td style={{padding:'8px 12px',fontWeight:600,color:C.teal,whiteSpace:'nowrap'}}>{hora}</td>
-                      <td style={{padding:'8px 12px'}}>{slot?.paciente_nome||<span style={{color:C.border}}>—</span>}</td>
-                      <td style={{padding:'8px 12px'}}>{slot?.procedimento||''}</td>
-                      <td style={{padding:'8px 12px'}}>{slot?.meio_contato||''}</td>
-                      <td style={{padding:'8px 12px'}}>{slot && <Badge color={slot.status==='Compareceu'?C.success:slot.status==='Não Compareceu'?C.danger:C.teal}>{slot.status}</Badge>}</td>
+                  const horaSlots = slots.filter(s => s.hora === hora);
+                  if (horaSlots.length === 0) {
+                    return (
+                      <tr key={hora} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
+                        <td style={{padding:'8px 12px',fontWeight:600,color:C.teal,whiteSpace:'nowrap'}}>{hora}</td>
+                        <td style={{padding:'8px 12px'}}><span style={{color:C.border}}>—</span></td>
+                        <td style={{padding:'8px 12px'}}></td>
+                        <td style={{padding:'8px 12px'}}></td>
+                        <td style={{padding:'8px 12px'}}></td>
+                        <td style={{padding:'8px 12px'}}>
+                          <Btn size="sm" color={C.orange} outline onClick={()=>setModal({hora})}>+ Agendar</Btn>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  return horaSlots.map((slot, si) => (
+                    <tr key={slot.id} style={{background:i%2===0?C.white:C.bg,borderBottom:si===horaSlots.length-1?`1px solid ${C.border}`:'none'}}>
+                      <td style={{padding:'8px 12px',fontWeight:600,color:C.teal,whiteSpace:'nowrap'}}>{si===0?hora:''}</td>
                       <td style={{padding:'8px 12px'}}>
-                        {slot
-                          ? <Btn size="sm" color={C.teal} outline onClick={()=>setModal({hora,existing:slot})}>Editar</Btn>
-                          : <Btn size="sm" color={C.orange} outline onClick={()=>setModal({hora})}>+ Agendar</Btn>}
+                        {slot.paciente_nome}
+                        {slot.agendado_por==='IA' && <span style={{marginLeft:6,fontSize:10,background:C.orangeBg,color:C.orange,borderRadius:4,padding:'1px 5px'}}>IA</span>}
+                      </td>
+                      <td style={{padding:'8px 12px'}}>{slot.procedimento||''}</td>
+                      <td style={{padding:'8px 12px'}}>{slot.meio_contato||''}</td>
+                      <td style={{padding:'8px 12px'}}><Badge color={slot.status==='Compareceu'?C.success:slot.status==='Não Compareceu'?C.danger:C.teal}>{slot.status}</Badge></td>
+                      <td style={{padding:'8px 12px'}}>
+                        <Btn size="sm" color={C.teal} outline onClick={()=>setModal({hora,existing:slot})}>Editar</Btn>
                       </td>
                     </tr>
-                  );
+                  ));
                 })}
               </tbody>
             </table>
