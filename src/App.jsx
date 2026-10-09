@@ -41,10 +41,10 @@ const DNP_VALS = ['N/A','28','29','30','31','32','33','34','35','36','37','38','
 const PERFIS = {
   opto:      { label:'Optometrista', cor:C.teal,    nav:['inicio','agenda','agendamentos','atendimento','receitas'] },
   comercial: { label:'Comercial',    cor:'#E91E8C',  nav:['inicio','agendamentos','atendimento','receitas'] },
-  prevenda:  { label:'Pré-Venda',    cor:'#6F42C1',  nav:['inicio','conversao','noshow'] },
+  prevenda:  { label:'Pré-Venda',    cor:'#6F42C1',  nav:['inicio','conversao','noshow','receitas'] },
   gerente:   { label:'Gerente',      cor:C.orange,   nav:['inicio','agenda','agendamentos','atendimento','receitas','conversao','noshow','relatorios'] },
-  supervisor:{ label:'Supervisor',   cor:'#007BFF',  nav:['inicio','agenda','agendamentos','atendimento','conversao','noshow','relatorios','usuarios'] },
-  diretor:   { label:'Diretor',      cor:C.navy,     nav:['inicio','agenda','agendamentos','atendimento','conversao','noshow','relatorios','usuarios'] },
+  supervisor:{ label:'Supervisor',   cor:'#007BFF',  nav:['inicio','agenda','agendamentos','atendimento','receitas','conversao','noshow','relatorios','usuarios'] },
+  diretor:   { label:'Diretor',      cor:C.navy,     nav:['inicio','agenda','agendamentos','atendimento','receitas','conversao','noshow','relatorios','usuarios'] },
 };
 
 // Perfis que veem os KPIs comerciais (Conversões, Faturamento, No-Show, Taxa Conv.)
