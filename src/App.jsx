@@ -1914,22 +1914,59 @@ function useRealtime(table, onchange) {
 /* ══════════════════════════════════════════════════════
    APP ROOT
 ══════════════════════════════════════════════════════ */
+const SESSION_KEY = 'vi_session';
+
 export default function App() {
-  const [usuario, setUsuario] = useState(null);
-  const [tab, setTab] = useState('inicio');
+  // Recupera sessão salva no localStorage
+  const [usuario, setUsuario] = useState(() => {
+    try {
+      const saved = localStorage.getItem(SESSION_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+  const [tab, setTab] = useState(() => {
+    try {
+      const saved = localStorage.getItem(SESSION_KEY);
+      if (saved) {
+        const u = JSON.parse(saved);
+        return PERFIS[u.perfil]?.nav?.[0] || 'inicio';
+      }
+    } catch {}
+    return 'inicio';
+  });
   const [agendaItem, setAgendaItem] = useState(null);
-  const [selectedUnidade, setSelectedUnidade] = useState('');
+  const [selectedUnidade, setSelectedUnidade] = useState(() => {
+    try {
+      const saved = localStorage.getItem(SESSION_KEY);
+      return saved ? (JSON.parse(saved).unidade || '') : '';
+    } catch { return ''; }
+  });
+
+  const handleLogin = (u) => {
+    try { localStorage.setItem(SESSION_KEY, JSON.stringify(u)); } catch {}
+    setUsuario(u);
+    const nav = PERFIS[u.perfil]?.nav || [];
+    setTab(nav[0] || 'inicio');
+    setSelectedUnidade(u.unidade || '');
+  };
+
+  const handleLogout = () => {
+    try { localStorage.removeItem(SESSION_KEY); } catch {}
+    setUsuario(null);
+    setTab('inicio');
+    setSelectedUnidade('');
+  };
 
   const handleAtender = (item) => {
     setAgendaItem(item);
     setTab('atendimento');
   };
 
-  if (!usuario) return <Login onLogin={u => { setUsuario(u); const nav=PERFIS[u.perfil]?.nav||[]; setTab(nav[0]||'inicio'); setSelectedUnidade(u.unidade||''); }}/>;
+  if (!usuario) return <Login onLogin={handleLogin}/>;
 
   const navPerm = PERFIS[usuario.perfil]?.nav || [];
   if (!navPerm.includes(tab)) return (
-    <Layout user={usuario} tab={tab} setTab={setTab} onLogout={()=>setUsuario(null)} selectedUnidade={selectedUnidade} setSelectedUnidade={setSelectedUnidade}>
+    <Layout user={usuario} tab={tab} setTab={setTab} onLogout={handleLogout} selectedUnidade={selectedUnidade} setSelectedUnidade={setSelectedUnidade}>
       <Card><p style={{textAlign:'center',padding:40,color:C.gray}}>Sem permissão para acessar esta seção.</p></Card>
     </Layout>
   );
@@ -1947,7 +1984,7 @@ export default function App() {
   };
 
   return (
-    <Layout user={usuario} tab={tab} setTab={setTab} onLogout={()=>setUsuario(null)} selectedUnidade={selectedUnidade} setSelectedUnidade={setSelectedUnidade}>
+    <Layout user={usuario} tab={tab} setTab={setTab} onLogout={handleLogout} selectedUnidade={selectedUnidade} setSelectedUnidade={setSelectedUnidade}>
       {pages[tab] || <div>Página não encontrada</div>}
     </Layout>
   );
