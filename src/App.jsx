@@ -1556,14 +1556,15 @@ function Receitas({ user }) {
   useEffect(() => { load(); }, [load]);
   useRealtime('receitas', () => load());
 
-  const fmtOlho = (o) => {
-    if (!o) return '—';
+  const fmtOlho = (r, pref) => {
+    const esf = r[pref+'_esf']; const cil = r[pref+'_cil'];
+    const eixo = r[pref+'_eixo']; const add = r[pref+'_adicao'];
     const parts = [];
-    if (o.sph && o.sph !== 'Plano') parts.push(`Esf ${o.sph}`);
-    if (o.cyl && o.cyl !== 'Plano') parts.push(`Cil ${o.cyl}`);
-    if (o.axis) parts.push(`Eixo ${o.axis}`);
-    if (o.add && o.add !== 'N/A') parts.push(`Add ${o.add}`);
-    return parts.length ? parts.join(' / ') : 'Plano';
+    if (esf && esf !== 'Plano') parts.push(`Esf ${esf}`);
+    if (cil && cil !== 'Plano') parts.push(`Cil ${cil}`);
+    if (eixo) parts.push(`Eixo ${eixo}`);
+    if (add && add !== 'N/A') parts.push(`Add ${add}`);
+    return parts.length ? parts.join(' / ') : (esf === 'Plano' ? 'Plano' : '—');
   };
 
   return (
@@ -1591,8 +1592,8 @@ function Receitas({ user }) {
                     <td style={{padding:'8px 12px'}}>{fmtDate(r.data)}</td>
                     <td style={{padding:'8px 12px',fontWeight:600}}>{r.paciente_nome}</td>
                     <td style={{padding:'8px 12px'}}>{r.opto_nome}</td>
-                    <td style={{padding:'8px 12px',fontSize:12,color:C.textSm}}>{fmtOlho(r.od)}</td>
-                    <td style={{padding:'8px 12px',fontSize:12,color:C.textSm}}>{fmtOlho(r.oe)}</td>
+                    <td style={{padding:'8px 12px',fontSize:12,color:C.textSm}}>{fmtOlho(r,'od')}</td>
+                    <td style={{padding:'8px 12px',fontSize:12,color:C.textSm}}>{fmtOlho(r,'oe')}</td>
                     <td style={{padding:'8px 12px'}}>
                       <Btn size="sm" color={C.teal} outline onClick={()=>setDetalhe(r)}>Ver</Btn>
                     </td>
@@ -1604,29 +1605,67 @@ function Receitas({ user }) {
         </Card>
       )}
       {detalhe && (
-        <Modal title="Receita" onClose={()=>setDetalhe(null)} width={560}>
+        <Modal title="Receita" onClose={()=>setDetalhe(null)} width={580}>
           <div style={{display:'flex',flexDirection:'column',gap:14}}>
-            <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
-              <div><span style={{fontSize:12,color:C.gray}}>Paciente</span><div style={{fontWeight:700,fontSize:15}}>{detalhe.paciente_nome}</div></div>
-              <div><span style={{fontSize:12,color:C.gray}}>Data</span><div style={{fontWeight:600}}>{fmtDate(detalhe.data)}</div></div>
-              <div><span style={{fontSize:12,color:C.gray}}>Optometrista</span><div style={{fontWeight:600}}>{detalhe.opto_nome}</div></div>
+            {/* Cabeçalho */}
+            <div style={{display:'flex',gap:16,flexWrap:'wrap',paddingBottom:12,borderBottom:`1px solid ${C.border}`}}>
+              <div><span style={{fontSize:11,color:C.gray,textTransform:'uppercase',fontWeight:600}}>Paciente</span><div style={{fontWeight:700,fontSize:15,color:C.navy}}>{detalhe.paciente_nome}</div></div>
+              <div><span style={{fontSize:11,color:C.gray,textTransform:'uppercase',fontWeight:600}}>Data</span><div style={{fontWeight:600}}>{fmtDate(detalhe.data)}</div></div>
+              <div><span style={{fontSize:11,color:C.gray,textTransform:'uppercase',fontWeight:600}}>Optometrista</span><div style={{fontWeight:600}}>{detalhe.opto_nome}</div></div>
+              {detalhe.meio_contato && <div><span style={{fontSize:11,color:C.gray,textTransform:'uppercase',fontWeight:600}}>Meio contato</span><div style={{fontWeight:600}}>{detalhe.meio_contato}</div></div>}
+              {detalhe.agendado_por && <div><span style={{fontSize:11,color:C.gray,textTransform:'uppercase',fontWeight:600}}>Agendado por</span><div style={{fontWeight:600}}>{detalhe.agendado_por}</div></div>}
             </div>
-            {[['OD (Olho Direito)', detalhe.od], ['OE (Olho Esquerdo)', detalhe.oe]].map(([lbl,o])=>(
-              <div key={lbl} style={{background:C.tealBg,borderRadius:10,padding:14}}>
-                <div style={{fontWeight:700,color:C.teal,marginBottom:8,fontSize:13}}>{lbl}</div>
-                {o ? (
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
-                    {[['Esf',o.sph],['Cil',o.cyl],['Eixo',o.axis],['Add',o.add],['DNP',o.dnp]].filter(([,v])=>v&&v!=='N/A'&&v!=='Plano').map(([k,v])=>(
-                      <div key={k} style={{background:C.white,borderRadius:8,padding:'8px 10px',textAlign:'center'}}>
-                        <div style={{fontSize:11,color:C.gray}}>{k}</div>
-                        <div style={{fontWeight:700,color:C.navy,fontSize:15}}>{v}</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : <span style={{color:C.gray,fontSize:13}}>Não informado</span>}
-              </div>
-            ))}
-            {detalhe.obs && <div style={{background:C.bg,borderRadius:8,padding:12,fontSize:13}}><strong>Obs:</strong> {detalhe.obs}</div>}
+            {/* Tabela de prescrição */}
+            <div className="tbl-wrap">
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+                <thead><tr style={{background:C.teal,color:C.white}}>
+                  <th style={{padding:'8px 12px',textAlign:'left'}}>Olho</th>
+                  {['Esférico','Cilíndrico','Eixo','Adição','DNP'].map(h=><th key={h} style={{padding:'8px 12px',textAlign:'center'}}>{h}</th>)}
+                </tr></thead>
+                <tbody>
+                  {[['OD','od'],['OE','oe']].map(([lbl,p],i)=>(
+                    <tr key={lbl} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
+                      <td style={{padding:'8px 12px',fontWeight:700,color:C.teal}}>{lbl}</td>
+                      <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_esf']||'—'}</td>
+                      <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_cil']||'—'}</td>
+                      <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_eixo']||'—'}</td>
+                      <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_adicao']||'—'}</td>
+                      <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_dnp']||'—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {detalhe.observacoes && <div style={{background:C.orangeBg,borderLeft:`3px solid ${C.orange}`,borderRadius:'0 8px 8px 0',padding:'10px 14px',fontSize:13}}><strong>Observações:</strong> {detalhe.observacoes}</div>}
+            <div style={{textAlign:'right',paddingTop:4}}>
+              <Btn size="sm" color={C.teal} onClick={()=>{ /* dispara o mesmo print da aba Atendimento */
+                const logoUrl = window.location.origin + '/logo-clinica.png';
+                const dtAtend = detalhe.data_hora_atendimento
+                  ? (()=>{ const [d,t]=(detalhe.data_hora_atendimento||'').split(' '); return fmtDate(d)+(t?' às '+t:''); })()
+                  : fmtDate(detalhe.data);
+                const dtExtenso = (()=>{ const d=new Date(detalhe.data+'T12:00:00'); return 'São Vicente, '+d.toLocaleDateString('pt-BR',{day:'numeric',month:'long',year:'numeric'}); })();
+                const w=window.open('','_blank');
+                w.document.write(`<!DOCTYPE html><html><head><title>Prescrição de Óculos</title><meta charset="utf-8"/>
+                <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#173D43;padding:40px 48px;max-width:800px;margin:0 auto}.header{display:flex;align-items:center;justify-content:space-between;padding-bottom:16px;border-bottom:2px solid #16AFA3;margin-bottom:24px}.logo{height:64px;object-fit:contain}.titulo{font-size:16px;font-weight:700;color:#173D43;text-align:center;letter-spacing:.5px}.paciente-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:20px}.paciente-nome{font-size:14px}.paciente-nome b{font-size:15px}table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:20px}table th,table td{border:1px solid #ccc;padding:9px 12px;text-align:center}table thead tr{background:#f5f5f5}table thead th{font-weight:700;font-size:13px}.obs-row{font-size:13px;margin-bottom:20px;line-height:1.5}.info-meta{font-size:12px;color:#555;margin-bottom:24px;border-top:1px solid #eee;border-bottom:1px solid #eee;padding:10px 0;display:flex;gap:24px;flex-wrap:wrap}.info-meta span b{color:#173D43}.disclaimer{font-size:11px;color:#555;line-height:1.5;margin-bottom:32px;text-align:justify;border:1px solid #ddd;padding:12px 14px;background:#fafafa;border-radius:4px}.assinatura{display:flex;flex-direction:column;align-items:center;margin-bottom:20px}.assinatura .linha{border-top:1px solid #173D43;width:240px;margin-bottom:6px}.assinatura p{font-size:13px;color:#173D43;text-align:center}.footer{border-top:1px solid #ddd;padding-top:10px;font-size:11px;color:#888;text-align:center}.data-local{text-align:center;font-size:13px;margin-bottom:24px;color:#173D43}@media print{body{padding:20px 28px}@page{margin:1cm}}</style>
+                </head><body>
+                <div class="header"><img src="${logoUrl}" alt="Clínica Visão Ideal" class="logo"/><div class="titulo">PRESCRIÇÃO DE ÓCULOS</div><div style="width:100px"></div></div>
+                <div class="paciente-row"><div class="paciente-nome"><b>Paciente:</b> ${detalhe.paciente_nome}</div><div>Idade:</div></div>
+                <table><thead><tr><th></th><th>Esférico</th><th>Cilíndrico</th><th>Eixo</th><th>AV</th><th>DNP</th></tr></thead>
+                <tbody>
+                  <tr><td><b>OD</b></td><td>${detalhe.od_esf||'—'}</td><td>${detalhe.od_cil||'—'}</td><td>${detalhe.od_eixo||'—'}°</td><td></td><td>${detalhe.od_dnp&&detalhe.od_dnp!=='N/A'?detalhe.od_dnp:''}</td></tr>
+                  <tr><td><b>OE</b></td><td>${detalhe.oe_esf||'—'}</td><td>${detalhe.oe_cil||'—'}</td><td>${detalhe.oe_eixo||'—'}°</td><td></td><td>${detalhe.oe_dnp&&detalhe.oe_dnp!=='N/A'?detalhe.oe_dnp:''}</td></tr>
+                  ${(detalhe.od_adicao&&detalhe.od_adicao!=='N/A')||(detalhe.oe_adicao&&detalhe.oe_adicao!=='N/A')?`<tr><td><b>Adição</b></td><td colspan="5">${detalhe.od_adicao||detalhe.oe_adicao||''}</td></tr>`:''}
+                </tbody></table>
+                ${detalhe.observacoes?`<div class="obs-row"><b>Observações:</b> ${detalhe.observacoes}</div>`:''}
+                <div class="info-meta"><span><b>Profissional:</b> ${detalhe.opto_nome}</span>${detalhe.meio_contato?`<span><b>Meio de contato:</b> ${detalhe.meio_contato}</span>`:''}${detalhe.agendado_por?`<span><b>Agendado por:</b> ${detalhe.agendado_por}</span>`:''}<span><b>Atendimento:</b> ${dtAtend}</span></div>
+                <div class="assinatura"><div class="linha"></div><p>${detalhe.opto_nome}</p><p>Optometrista</p></div>
+                <div class="data-local">${dtExtenso}</div>
+                <div class="disclaimer">O presente exame efetuado pelo optometrista, tem por finalidade a correção dos defeitos refrativos, a avaliação sensorial e motora, através da indicação de lentes corretivas refrativas e/ou exercícios ortópticos. O diagnóstico de doenças oculares e seu tratamento são de competência do profissional médico.</div>
+                <div class="footer">Clínica Visão Ideal · Avenida Antonio Emerick, São Vicente</div>
+                <script>window.onload=()=>window.print();</script></body></html>`);
+                w.document.close();
+              }}>Imprimir Receita</Btn>
+            </div>
           </div>
         </Modal>
       )}
