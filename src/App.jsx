@@ -540,63 +540,76 @@ function AgendaModal({ hora, existing, pacientes, optos, onSave, onDelete, onClo
       <div style={{display:'flex',flexDirection:'column',gap:14}}>
         <Select label="Horário" value={form.hora} onChange={e=>set('hora',e.target.value)} options={HORARIOS}/>
 
-        {/* Busca de paciente com lupa */}
-        <div style={{position:'relative'}}>
-          <label style={{display:'block',fontSize:12,fontWeight:600,color:C.navy,marginBottom:4}}>
-            Buscar Paciente
-          </label>
-          <input
-            value={busca}
-            onChange={e=>handleBusca(e.target.value)}
-            onFocus={()=>busca.length>=2&&setShowSug(true)}
-            onBlur={()=>setTimeout(()=>setShowSug(false),180)}
-            placeholder="Digite o nome para buscar..."
-            style={inputStyle(busca)}
-          />
-          {/* Dropdown de sugestões */}
-          {showSug && (
-            <div style={{position:'absolute',top:'calc(100% + 2px)',left:0,right:0,background:C.white,
-              border:`1px solid ${C.border}`,borderRadius:8,boxShadow:'0 4px 16px rgba(0,0,0,0.12)',
-              zIndex:999,maxHeight:200,overflowY:'auto'}}>
-              {sugestoes.length > 0 ? sugestoes.map(p=>(
-                <div key={p.id} onMouseDown={()=>selecionarPaciente(p)}
-                  style={{padding:'8px 12px',cursor:'pointer',fontSize:14,color:C.text,
-                    borderBottom:`1px solid ${C.grayL}`,display:'flex',justifyContent:'space-between'}}
-                  onMouseEnter={e=>e.currentTarget.style.background=C.tealBg}
-                  onMouseLeave={e=>e.currentTarget.style.background=C.white}>
-                  <span>{p.nome}</span>
-                  {p.telefone && <span style={{color:C.gray,fontSize:12}}>{p.telefone}</span>}
-                </div>
-              )) : (
-                <div style={{padding:'10px 12px'}}>
-                  <div style={{fontSize:13,color:C.gray,marginBottom:8}}>Nenhum paciente encontrado</div>
-                  <div onMouseDown={abrirCadastro}
-                    style={{fontSize:13,fontWeight:600,color:C.teal,cursor:'pointer',
-                      padding:'6px 10px',background:C.tealBg,borderRadius:6,textAlign:'center'}}>
-                    + Cadastrar "{busca}" como novo paciente
+        {/* Seção paciente: duas opções lado a lado */}
+        {!novoCliente && !form.pacienteId && (
+          <div>
+            <label style={{display:'block',fontSize:12,fontWeight:600,color:C.navy,marginBottom:8}}>
+              Paciente <span style={{color:C.danger}}>*</span>
+            </label>
+            <div style={{display:'flex',gap:8,marginBottom:8}}>
+              <div style={{position:'relative',flex:1}}>
+                <input
+                  value={busca}
+                  onChange={e=>handleBusca(e.target.value)}
+                  onFocus={()=>busca.length>=2&&setShowSug(true)}
+                  onBlur={()=>setTimeout(()=>setShowSug(false),180)}
+                  placeholder="Buscar paciente cadastrado..."
+                  style={inputStyle(busca)}
+                />
+                {showSug && (
+                  <div style={{position:'absolute',top:'calc(100% + 2px)',left:0,right:0,background:C.white,
+                    border:`1px solid ${C.border}`,borderRadius:8,boxShadow:'0 4px 16px rgba(0,0,0,0.12)',
+                    zIndex:999,maxHeight:200,overflowY:'auto'}}>
+                    {sugestoes.length > 0 ? sugestoes.map(p=>(
+                      <div key={p.id} onMouseDown={()=>selecionarPaciente(p)}
+                        style={{padding:'8px 12px',cursor:'pointer',fontSize:14,color:C.text,
+                          borderBottom:`1px solid ${C.grayL}`,display:'flex',justifyContent:'space-between'}}
+                        onMouseEnter={e=>e.currentTarget.style.background=C.tealBg}
+                        onMouseLeave={e=>e.currentTarget.style.background=C.white}>
+                        <span>{p.nome}</span>
+                        {p.telefone && <span style={{color:C.gray,fontSize:12}}>{p.telefone}</span>}
+                      </div>
+                    )) : (
+                      <div style={{padding:'10px 12px',fontSize:13,color:C.gray}}>Nenhum paciente encontrado</div>
+                    )}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+              <button onClick={abrirCadastro}
+                style={{background:C.orange,color:C.white,border:'none',borderRadius:8,
+                  padding:'8px 14px',fontSize:13,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>
+                + Cadastrar
+              </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Paciente selecionado — badge */}
+        {/* Paciente selecionado via busca — badge */}
         {form.pacienteId && !novoCliente && (
-          <div style={{background:C.tealBg,borderRadius:8,padding:'8px 12px',display:'flex',
-            justifyContent:'space-between',alignItems:'center',fontSize:13}}>
-            <span style={{fontWeight:600,color:C.tealD}}>{form.pacienteNome}</span>
-            <span style={{color:C.gray,cursor:'pointer',fontSize:12}} onClick={()=>{
-              setBusca(''); set('pacienteId',''); set('pacienteNome',''); set('telefone',''); set('dataNasc','');
-            }}>Trocar</span>
+          <div>
+            <label style={{display:'block',fontSize:12,fontWeight:600,color:C.navy,marginBottom:6}}>Paciente</label>
+            <div style={{background:C.tealBg,borderRadius:8,padding:'10px 14px',display:'flex',
+              justifyContent:'space-between',alignItems:'center',fontSize:13}}>
+              <div>
+                <div style={{fontWeight:700,color:C.tealD}}>{form.pacienteNome}</div>
+                {form.telefone && <div style={{fontSize:12,color:C.gray,marginTop:2}}>{form.telefone}</div>}
+              </div>
+              <span style={{color:C.gray,cursor:'pointer',fontSize:12,textDecoration:'underline'}} onClick={()=>{
+                setBusca(''); set('pacienteId',''); set('pacienteNome',''); set('telefone',''); set('dataNasc','');
+              }}>Trocar</span>
+            </div>
           </div>
         )}
 
         {/* Mini-cadastro de novo paciente */}
         {novoCliente && (
-          <div style={{background:'#fff8f0',border:`1px solid ${C.orange}`,borderRadius:10,padding:14}}>
-            <div style={{fontSize:13,fontWeight:700,color:C.orange,marginBottom:12}}>
-              Cadastro Rápido de Paciente
+          <div style={{background:'#fff8f0',border:`1.5px solid ${C.orange}`,borderRadius:12,padding:16}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+              <span style={{fontSize:13,fontWeight:700,color:C.orange}}>Novo Paciente</span>
+              <span style={{fontSize:12,color:C.gray,cursor:'pointer',textDecoration:'underline'}}
+                onClick={()=>{setNovoCliente(false);setBusca('');set('pacienteNome','');set('telefone','');set('dataNasc','');}}>
+                Cancelar
+              </span>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:10}}>
               <div>
@@ -604,7 +617,7 @@ function AgendaModal({ hora, existing, pacientes, optos, onSave, onDelete, onClo
                   Nome completo <span style={{color:C.danger}}>*</span>
                 </label>
                 <input value={form.pacienteNome} onChange={e=>set('pacienteNome',e.target.value)}
-                  placeholder="Nome do paciente" style={inputStyle(form.pacienteNome, true)}/>
+                  placeholder="Nome completo do paciente" style={inputStyle(form.pacienteNome, true)}/>
               </div>
               <div>
                 <label style={{display:'block',fontSize:12,fontWeight:600,color:C.navy,marginBottom:4}}>
@@ -621,20 +634,9 @@ function AgendaModal({ hora, existing, pacientes, optos, onSave, onDelete, onClo
                   style={inputStyle(form.dataNasc)}/>
               </div>
             </div>
-            <div style={{fontSize:11,color:C.gray,marginTop:8}}>
-              O paciente será cadastrado automaticamente ao salvar o agendamento.
+            <div style={{fontSize:11,color:C.gray,marginTop:10}}>
+              Paciente sera cadastrado automaticamente ao salvar o agendamento.
             </div>
-          </div>
-        )}
-
-        {/* WhatsApp — quando paciente já selecionado mas sem telefone, ou paciente novo */}
-        {!novoCliente && !form.pacienteId && busca.length === 0 && (
-          <div>
-            <label style={{display:'block',fontSize:12,fontWeight:600,color:C.navy,marginBottom:4}}>
-              WhatsApp <span style={{color:C.danger}}>*</span>
-            </label>
-            <input value={form.telefone} onChange={e=>set('telefone',e.target.value)}
-              placeholder="(00) 00000-0000" style={inputStyle(form.telefone, true)}/>
           </div>
         )}
 
