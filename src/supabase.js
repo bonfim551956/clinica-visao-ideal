@@ -14,13 +14,21 @@ export async function entrar(nome, senha) {
   if (error) {
     const status = error.context?.status;
     if (status === 401) return { erro: 'Usuário ou senha incorretos' };
-    // Contingência enquanto a migração termina: se a função de acesso estiver fora, usa o login antigo
+    // Contingência: se a função de acesso estiver fora, usa o login antigo
     const { data: u } = await supabase.from('usuarios').select(CAMPOS_USUARIO).eq('nome', nome.trim()).eq('senha', senha).eq('ativo', true).maybeSingle();
     return u ? { usuario: u } : { erro: 'Não foi possível entrar agora. Tente de novo.' };
   }
   if (!data?.email) return { erro: 'Usuário ou senha incorretos' };
   const { data: s, error: e2 } = await supabase.auth.signInWithPassword({ email: data.email, password: senhaAuth(senha) });
-  if (e2 || !s?.user) return { erro: 'Usuário ou senha incorretos' };
+  if (e2 || !s?.user) {
+    // Auth existe mas senha está incompatível (migração manual via SQL). Pede para a Edge Function recriar.
+    await supabase.functions.invoke('agenda-acesso', { body: { acao: 'entrar', nome: nome.trim(), senha, forcarRecriacao: true } });
+    const { data: s2, error: e3 } = await supabase.auth.signInWithPassword({ email: data.email, password: senhaAuth(senha) });
+    if (e3 || !s2?.user) return { erro: 'Usuário ou senha incorretos' };
+    const { data: u2 } = await supabase.from('usuarios').select(CAMPOS_USUARIO).eq('auth_id', s2.user.id).eq('ativo', true).maybeSingle();
+    if (!u2) { await supabase.auth.signOut(); return { erro: 'Usuário inativo' }; }
+    return { usuario: u2 };
+  }
   const { data: u } = await supabase.from('usuarios').select(CAMPOS_USUARIO).eq('auth_id', s.user.id).eq('ativo', true).maybeSingle();
   if (!u) { await supabase.auth.signOut(); return { erro: 'Usuário inativo' }; }
   return { usuario: u };
