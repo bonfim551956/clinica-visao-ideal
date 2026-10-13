@@ -462,11 +462,15 @@ function Agenda({ user, selectedUnidade='' }) {
       opto_id:selOpto, opto_nome:opto?.nome, data:form.data||selData, hora:form.hora,
       procedimento:form.procedimento, meio_contato:form.meioContato, status:'Agendado', observacoes:form.obs||'',
       agendado_por: user?.nome||'', unidade: opto?.unidade||'' };
+    let err;
     if (modal.existing) {
-      await supabase.from('agenda').update(row).eq('id',modal.existing.id);
+      const { error } = await supabase.from('agenda').update(row).eq('id',modal.existing.id);
+      err = error;
     } else {
-      await supabase.from('agenda').insert(row);
+      const { error } = await supabase.from('agenda').insert(row);
+      err = error;
     }
+    if (err) { alert('Erro ao salvar agendamento: ' + err.message); return; }
     loadSlots(selOpto, selData).then(data => setSlots(data||[]));
     setModal(null);
     showToast('Agendamento salvo!');
@@ -613,7 +617,11 @@ function AgendaModal({ hora, existing, pacientes, optos, onSave, onDelete, onClo
       };
       const { data: pacData, error } = await supabase.from('pacientes').insert(novoPac).select().single();
       setSalvandoPac(false);
-      if (!error && pacData) {
+      if (error) {
+        alert('Erro ao cadastrar paciente: ' + error.message);
+        return;
+      }
+      if (pacData) {
         pacId = pacData.id;
         set('pacienteId', pacId);
       }
