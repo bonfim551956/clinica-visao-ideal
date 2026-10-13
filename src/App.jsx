@@ -2042,14 +2042,18 @@ export default function App() {
     setSelectedUnidade(u.unidade || '');
   };
 
-  // Confere a sessão do Supabase: sem login válido, volta para a tela de entrada
+  // Confere a sessão do Supabase: atualiza dados se tiver sessão Auth válida,
+  // mas só força logout se vier evento SIGNED_OUT explícito (evita expulsar usuários sem auth_id)
   useEffect(() => {
     let vivo = true;
     usuarioDaSessao().then((u) => {
       if (!vivo) return;
-      if (!u) { handleLogout(); return; }
-      try { localStorage.setItem(SESSION_KEY, JSON.stringify(u)); } catch {}
-      setUsuario((atual) => (atual ? { ...atual, ...u } : atual));
+      if (u) {
+        try { localStorage.setItem(SESSION_KEY, JSON.stringify(u)); } catch {}
+        setUsuario((atual) => (atual ? { ...atual, ...u } : atual));
+      }
+      // Se u === null mas há sessão no localStorage, mantém o usuário logado
+      // (usuários sem auth_id continuam funcionando)
     });
     const { data: sub } = supabase.auth.onAuthStateChange((evento) => { if (evento === 'SIGNED_OUT') handleLogout(true); });
     return () => { vivo = false; sub?.subscription?.unsubscribe(); };
