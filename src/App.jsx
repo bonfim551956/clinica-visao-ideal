@@ -564,8 +564,6 @@ function Agenda({ user, selectedUnidade='' }) {
     <div>
       <Toast msg={toast}/>
       <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end',marginBottom:20}}>
-        <Select label="Optometrista" value={selOpto} onChange={e=>setSelOpto(e.target.value)}
-          options={optos.map(o=>({value:o.id,label:o.nome}))} style={{minWidth:200}}/>
         <Input label="Data" type="date" value={selData} onChange={e=>setSelData(e.target.value)}/>
         <Btn onClick={()=>setModal({hora:HORARIOS[0]})} color={C.orange}>+ Novo Agendamento</Btn>
         <Btn onClick={()=>{ const n=new Date(); const h=`${pad(n.getHours())}:${pad(n.getMinutes())}`; setModal({hora:h, encaixe:true}); }} color={C.teal} outline>+ Encaixe</Btn>
