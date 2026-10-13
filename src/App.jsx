@@ -1745,10 +1745,8 @@ function Usuarios({ selectedUnidade='' }) {
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(''),3000); };
 
   const load = useCallback(async () => {
-    let q = supabase.from('usuarios').select('*').order('nome');
-    if (selectedUnidade) q = q.eq('unidade', selectedUnidade);
-    const {data} = await q;
-    setRows(data||[]);
+    const r = await gerirUsuario('listar', { unidade: selectedUnidade || '' });
+    setRows(r?.usuarios || r?.data || []);
     setLoading(false);
   }, [selectedUnidade]);
   useEffect(()=>{ load(); },[load]);
@@ -1844,10 +1842,12 @@ function UsuarioModal({ user, onSave, onClose }) {
         <Input label="Nome" value={form.nome} onChange={e=>set('nome',e.target.value)} placeholder="Nome completo"/>
         <Select label="Perfil" value={form.perfil} onChange={e=>set('perfil',e.target.value)}
           options={Object.entries(PERFIS).map(([v,p])=>({value:v,label:p.label}))}/>
-        <Select label="Unidade" value={form.unidade} onChange={e=>handleUnidade(e.target.value)}
-          options={[{value:'',label:'Selecionar unidade'},...UNIDADES.map(u=>({value:u,label:u}))]}/>
-        <Input label="Endereço da Unidade" value={form.endereco} onChange={e=>set('endereco',e.target.value)}
-          placeholder="Endereço completo da clínica"/>
+        {!['diretor','supervisor','prevenda'].includes(form.perfil) && (<>
+          <Select label="Unidade" value={form.unidade} onChange={e=>handleUnidade(e.target.value)}
+            options={[{value:'',label:'Selecionar unidade'},...UNIDADES.map(u=>({value:u,label:u}))]}/>
+          <Input label="Endereço da Unidade" value={form.endereco} onChange={e=>set('endereco',e.target.value)}
+            placeholder="Endereço completo da clínica"/>
+        </>)}
         {form.perfil==='opto' && <Input label="CRO" value={form.cro} onChange={e=>set('cro',e.target.value)} placeholder="CRO-SP 12345"/>}
         <Input label={user.id?'Nova senha (deixe em branco para manter)':'Senha'} type="password" autoComplete="new-password" value={form.senha} onChange={e=>set('senha',e.target.value)} placeholder="Mínimo 6 caracteres"/>
         {erro && <p style={{color:C.danger,fontSize:13}}>{erro}</p>}
