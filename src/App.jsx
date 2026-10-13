@@ -61,19 +61,20 @@ const ENDERECOS_UNIDADES = {
 const PERFIS_COMERCIAL = ['prevenda','supervisor','diretor','gerente'];
 
 const NAV_ITEMS = [
-  { id:'inicio',       label:'Início'       },
-  { id:'agenda',       label:'Agenda'       },
-  { id:'agendamentos', label:'Agendamentos' },
-  { id:'atendimento',  label:'Atendimento'  },
-  { id:'receitas',     label:'Receitas'     },
-  { id:'conversao',    label:'Conversão'    },
-  { id:'noshow',       label:'No-Show'      },
-  { id:'relatorios',   label:'Relatórios'   },
-  { id:'usuarios',     label:'Usuários'     },
+  { id:'inicio',       label:'Início',        icon:'🏠' },
+  { id:'agenda',       label:'Agenda',        icon:'📅' },
+  { id:'agendamentos', label:'Agendamentos',  icon:'📋' },
+  { id:'atendimento',  label:'Atendimento',   icon:'👁️' },
+  { id:'receitas',     label:'Receitas',      icon:'📄' },
+  { id:'conversao',    label:'Conversão',     icon:'💼' },
+  { id:'noshow',       label:'No-Show',       icon:'⚠️' },
+  { id:'relatorios',   label:'Relatórios',    icon:'📊' },
+  { id:'usuarios',     label:'Usuários',      icon:'👥' },
 ];
 
 /* ── CSS global ── */
 const GLOBAL_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',sans-serif;background:${C.bg};color:${C.text};font-size:14px}
 button{cursor:pointer;border:none;outline:none;font-family:inherit}
@@ -82,9 +83,11 @@ input,select,textarea{font-family:inherit;outline:none}
 ::-webkit-scrollbar-track{background:#f1f1f1}
 ::-webkit-scrollbar-thumb{background:#ccc;border-radius:3px}
 .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-.resp-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-.resp-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.resp-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.resp-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
 .resp-grid-main{display:grid;grid-template-columns:1fr 300px;gap:16px}
+.nav-item{transition:all .15s;border-radius:10px}
+.nav-item:hover{background:${C.teal}11 !important}
 @media(max-width:767px){
   .resp-grid-4{grid-template-columns:1fr 1fr;gap:10px}
   .resp-grid-2{grid-template-columns:1fr}
@@ -188,17 +191,26 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
   );
 
   const SideNav = ({ onItemClick }) => (
-    <nav style={{display:'flex',flexDirection:'column',gap:2,padding:'8px 0'}}>
-      {navItems.map(n => (
-        <button key={n.id} onClick={()=>{setTab(n.id);onItemClick&&onItemClick();}}
-          style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderRadius:10,margin:'0 8px',
-            background:tab===n.id?C.teal+'22':'transparent',color:tab===n.id?C.teal:C.text,
-            fontWeight:tab===n.id?700:400,fontSize:14,border:'none',cursor:'pointer',textAlign:'left'}}>
-          {n.label}
-        </button>
-      ))}
+    <nav style={{display:'flex',flexDirection:'column',gap:1,padding:'8px 0'}}>
+      {navItems.map(n => {
+        const active = tab===n.id;
+        return (
+          <button key={n.id} onClick={()=>{setTab(n.id);onItemClick&&onItemClick();}}
+            className="nav-item"
+            style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderRadius:10,margin:'0 8px',
+              background:active?C.teal:'transparent',color:active?C.white:C.text,
+              fontWeight:active?700:500,fontSize:13.5,border:'none',cursor:'pointer',textAlign:'left',position:'relative'}}>
+            {active && <span style={{position:'absolute',left:0,top:'20%',bottom:'20%',width:3,background:C.orange,borderRadius:'0 3px 3px 0'}}/>}
+            <span style={{fontSize:15,width:20,textAlign:'center',opacity:active?1:.7}}>{n.icon}</span>
+            {n.label}
+          </button>
+        );
+      })}
       <div style={{borderTop:`1px solid ${C.border}`,margin:'8px 16px',paddingTop:8}}>
-        <button onClick={onLogout} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 8px',color:C.danger,background:'none',border:'none',cursor:'pointer',fontSize:14,width:'100%'}}>
+        <button onClick={onLogout}
+          className="nav-item"
+          style={{display:'flex',alignItems:'center',gap:10,padding:'10px 8px',color:C.danger,background:'none',border:'none',cursor:'pointer',fontSize:13.5,width:'100%'}}>
+          <span style={{fontSize:15,width:20,textAlign:'center'}}>🚪</span>
           Sair
         </button>
       </div>
@@ -245,35 +257,55 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
     </div>
   );
 
+  const sideW = 220;
+  const currentNav = NAV_ITEMS.find(n=>n.id===tab);
+
   return (
     <div style={{minHeight:'100vh',display:'flex',background:C.bg}}>
       <style>{GLOBAL_CSS}</style>
       {/* Sidebar */}
-      <div style={{width:200,background:C.white,borderRight:`1px solid ${C.border}`,position:'fixed',top:0,left:0,bottom:0,overflowY:'auto',display:'flex',flexDirection:'column'}}>
-        <div style={{padding:'16px',background:`linear-gradient(135deg,${C.navy},${C.teal})`,color:C.white,display:'flex',flexDirection:'column',alignItems:'center'}}>
-          <img src="/logo-clinica.png" alt="Clínica Visão Ideal" style={{width:140,filter:'brightness(0) invert(1)'}}/>
+      <div style={{width:sideW,background:C.white,borderRight:`1px solid ${C.border}`,position:'fixed',top:0,left:0,bottom:0,overflowY:'auto',display:'flex',flexDirection:'column',boxShadow:'2px 0 8px rgba(0,0,0,.04)'}}>
+        <div style={{padding:'20px 16px 16px',background:`linear-gradient(160deg,${C.navy} 0%,${C.teal} 100%)`,color:C.white,display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
+          <img src="/logo-clinica.png" alt="Clínica Visão Ideal" style={{width:130,filter:'brightness(0) invert(1)'}}/>
+          <div style={{fontSize:10,opacity:.75,textTransform:'uppercase',letterSpacing:'0.8px',fontWeight:600}}>Sistema de Gestão</div>
         </div>
-        <div style={{flex:1,overflowY:'auto'}}><SideNav/></div>
-        <div style={{padding:'12px 16px',borderTop:`1px solid ${C.border}`,fontSize:12}}>
-          <div style={{fontWeight:600,color:C.navy}}>{user.nome}</div>
-          <Badge color={perfil?.cor||C.teal} style={{marginTop:4}}>{perfil?.label}</Badge>
-          {user.unidade && <div style={{color:C.teal,marginTop:4,fontWeight:600,fontSize:11}}>📍 {user.unidade}</div>}
-          {user.cro && <div style={{color:C.gray,marginTop:2}}>CRO: {user.cro}</div>}
+        <div style={{flex:1,overflowY:'auto',paddingTop:6}}><SideNav/></div>
+        <div style={{padding:'14px 16px',borderTop:`1px solid ${C.border}`,background:C.bg}}>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <div style={{width:34,height:34,borderRadius:'50%',background:`linear-gradient(135deg,${C.teal},${C.navy})`,display:'flex',alignItems:'center',justifyContent:'center',color:C.white,fontWeight:700,fontSize:13,flexShrink:0}}>
+              {user.nome?.charAt(0)?.toUpperCase()}
+            </div>
+            <div style={{minWidth:0}}>
+              <div style={{fontWeight:700,color:C.navy,fontSize:12,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{user.nome}</div>
+              <div style={{fontSize:10,color:C.teal,fontWeight:600,marginTop:1}}>{perfil?.label}</div>
+              {user.unidade && <div style={{color:C.gray,fontSize:10,marginTop:1}}>📍 {user.unidade}</div>}
+            </div>
+          </div>
         </div>
       </div>
       {/* Main */}
-      <div style={{marginLeft:200,flex:1,display:'flex',flexDirection:'column',minHeight:'100vh'}}>
-        <div style={{background:C.white,borderBottom:`1px solid ${C.border}`,position:'sticky',top:0,zIndex:100}}>
-          <div style={{height:52,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 24px'}}>
-            <h1 style={{fontSize:16,fontWeight:700,color:C.navy}}>{NAV_ITEMS.find(n=>n.id===tab)?.label}</h1>
-            <span style={{color:C.gray,fontSize:13}}>{fmtDate(today())}</span>
+      <div style={{marginLeft:sideW,flex:1,display:'flex',flexDirection:'column',minHeight:'100vh'}}>
+        <div style={{background:C.white,borderBottom:`1px solid ${C.border}`,position:'sticky',top:0,zIndex:100,boxShadow:'0 2px 8px rgba(0,0,0,.04)'}}>
+          <div style={{height:56,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 28px'}}>
+            <div>
+              <div style={{fontSize:11,color:C.teal,fontWeight:600,letterSpacing:'0.5px',textTransform:'uppercase',marginBottom:1}}>
+                {currentNav?.icon} {currentNav?.label}
+              </div>
+              <div style={{fontSize:13,fontWeight:600,color:C.navy}}>
+                Bem-vindo, <span style={{color:C.teal}}>{user.nome.split(' ')[0]}</span>! Hoje {fmtDate(today())}
+              </div>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:12}}>
+              <Badge color={perfil?.cor||C.teal}>{perfil?.label}</Badge>
+              {user.unidade && <span style={{fontSize:12,color:C.gray}}>📍 {user.unidade}</span>}
+            </div>
           </div>
-          <div style={{padding:'8px 24px 10px',borderTop:`1px solid ${C.border}11`,background:C.bg,display:'flex',alignItems:'center',gap:10}}>
-            <span style={{fontSize:12,fontWeight:600,color:C.textSm,whiteSpace:'nowrap'}}>Unidade:</span>
+          <div style={{padding:'6px 28px 10px',background:C.bg+'cc',display:'flex',alignItems:'center',gap:10,borderTop:`1px solid ${C.border}22`}}>
+            <span style={{fontSize:11,fontWeight:700,color:C.textSm,whiteSpace:'nowrap',textTransform:'uppercase',letterSpacing:'0.5px'}}>Unidade:</span>
             <UnidadeFilter/>
           </div>
         </div>
-        <div style={{flex:1,padding:24,maxWidth:1200}}>{children}</div>
+        <div style={{flex:1,padding:28,maxWidth:1300}}>{children}</div>
       </div>
     </div>
   );
@@ -318,11 +350,16 @@ function Dashboard({ user, selectedUnidade='' }) {
     load();
   }, [selectedUnidade]);
 
-  const KPI = ({label, value, sub, color=C.teal}) => (
-    <Card style={{textAlign:'center'}}>
-      <div style={{fontSize:28,fontWeight:800,color}}>{value}</div>
-      <div style={{fontSize:13,fontWeight:600,color:C.navy,marginTop:4}}>{label}</div>
-      {sub && <div style={{fontSize:11,color:C.gray,marginTop:2}}>{sub}</div>}
+  const KPI = ({label, value, sub, color=C.teal, icon='📊'}) => (
+    <Card style={{padding:'20px 18px',display:'flex',alignItems:'center',gap:16}}>
+      <div style={{width:52,height:52,borderRadius:'50%',background:color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0,boxShadow:`0 4px 14px ${color}44`}}>
+        {icon}
+      </div>
+      <div style={{minWidth:0}}>
+        <div style={{fontSize:26,fontWeight:800,color,lineHeight:1}}>{value}</div>
+        <div style={{fontSize:12,fontWeight:600,color:C.navy,marginTop:4,lineHeight:1.3}}>{label}</div>
+        {sub && <div style={{fontSize:10,color:C.gray,marginTop:2}}>{sub}</div>}
+      </div>
     </Card>
   );
 
@@ -331,19 +368,25 @@ function Dashboard({ user, selectedUnidade='' }) {
   if (loading) return <Spinner/>;
   return (
     <div>
-      <h2 style={{fontSize:20,fontWeight:700,color:C.navy,marginBottom:16}}>Olá, {user.nome.split(' ')[0]}!</h2>
-      <div className="resp-grid-4" style={{marginBottom:20}}>
-        <KPI label="Agendados Hoje" value={stats.agendados} color={C.teal}/>
-        <KPI label="Compareceram" value={stats.compareceu} color={C.success}/>
-        <KPI label="Não Compareceu" value={stats.naoComp} color={C.danger}/>
-        <KPI label="Receitas Hoje" value={stats.receitas} color='#6F42C1'/>
-        {verComercial && <KPI label="Conversões" value={stats.conversoes} color={C.orange}/>}
-        {verComercial && <KPI label="Faturamento" value={fmtMoney(stats.valorTotal)} color={C.teal}/>}
-        {verComercial && <KPI label="Taxa No-Show" value={`${stats.noshow}%`} color={C.danger}/>}
-        {verComercial && <KPI label="Taxa Conversão" value={`${stats.taxaConv||0}%`} color={C.success}/>}
+      <div style={{marginBottom:20}}>
+        <h2 style={{fontSize:22,fontWeight:800,color:C.navy}}>Visão Geral</h2>
+        <p style={{color:C.gray,fontSize:13,marginTop:2}}>Resumo de hoje · {fmtDate(today())}</p>
       </div>
-      <Card>
-        <h3 style={{fontSize:15,fontWeight:700,marginBottom:14,color:C.navy}}>Proximas Consultas Hoje</h3>
+      <div className="resp-grid-4" style={{marginBottom:24}}>
+        <KPI label="Agendados Hoje" value={stats.agendados} color={C.teal} icon="📅"/>
+        <KPI label="Compareceram" value={stats.compareceu} color={C.success} icon="✅"/>
+        <KPI label="Não Compareceu" value={stats.naoComp} color={C.danger} icon="❌"/>
+        <KPI label="Receitas Hoje" value={stats.receitas} color='#6F42C1' icon="📄"/>
+        {verComercial && <KPI label="Conversões" value={stats.conversoes} color={C.orange} icon="💼"/>}
+        {verComercial && <KPI label="Faturamento" value={fmtMoney(stats.valorTotal)} color={C.teal} icon="💰"/>}
+        {verComercial && <KPI label="Taxa No-Show" value={`${stats.noshow}%`} color={C.danger} icon="⚠️"/>}
+        {verComercial && <KPI label="Taxa Conversão" value={`${stats.taxaConv||0}%`} color={C.success} icon="📈"/>}
+      </div>
+      <Card style={{padding:24}}>
+        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
+          <div style={{width:32,height:32,borderRadius:'50%',background:C.teal,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15}}>📅</div>
+          <h3 style={{fontSize:15,fontWeight:700,color:C.navy}}>Próximas Consultas Hoje</h3>
+        </div>
         {proximos.length === 0 ? <p style={{color:C.gray,textAlign:'center',padding:20}}>Nenhum agendamento encontrado</p> : (
           <div className="tbl-wrap">
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
