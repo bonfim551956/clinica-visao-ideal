@@ -169,7 +169,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
   const navItems = NAV_ITEMS.filter(n => PERFIS[user.perfil]?.nav.includes(n.id));
   const perfil = PERFIS[user.perfil];
 
-  const podeVerTodasUnidades = ['diretor','supervisor'].includes(user.perfil);
+  const podeVerTodasUnidades = ['diretor','supervisor','prevenda'].includes(user.perfil);
   const UnidadeFilter = () => {
     if (!podeVerTodasUnidades) {
       // Usuários de unidade fixa: só mostra a própria unidade, sem controle de troca
