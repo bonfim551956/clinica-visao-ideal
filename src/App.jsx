@@ -169,20 +169,31 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
   const navItems = NAV_ITEMS.filter(n => PERFIS[user.perfil]?.nav.includes(n.id));
   const perfil = PERFIS[user.perfil];
 
-  const UnidadeFilter = () => (
-    <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
-      {['Todas',...UNIDADES].map(u=>{
-        const val = u==='Todas'?'':u;
-        const active = selectedUnidade===val;
-        return (
-          <button key={u} onClick={()=>setSelectedUnidade(val)}
-            style={{padding:'4px 12px',borderRadius:20,fontSize:12,fontWeight:600,cursor:'pointer',border:`1.5px solid ${active?C.teal:C.border}`,background:active?C.teal:'transparent',color:active?C.white:C.gray,transition:'all .15s',whiteSpace:'nowrap'}}>
-            {u}
-          </button>
-        );
-      })}
-    </div>
-  );
+  const podeVerTodasUnidades = ['diretor','supervisor'].includes(user.perfil);
+  const UnidadeFilter = () => {
+    if (!podeVerTodasUnidades) {
+      // Usuários de unidade fixa: só mostra a própria unidade, sem controle de troca
+      return user.unidade ? (
+        <div style={{padding:'4px 12px',borderRadius:20,fontSize:12,fontWeight:600,border:`1.5px solid ${C.teal}`,background:C.teal,color:C.white,whiteSpace:'nowrap'}}>
+          {user.unidade}
+        </div>
+      ) : null;
+    }
+    return (
+      <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
+        {['Todas',...UNIDADES].map(u=>{
+          const val = u==='Todas'?'':u;
+          const active = selectedUnidade===val;
+          return (
+            <button key={u} onClick={()=>setSelectedUnidade(val)}
+              style={{padding:'4px 12px',borderRadius:20,fontSize:12,fontWeight:600,cursor:'pointer',border:`1.5px solid ${active?C.teal:C.border}`,background:active?C.teal:'transparent',color:active?C.white:C.gray,transition:'all .15s',whiteSpace:'nowrap'}}>
+              {u}
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
 
   const SideNav = ({ onItemClick }) => (
     <nav style={{display:'flex',flexDirection:'column',gap:1,padding:'8px 0'}}>
