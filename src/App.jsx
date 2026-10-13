@@ -171,14 +171,8 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
 
   const podeVerTodasUnidades = ['diretor','supervisor','prevenda'].includes(user.perfil);
   const UnidadeFilter = () => {
-    if (!podeVerTodasUnidades) {
-      // Usuários de unidade fixa: só mostra a própria unidade, sem controle de troca
-      return user.unidade ? (
-        <div style={{padding:'4px 12px',borderRadius:20,fontSize:12,fontWeight:600,border:`1.5px solid ${C.teal}`,background:C.teal,color:C.white,whiteSpace:'nowrap'}}>
-          {user.unidade}
-        </div>
-      ) : null;
-    }
+    // Opto e outros perfis de unidade fixa: não mostram seletor nem badge
+    if (!podeVerTodasUnidades) return null;
     return (
       <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
         {['Todas',...UNIDADES].map(u=>{
@@ -438,25 +432,31 @@ function Agenda({ user, selectedUnidade='' }) {
   }, []);
 
   const loadSlots = useCallback(async (opto, data) => {
-    if (!opto || !data) return;
+    if (!data) return;
+    // Opto vê todos os agendamentos da sua loja (por unidade)
+    if (user.perfil === 'opto') {
+      const unidade = user.unidade || selectedUnidade;
+      let q = supabase.from('agenda').select('*').eq('data', data);
+      if (unidade) q = q.eq('unidade', unidade);
+      const { data: res } = await q;
+      return (res||[]).sort((a,b) => a.hora.localeCompare(b.hora));
+    }
+    // Outros perfis: filtra pelo opto selecionado + agendamentos da IA na mesma unidade
+    if (!opto) return;
     const applyU = q => selectedUnidade ? q.eq('unidade', selectedUnidade) : q;
-    // Para agendamentos da IA: filtrar pela unidade do opto (se tiver) ou pelo filtro global
     const optoObj = optos.find(o => o.id === opto);
-    const optoUnidade = optoObj?.unidade || '';
-    const unidadeIA = selectedUnidade || optoUnidade;
+    const unidadeIA = selectedUnidade || optoObj?.unidade || '';
     const applyUIA = q => unidadeIA ? q.eq('unidade', unidadeIA) : q;
-    // Busca agendamentos do opto selecionado + agendamentos da IA (opto_id null) na mesma data
     const [res1, res2] = await Promise.all([
       applyU(supabase.from('agenda').select('*').eq('opto_id', opto).eq('data', data)),
       applyUIA(supabase.from('agenda').select('*').is('opto_id', null).eq('data', data))
     ]);
     const combined = [...(res1.data||[]), ...(res2.data||[])];
-    // Deduplica por id e ordena por hora
     const seen = new Set();
     const unique = combined.filter(a => { if (seen.has(a.id)) return false; seen.add(a.id); return true; });
     unique.sort((a,b) => a.hora.localeCompare(b.hora));
     return unique;
-  }, [optos, selectedUnidade]);
+  }, [user, optos, selectedUnidade]);
 
   useEffect(() => {
     if (!selOpto || !selData) return;
@@ -980,8 +980,13 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
 
   const loadFila = useCallback(() => {
     let q = supabase.from('agenda').select('*').eq('data',today()).not('status','eq','Não Compareceu').order('hora');
-    if (selectedUnidade) q = q.eq('unidade', selectedUnidade);
-    if (user.perfil === 'opto') q = q.eq('opto_id', user.id);
+    if (user.perfil === 'opto') {
+      // Opto vê todos os agendamentos da sua loja
+      const unidade = user.unidade || selectedUnidade;
+      if (unidade) q = q.eq('unidade', unidade);
+    } else {
+      if (selectedUnidade) q = q.eq('unidade', selectedUnidade);
+    }
     q.then(({data})=>{ setFila(data||[]); setLoading(false); });
   }, [selectedUnidade, user]);
 
