@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase, entrar, usuarioDaSessao, gerirUsuario } from './supabase';
 
 /* ── helpers ── */
@@ -426,7 +426,7 @@ function Agenda({ user, selectedUnidade='' }) {
     supabase.from('pacientes').select('*').order('nome').then(({data})=>setPacientes(data||[]));
   }, []);
 
-  const loadSlots = async (opto, data) => {
+  const loadSlots = useCallback(async (opto, data) => {
     if (!opto || !data) return;
     const applyU = q => selectedUnidade ? q.eq('unidade', selectedUnidade) : q;
     // Para agendamentos da IA: filtrar pela unidade do opto (se tiver) ou pelo filtro global
@@ -445,13 +445,13 @@ function Agenda({ user, selectedUnidade='' }) {
     const unique = combined.filter(a => { if (seen.has(a.id)) return false; seen.add(a.id); return true; });
     unique.sort((a,b) => a.hora.localeCompare(b.hora));
     return unique;
-  };
+  }, [optos, selectedUnidade]);
 
   useEffect(() => {
     if (!selOpto || !selData) return;
     setLoading(true);
     loadSlots(selOpto, selData).then(data => { setSlots(data||[]); setLoading(false); });
-  }, [selOpto, selData, selectedUnidade]);
+  }, [selOpto, selData, selectedUnidade, loadSlots]);
 
   // Realtime: atualiza slots automaticamente
   useRealtime('agenda', () => {
@@ -484,7 +484,7 @@ function Agenda({ user, selectedUnidade='' }) {
     checkNoshow();
     const interval = setInterval(checkNoshow, 5*60*1000); // verifica a cada 5 min
     return () => clearInterval(interval);
-  }, [selOpto, selData]);
+  }, [selOpto, selData, loadSlots]);
 
   const getSlot = hora => slots.find(s=>s.hora===hora);
 
@@ -989,7 +989,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
       oe_esf:'Plano',oe_cil:'Plano',oe_eixo:'90',oe_add:'N/A',oe_dnp:'N/A' });
     setReceita(null);
     clearAgendaItem();
-  },[agendaItem]);
+  },[agendaItem, clearAgendaItem]);
 
   useEffect(()=>{
     if (!sel) return;
@@ -1178,6 +1178,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
                 return 'São Vicente, '+d.toLocaleDateString('pt-BR',{day:'numeric',month:'long',year:'numeric'});
               })();
               const w=window.open('','_blank');
+              if (!w) { alert('Permita popups neste site para imprimir a receita.'); return; }
               w.document.write(`<!DOCTYPE html><html><head><title>Prescrição de Óculos</title>
                 <meta charset="utf-8"/>
                 <style>
@@ -1732,14 +1733,14 @@ function Usuarios({ selectedUnidade='' }) {
   const [toast, setToast] = useState('');
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(''),3000); };
 
-  const load = async () => {
+  const load = useCallback(async () => {
     let q = supabase.from('usuarios').select('*').order('nome');
     if (selectedUnidade) q = q.eq('unidade', selectedUnidade);
     const {data} = await q;
     setRows(data||[]);
     setLoading(false);
-  };
-  useEffect(()=>{ load(); },[selectedUnidade]);
+  }, [selectedUnidade]);
+  useEffect(()=>{ load(); },[load]);
 
   const handleSave = async (form) => {
     const r = await gerirUsuario('salvar', form);
@@ -1962,6 +1963,7 @@ function Receitas({ user, selectedUnidade='' }) {
                   : fmtDate(detalhe.data);
                 const dtExtenso = (()=>{ const d=new Date(detalhe.data+'T12:00:00'); return 'São Vicente, '+d.toLocaleDateString('pt-BR',{day:'numeric',month:'long',year:'numeric'}); })();
                 const w=window.open('','_blank');
+                if (!w) { alert('Permita popups neste site para imprimir a receita.'); return; }
                 w.document.write(`<!DOCTYPE html><html><head><title>Prescrição de Óculos</title><meta charset="utf-8"/>
                 <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#173D43;padding:40px 48px;max-width:800px;margin:0 auto}.header{display:flex;align-items:center;justify-content:space-between;padding-bottom:16px;border-bottom:2px solid #16AFA3;margin-bottom:24px}.logo{height:64px;object-fit:contain}.titulo{font-size:16px;font-weight:700;color:#173D43;text-align:center;letter-spacing:.5px}.paciente-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:20px}.paciente-nome{font-size:14px}.paciente-nome b{font-size:15px}table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:20px}table th,table td{border:1px solid #ccc;padding:9px 12px;text-align:center}table thead tr{background:#f5f5f5}table thead th{font-weight:700;font-size:13px}.obs-row{font-size:13px;margin-bottom:20px;line-height:1.5}.info-meta{font-size:12px;color:#555;margin-bottom:24px;border-top:1px solid #eee;border-bottom:1px solid #eee;padding:10px 0;display:flex;gap:24px;flex-wrap:wrap}.info-meta span b{color:#173D43}.disclaimer{font-size:11px;color:#555;line-height:1.5;margin-bottom:32px;text-align:justify;border:1px solid #ddd;padding:12px 14px;background:#fafafa;border-radius:4px}.assinatura{display:flex;flex-direction:column;align-items:center;margin-bottom:20px}.assinatura .linha{border-top:1px solid #173D43;width:240px;margin-bottom:6px}.assinatura p{font-size:13px;color:#173D43;text-align:center}.footer{border-top:1px solid #ddd;padding-top:10px;font-size:11px;color:#888;text-align:center}.data-local{text-align:center;font-size:13px;margin-bottom:24px;color:#173D43}@media print{body{padding:20px 28px}@page{margin:1cm}}</style>
                 </head><body>
@@ -1994,10 +1996,14 @@ function Receitas({ user, selectedUnidade='' }) {
    HOOK REALTIME — escuta mudanças em tempo real
 ══════════════════════════════════════════════════════ */
 function useRealtime(table, onchange) {
+  // Usa ref para sempre chamar a versão mais atual do callback
+  // sem precisar recriar a subscription a cada render
+  const cbRef = useRef(onchange);
+  useEffect(() => { cbRef.current = onchange; });
   useEffect(() => {
     const ch = supabase
       .channel(`rt_${table}_${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table }, onchange)
+      .on('postgres_changes', { event: '*', schema: 'public', table }, (...args) => cbRef.current(...args))
       .subscribe();
     return () => supabase.removeChannel(ch);
   }, [table]);
