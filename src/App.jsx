@@ -258,7 +258,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
       {/* Sidebar */}
       <div style={{width:sideW,background:C.white,borderRight:`1px solid ${C.border}`,position:'fixed',top:0,left:0,bottom:0,overflowY:'auto',display:'flex',flexDirection:'column',boxShadow:'2px 0 8px rgba(0,0,0,.04)'}}>
         <div style={{padding:'20px 16px 16px',background:`linear-gradient(160deg,${C.navy} 0%,${C.teal} 100%)`,color:C.white,display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
-          <img src="/logo-clinica.png" alt="Clínica Visão Ideal" style={{width:130,filter:'brightness(0) invert(1)'}}/>
+          <img src="/logo-clinica.png" alt="Clínica Visão Ideal" style={{width:85,filter:'brightness(0) invert(1)'}}/>
           <div style={{fontSize:10,opacity:.75,textTransform:'uppercase',letterSpacing:'0.8px',fontWeight:600}}>Sistema de Gestão</div>
         </div>
         <div style={{flex:1,overflowY:'auto',paddingTop:6}}><SideNav/></div>
