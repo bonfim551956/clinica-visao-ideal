@@ -2072,12 +2072,10 @@ export default function App() {
       // Se u === null mas há sessão no localStorage, mantém o usuário logado
       // (usuários sem auth_id continuam funcionando)
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((evento) => { if (evento === 'SIGNED_OUT') handleLogout(true); });
-    return () => { vivo = false; sub?.subscription?.unsubscribe(); };
+    return () => { vivo = false; };
   }, []);
 
-  const handleLogout = (jaSaiu) => {
-    if (jaSaiu !== true) supabase.auth.signOut().catch(() => {});
+  const handleLogout = () => {
     try { localStorage.removeItem(SESSION_KEY); } catch {}
     setUsuario(null);
     setTab('inicio');
