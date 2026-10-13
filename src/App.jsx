@@ -552,7 +552,7 @@ function Agenda({ user, selectedUnidade='' }) {
           options={optos.map(o=>({value:o.id,label:o.nome}))} style={{minWidth:200}}/>
         <Input label="Data" type="date" value={selData} onChange={e=>setSelData(e.target.value)}/>
         <Btn onClick={()=>setModal({hora:HORARIOS[0]})} color={C.orange}>+ Novo Agendamento</Btn>
-        <Btn onClick={()=>setModal({hora:'', encaixe:true})} color={C.teal} outline>+ Encaixe</Btn>
+        <Btn onClick={()=>{ const n=new Date(); const h=`${pad(n.getHours())}:${pad(n.getMinutes())}`; setModal({hora:h, encaixe:true}); }} color={C.teal} outline>+ Encaixe</Btn>
       </div>
       {loading ? <Spinner/> : (
         <Card>
@@ -611,13 +611,13 @@ function Agenda({ user, selectedUnidade='' }) {
           </div>
         </Card>
       )}
-      {modal && <AgendaModal hora={modal.hora} existing={modal.existing} pacientes={pacientes} optos={optos}
+      {modal && <AgendaModal hora={modal.hora} existing={modal.existing} encaixe={modal.encaixe} pacientes={pacientes} optos={optos}
         onSave={handleSave} onDelete={handleDelete} onClose={()=>setModal(null)}/>}
     </div>
   );
 }
 
-function AgendaModal({ hora, existing, pacientes, optos, onSave, onDelete, onClose }) {
+function AgendaModal({ hora, existing, encaixe, pacientes, optos, onSave, onDelete, onClose }) {
   const [form, setForm] = useState({
     hora: existing?.hora||hora,
     data: existing?.data||today(),
@@ -712,7 +712,9 @@ function AgendaModal({ hora, existing, pacientes, optos, onSave, onDelete, onClo
       <div style={{display:'flex',flexDirection:'column',gap:14}}>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
           <Input label="Data" type="date" value={form.data} onChange={e=>set('data',e.target.value)}/>
-          <Select label="Horário" value={form.hora} onChange={e=>set('hora',e.target.value)} options={HORARIOS}/>
+          {encaixe
+            ? <Input label="Horário (Encaixe)" type="time" value={form.hora} onChange={e=>set('hora',e.target.value)}/>
+            : <Select label="Horário" value={form.hora} onChange={e=>set('hora',e.target.value)} options={HORARIOS}/>}
         </div>
 
         {/* Seção paciente: duas opções lado a lado */}
