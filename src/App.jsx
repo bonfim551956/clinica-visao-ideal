@@ -593,27 +593,27 @@ function Agenda({ user, selectedUnidade='' }) {
                     );
                   }
                   return [
-                    ...horaSlots.map((slot, si) => (
-                    <tr key={slot.id} style={{background:i%2===0?C.white:C.bg,borderBottom:si===horaSlots.length-1&&true?'none':`1px solid ${C.border}`}}>
-                      <td style={{padding:'8px 12px',fontWeight:600,color:C.teal,whiteSpace:'nowrap'}}>{si===0?hora:''}</td>
-                      <td style={{padding:'8px 12px'}}>
-                        {slot.paciente_nome}
-                        {slot.agendado_por==='IA' && <span style={{marginLeft:6,fontSize:10,background:C.orangeBg,color:C.orange,borderRadius:4,padding:'1px 5px'}}>IA</span>}
-                      </td>
-                      <td style={{padding:'8px 12px'}}>{slot.procedimento||''}</td>
-                      <td style={{padding:'8px 12px'}}>{slot.meio_contato||''}</td>
-                      <td style={{padding:'8px 12px'}}><Badge color={slot.status==='Compareceu'?C.success:slot.status==='Não Compareceu'?C.danger:C.teal}>{slot.status}</Badge></td>
-                      <td style={{padding:'8px 12px'}}>
-                        <Btn size="sm" color={C.teal} outline onClick={()=>setModal({hora,existing:slot})}>Editar</Btn>
-                      </td>
-                    </tr>
-                    )),
-                    <tr key={`${hora}-add`} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
-                      <td></td><td colSpan={4}></td>
-                      <td style={{padding:'4px 12px 8px'}}>
-                        <Btn size="sm" color={C.orange} outline onClick={()=>setModal({hora})}>+ Agendar</Btn>
-                      </td>
-                    </tr>
+                    ...horaSlots.map((slot, si) => {
+                      const isLast = si === horaSlots.length - 1;
+                      return (
+                      <tr key={slot.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
+                        <td style={{padding:'8px 12px',fontWeight:600,color:C.teal,whiteSpace:'nowrap'}}>{si===0?hora:''}</td>
+                        <td style={{padding:'8px 12px'}}>
+                          {slot.paciente_nome}
+                          {slot.agendado_por==='IA' && <span style={{marginLeft:6,fontSize:10,background:C.orangeBg,color:C.orange,borderRadius:4,padding:'1px 5px'}}>IA</span>}
+                        </td>
+                        <td style={{padding:'8px 12px'}}>{slot.procedimento||''}</td>
+                        <td style={{padding:'8px 12px'}}>{slot.meio_contato||''}</td>
+                        <td style={{padding:'8px 12px'}}><Badge color={slot.status==='Compareceu'?C.success:slot.status==='Não Compareceu'?C.danger:C.teal}>{slot.status}</Badge></td>
+                        <td style={{padding:'8px 12px'}}>
+                          <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
+                            <Btn size="sm" color={C.teal} outline onClick={()=>setModal({hora,existing:slot})}>Editar</Btn>
+                            {isLast && <Btn size="sm" color={C.orange} outline onClick={()=>setModal({hora})}>+ Encaixe</Btn>}
+                          </div>
+                        </td>
+                      </tr>
+                      );
+                    }),
                   ];
                 })}
               </tbody>
