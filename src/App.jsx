@@ -429,10 +429,15 @@ function Agenda({ user, selectedUnidade='' }) {
   const loadSlots = async (opto, data) => {
     if (!opto || !data) return;
     const applyU = q => selectedUnidade ? q.eq('unidade', selectedUnidade) : q;
+    // Para agendamentos da IA: filtrar pela unidade do opto (se tiver) ou pelo filtro global
+    const optoObj = optos.find(o => o.id === opto);
+    const optoUnidade = optoObj?.unidade || '';
+    const unidadeIA = selectedUnidade || optoUnidade;
+    const applyUIA = q => unidadeIA ? q.eq('unidade', unidadeIA) : q;
     // Busca agendamentos do opto selecionado + agendamentos da IA (opto_id null) na mesma data
     const [res1, res2] = await Promise.all([
       applyU(supabase.from('agenda').select('*').eq('opto_id', opto).eq('data', data)),
-      applyU(supabase.from('agenda').select('*').is('opto_id', null).eq('data', data))
+      applyUIA(supabase.from('agenda').select('*').is('opto_id', null).eq('data', data))
     ]);
     const combined = [...(res1.data||[]), ...(res2.data||[])];
     // Deduplica por id e ordena por hora
@@ -501,7 +506,7 @@ function Agenda({ user, selectedUnidade='' }) {
       status: 'Agendado',
       observacoes: form.obs||'',
       agendado_por: user?.nome||'',
-      unidade: opto?.unidade||''
+      unidade: selectedUnidade || opto?.unidade || ''
     };
     let err;
     if (modal.existing) {
