@@ -436,34 +436,15 @@ function Agenda({ user, selectedUnidade='' }) {
 
   const loadSlots = useCallback(async (opto, data) => {
     if (!data) return;
-    // Opto vê todos os agendamentos da sua loja (por unidade)
-    if (user.perfil === 'opto') {
-      const unidade = user.unidade || selectedUnidade;
-      let q = supabase.from('agenda').select('*').eq('data', data);
-      if (unidade) q = q.eq('unidade', unidade);
-      const { data: res } = await q;
-      return (res||[]).sort((a,b) => a.hora.localeCompare(b.hora));
-    }
-    // Outros perfis: filtra pelo opto selecionado + agendamentos da IA na mesma unidade
-    if (!opto) return;
-    const applyU = q => selectedUnidade ? q.eq('unidade', selectedUnidade) : q;
-    const optoObj = optos.find(o => o.id === opto);
-    const unidadeIA = selectedUnidade || optoObj?.unidade || '';
-    const applyUIA = q => unidadeIA ? q.eq('unidade', unidadeIA) : q;
-    const [res1, res2] = await Promise.all([
-      applyU(supabase.from('agenda').select('*').eq('opto_id', opto).eq('data', data)),
-      applyUIA(supabase.from('agenda').select('*').is('opto_id', null).eq('data', data))
-    ]);
-    const combined = [...(res1.data||[]), ...(res2.data||[])];
-    const seen = new Set();
-    const unique = combined.filter(a => { if (seen.has(a.id)) return false; seen.add(a.id); return true; });
-    unique.sort((a,b) => a.hora.localeCompare(b.hora));
-    return unique;
-  }, [user, optos, selectedUnidade]);
+    // Todos os perfis: busca agendamentos por unidade (inclui IA e todos os optos da loja)
+    const unidade = user.unidade || selectedUnidade;
+    let q = supabase.from('agenda').select('*').eq('data', data);
+    if (unidade) q = q.eq('unidade', unidade);
+    const { data: res } = await q;
+    return (res||[]).sort((a,b) => a.hora.localeCompare(b.hora));
+  }, [user, selectedUnidade]);
 
   useEffect(() => {
-    // Para opto: não precisa de selOpto, filtra por unidade. Para outros: precisa de opto selecionado.
-    if (user.perfil !== 'opto' && (!selOpto || !selData)) return;
     if (!selData) return;
     setLoading(true);
     loadSlots(selOpto, selData).then(data => { setSlots(data||[]); setLoading(false); });
@@ -472,7 +453,6 @@ function Agenda({ user, selectedUnidade='' }) {
   // Realtime: atualiza slots automaticamente
   useRealtime('agenda', () => {
     if (!selData) return;
-    if (user.perfil !== 'opto' && !selOpto) return;
     loadSlots(selOpto, selData).then(data => setSlots(data||[]));
   });
 
@@ -494,7 +474,7 @@ function Agenda({ user, selectedUnidade='' }) {
         supabase.from('agenda').update({status:'Não Compareceu'}).eq('id',a.id)
       ));
       // Recarrega slots se a data exibida for hoje
-      if (selData === dd && selOpto) {
+      if (selData === dd) {
         loadSlots(selOpto, dd).then(data => setSlots(data||[]));
       }
     };
