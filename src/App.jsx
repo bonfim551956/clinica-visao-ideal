@@ -423,9 +423,12 @@ function Agenda({ user, selectedUnidade='' }) {
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(''),3000); };
 
   useEffect(() => {
-    supabase.from('usuarios').select('*').eq('perfil','opto').eq('ativo',true).then(({data})=>{
-      setOptos(data||[]);
-      const first = data?.[0];
+    // Busca optos via Edge Function (bypassa RLS)
+    gerirUsuario('listar', {}).then(r => {
+      const todos = r?.usuarios || [];
+      const ativos = todos.filter(u => u.perfil === 'opto' && u.ativo);
+      setOptos(ativos);
+      const first = ativos[0];
       if (first) setSelOpto(first.id);
     });
     supabase.from('pacientes').select('*').order('nome').then(({data})=>setPacientes(data||[]));
@@ -459,14 +462,17 @@ function Agenda({ user, selectedUnidade='' }) {
   }, [user, optos, selectedUnidade]);
 
   useEffect(() => {
-    if (!selOpto || !selData) return;
+    // Para opto: não precisa de selOpto, filtra por unidade. Para outros: precisa de opto selecionado.
+    if (user.perfil !== 'opto' && (!selOpto || !selData)) return;
+    if (!selData) return;
     setLoading(true);
     loadSlots(selOpto, selData).then(data => { setSlots(data||[]); setLoading(false); });
   }, [selOpto, selData, selectedUnidade, loadSlots]);
 
   // Realtime: atualiza slots automaticamente
   useRealtime('agenda', () => {
-    if (!selOpto || !selData) return;
+    if (!selData) return;
+    if (user.perfil !== 'opto' && !selOpto) return;
     loadSlots(selOpto, selData).then(data => setSlots(data||[]));
   });
 
@@ -856,7 +862,7 @@ function Agendamentos({ user, onAtender, selectedUnidade='' }) {
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(''),3000); };
 
   useEffect(()=>{
-    supabase.from('usuarios').select('*').eq('perfil','opto').then(({data})=>setOptos(data||[]));
+    gerirUsuario('listar', {}).then(r => setOptos((r?.usuarios||[]).filter(u=>u.perfil==='opto')));
     // Carrega pré-vendas + IA para o filtro de responsável
     supabase.from('usuarios').select('nome').in('perfil',['prevenda','supervisor','diretor','gerente'])
       .then(({data})=>{
@@ -1581,12 +1587,12 @@ function Relatorios({ selectedUnidade='' }) {
     setLoading(true);
     const applyU = q => selectedUnidade ? q.eq('unidade', selectedUnidade) : q;
     const [oRes, agRes, recRes, convRes] = await Promise.all([
-      supabase.from('usuarios').select('*').eq('perfil','opto').eq('ativo',true),
+      gerirUsuario('listar', {}),
       applyU(supabase.from('agenda').select('*')),
       applyU(supabase.from('receitas').select('*')),
       applyU(supabase.from('conversoes').select('*')),
     ]);
-    const os = oRes.data||[];
+    const os = (oRes?.usuarios||[]).filter(u=>u.perfil==='opto'&&u.ativo);
     const ag = agRes.data||[];
     const rec = recRes.data||[];
     const conv = convRes.data||[];
