@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from './supabase';
+import { supabase, entrar, usuarioDaSessao, gerirUsuario } from './supabase';
 
 /* ── helpers ── */
 const pad = n => String(n).padStart(2,'0');
@@ -123,16 +123,10 @@ function Login({ onLogin }) {
 
   const handleLogin = async () => {
     setErr(''); setLoading(true);
-    const { data, error } = await supabase
-      .from('usuarios')
-      .select('*')
-      .eq('nome', user)
-      .eq('senha', pass)
-      .eq('ativo', true)
-      .single();
+    const r = await entrar(user, pass);
     setLoading(false);
-    if (error || !data) { setErr('Usuário ou senha incorretos'); return; }
-    onLogin(data);
+    if (r.erro) { setErr(r.erro); return; }
+    onLogin(r.usuario);
   };
 
   return (
@@ -1743,18 +1737,17 @@ function Usuarios({ selectedUnidade='' }) {
   useEffect(()=>{ load(); },[selectedUnidade]);
 
   const handleSave = async (form) => {
-    if (form.id) {
-      await supabase.from('usuarios').update(form).eq('id',form.id);
-    } else {
-      await supabase.from('usuarios').insert({...form,id:uid()});
-    }
+    const r = await gerirUsuario('salvar', form);
+    if (r?.erro) return r.erro;
     showToast('Usuário salvo!');
     setModal(null);
     load();
+    return null;
   };
 
   const toggleAtivo = async (u) => {
-    await supabase.from('usuarios').update({ativo:!u.ativo}).eq('id',u.id);
+    const r = await gerirUsuario('ativo', { id: u.id, ativo: !u.ativo });
+    if (r?.erro) showToast(r.erro);
     load();
   };
 
@@ -1762,7 +1755,7 @@ function Usuarios({ selectedUnidade='' }) {
     <div>
       <Toast msg={toast}/>
       <div style={{display:'flex',justifyContent:'flex-end',marginBottom:16}}>
-        <Btn color={C.orange} onClick={()=>setModal({perfil:'opto',ativo:true,cro:'',senha:''})}>+ Novo Usuário</Btn>
+        <Btn color={C.orange} onClick={()=>setModal({perfil:'opto',ativo:true,cro:''})}>+ Novo Usuário</Btn>
       </div>
       {loading ? <Spinner/> : (
         <Card>
@@ -1780,7 +1773,7 @@ function Usuarios({ selectedUnidade='' }) {
                     <td style={{padding:'8px 12px'}}><Badge color={PERFIS[u.perfil]?.cor||C.gray}>{PERFIS[u.perfil]?.label||u.perfil}</Badge></td>
                     <td style={{padding:'8px 12px',fontSize:12,color:C.teal,fontWeight:600}}>{u.unidade||'—'}</td>
                     <td style={{padding:'8px 12px',fontSize:11,color:C.gray}}>{u.cro||'—'}</td>
-                    <td style={{padding:'8px 12px',fontFamily:'monospace'}}>{u.senha}</td>
+                    <td style={{padding:'8px 12px',color:C.gray}}>••••••</td>
                     <td style={{padding:'8px 12px'}}><Badge color={u.ativo?C.success:C.danger}>{u.ativo?'Ativo':'Inativo'}</Badge></td>
                     <td style={{padding:'8px 12px'}}>
                       <div style={{display:'flex',gap:6}}>
@@ -1803,10 +1796,22 @@ function Usuarios({ selectedUnidade='' }) {
 function UsuarioModal({ user, onSave, onClose }) {
   const [form, setForm] = useState({
     id:user.id||null, nome:user.nome||'', perfil:user.perfil||'opto',
-    senha:user.senha||'', cro:user.cro||'', ativo:user.ativo??true,
+    senha:'', cro:user.cro||'', ativo:user.ativo??true,
     unidade:user.unidade||'', endereco:user.endereco||'',
   });
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  const [erro, setErro] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const salvar = async () => {
+    setErro('');
+    if (!form.nome.trim()) { setErro('Informe o nome.'); return; }
+    if (!user.id && !form.senha) { setErro('Defina uma senha.'); return; }
+    if (form.senha && form.senha.length < 6) { setErro('A senha precisa ter pelo menos 6 caracteres.'); return; }
+    setSalvando(true);
+    const e = await onSave(form);
+    setSalvando(false);
+    if (e) setErro(e);
+  };
 
   // Ao selecionar unidade, preenche endereço automaticamente se vazio ou padrão
   const handleUnidade = (val) => {
@@ -1827,10 +1832,11 @@ function UsuarioModal({ user, onSave, onClose }) {
         <Input label="Endereço da Unidade" value={form.endereco} onChange={e=>set('endereco',e.target.value)}
           placeholder="Endereço completo da clínica"/>
         {form.perfil==='opto' && <Input label="CRO" value={form.cro} onChange={e=>set('cro',e.target.value)} placeholder="CRO-SP 12345"/>}
-        <Input label="Senha" value={form.senha} onChange={e=>set('senha',e.target.value)} placeholder="Senha de acesso"/>
+        <Input label={user.id?'Nova senha (deixe em branco para manter)':'Senha'} type="password" autoComplete="new-password" value={form.senha} onChange={e=>set('senha',e.target.value)} placeholder="Mínimo 6 caracteres"/>
+        {erro && <p style={{color:C.danger,fontSize:13}}>{erro}</p>}
         <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:8}}>
           <Btn color={C.gray} outline onClick={onClose}>Cancelar</Btn>
-          <Btn color={C.teal} onClick={()=>form.nome&&form.senha&&onSave(form)}>Salvar</Btn>
+          <Btn color={C.teal} disabled={salvando} onClick={salvar}>{salvando?'Salvando...':'Salvar'}</Btn>
         </div>
       </div>
     </Modal>
@@ -2031,7 +2037,21 @@ export default function App() {
     setSelectedUnidade(u.unidade || '');
   };
 
-  const handleLogout = () => {
+  // Confere a sessão do Supabase: sem login válido, volta para a tela de entrada
+  useEffect(() => {
+    let vivo = true;
+    usuarioDaSessao().then((u) => {
+      if (!vivo) return;
+      if (!u) { handleLogout(); return; }
+      try { localStorage.setItem(SESSION_KEY, JSON.stringify(u)); } catch {}
+      setUsuario((atual) => (atual ? { ...atual, ...u } : atual));
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((evento) => { if (evento === 'SIGNED_OUT') handleLogout(true); });
+    return () => { vivo = false; sub?.subscription?.unsubscribe(); };
+  }, []);
+
+  const handleLogout = (jaSaiu) => {
+    if (jaSaiu !== true) supabase.auth.signOut().catch(() => {});
     try { localStorage.removeItem(SESSION_KEY); } catch {}
     setUsuario(null);
     setTab('inicio');
