@@ -457,18 +457,40 @@ function Agenda({ user, selectedUnidade='' }) {
   const handleSave = async (form) => {
     const pac = pacientes.find(p=>p.id===form.pacienteId)||{nome:form.pacienteNome};
     const opto = optos.find(o=>o.id===selOpto);
-    const row = { id:uid(), paciente_id:form.pacienteId||null, paciente_nome:pac?.nome||form.pacienteNome,
-      paciente_telefone:form.telefone||'',
-      opto_id:selOpto, opto_nome:opto?.nome, data:form.data||selData, hora:form.hora,
-      procedimento:form.procedimento, meio_contato:form.meioContato, status:'Agendado', observacoes:form.obs||'',
-      agendado_por: user?.nome||'', unidade: opto?.unidade||'' };
+    const horaFinal = form.hora || modal?.hora;
+    const dataFinal = form.data || selData;
+    const rowData = {
+      paciente_id: form.pacienteId||null,
+      paciente_nome: pac?.nome||form.pacienteNome,
+      paciente_telefone: form.telefone||'',
+      opto_id: selOpto,
+      opto_nome: opto?.nome,
+      data: dataFinal,
+      hora: horaFinal,
+      procedimento: form.procedimento,
+      meio_contato: form.meioContato,
+      status: 'Agendado',
+      observacoes: form.obs||'',
+      agendado_por: user?.nome||'',
+      unidade: opto?.unidade||''
+    };
     let err;
     if (modal.existing) {
-      const { error } = await supabase.from('agenda').update(row).eq('id',modal.existing.id);
+      // Editar existente
+      const { error } = await supabase.from('agenda').update(rowData).eq('id', modal.existing.id);
       err = error;
     } else {
-      const { error } = await supabase.from('agenda').insert(row);
-      err = error;
+      // Novo agendamento manual: verifica se já existe slot da IA nesse horário
+      const slotIA = slots.find(s => s.hora === horaFinal && (s.agendado_por === 'IA' || !s.opto_id));
+      if (slotIA) {
+        // Atualiza o slot da IA com os dados manuais
+        const { error } = await supabase.from('agenda').update(rowData).eq('id', slotIA.id);
+        err = error;
+      } else {
+        // Cria novo registro
+        const { error } = await supabase.from('agenda').insert({ id: uid(), ...rowData });
+        err = error;
+      }
     }
     if (err) { alert('Erro ao salvar agendamento: ' + err.message); return; }
     loadSlots(selOpto, selData).then(data => setSlots(data||[]));
@@ -520,8 +542,9 @@ function Agenda({ user, selectedUnidade='' }) {
                       </tr>
                     );
                   }
-                  return horaSlots.map((slot, si) => (
-                    <tr key={slot.id} style={{background:i%2===0?C.white:C.bg,borderBottom:si===horaSlots.length-1?`1px solid ${C.border}`:'none'}}>
+                  return [
+                    ...horaSlots.map((slot, si) => (
+                    <tr key={slot.id} style={{background:i%2===0?C.white:C.bg,borderBottom:si===horaSlots.length-1&&true?'none':`1px solid ${C.border}`}}>
                       <td style={{padding:'8px 12px',fontWeight:600,color:C.teal,whiteSpace:'nowrap'}}>{si===0?hora:''}</td>
                       <td style={{padding:'8px 12px'}}>
                         {slot.paciente_nome}
@@ -534,7 +557,14 @@ function Agenda({ user, selectedUnidade='' }) {
                         <Btn size="sm" color={C.teal} outline onClick={()=>setModal({hora,existing:slot})}>Editar</Btn>
                       </td>
                     </tr>
-                  ));
+                    )),
+                    <tr key={`${hora}-add`} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
+                      <td></td><td colSpan={4}></td>
+                      <td style={{padding:'4px 12px 8px'}}>
+                        <Btn size="sm" color={C.orange} outline onClick={()=>setModal({hora})}>+ Agendar</Btn>
+                      </td>
+                    </tr>
+                  ];
                 })}
               </tbody>
             </table>
