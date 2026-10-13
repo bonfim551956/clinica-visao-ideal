@@ -515,14 +515,18 @@ function Agenda({ user, selectedUnidade='' }) {
       const { error } = await supabase.from('agenda').update(rowData).eq('id', modal.existing.id);
       err = error;
     } else {
-      // Novo agendamento manual: verifica se já existe slot da IA nesse horário
-      const slotIA = slots.find(s => s.hora === horaFinal && (s.agendado_por === 'IA' || !s.opto_id));
-      if (slotIA) {
-        // Atualiza o slot da IA com os dados manuais
-        const { error } = await supabase.from('agenda').update(rowData).eq('id', slotIA.id);
+      // Novo agendamento manual: verifica se existe slot da IA *vazio* (sem paciente) nesse horário
+      const slotIAVazio = slots.find(s =>
+        s.hora === horaFinal &&
+        (s.agendado_por === 'IA' || !s.opto_id) &&
+        !s.paciente_id && !s.paciente_nome
+      );
+      if (slotIAVazio) {
+        // Aproveita o slot da IA vazio preenchendo com os dados manuais
+        const { error } = await supabase.from('agenda').update(rowData).eq('id', slotIAVazio.id);
         err = error;
       } else {
-        // Cria novo registro
+        // Slot da IA já preenchido ou não existe — cria novo registro
         const { error } = await supabase.from('agenda').insert({ id: uid(), ...rowData });
         err = error;
       }
