@@ -438,7 +438,7 @@ function Agenda({ user, selectedUnidade='' }) {
     if (!data) return;
     // Todos os perfis: busca agendamentos por unidade (inclui IA e todos os optos da loja)
     const unidade = user.unidade || selectedUnidade;
-    let q = supabase.from('agenda').select('*').eq('data', data);
+    let q = supabase.from('agenda').select('*').eq('data', data).neq('status', 'Cancelado');
     if (unidade) q = q.eq('unidade', unidade);
     const { data: res } = await q;
     return (res||[]).sort((a,b) => a.hora.localeCompare(b.hora));
@@ -560,7 +560,7 @@ function Agenda({ user, selectedUnidade='' }) {
                 </tr>
               </thead>
               <tbody>
-                {HORARIOS.map((hora,i) => {
+                {[...new Set([...HORARIOS, ...slots.map(s => s.hora).filter(Boolean)])].sort().map((hora,i) => {
                   const horaSlots = slots.filter(s => s.hora === hora);
                   if (horaSlots.length === 0) {
                     return (
@@ -591,6 +591,10 @@ function Agenda({ user, selectedUnidade='' }) {
                         <td style={{padding:'8px 12px'}}><Badge color={slot.status==='Compareceu'?C.success:slot.status==='Não Compareceu'?C.danger:C.teal}>{slot.status}</Badge></td>
                         <td style={{padding:'8px 12px'}}>
                           <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
+                            {slot.paciente_telefone && (
+                              <a href={`https://wa.me/${String(slot.paciente_telefone).replace(/\D/g,'')}`} target="_blank" rel="noreferrer"
+                                style={{fontSize:12,color:C.teal,alignSelf:'center',textDecoration:'none',whiteSpace:'nowrap'}}>WhatsApp</a>
+                            )}
                             <Btn size="sm" color={C.teal} outline onClick={()=>setModal({hora,existing:slot})}>Editar</Btn>
                             {isLast && <Btn size="sm" color={C.orange} outline onClick={()=>setModal({hora})}>+ Encaixe</Btn>}
                           </div>
@@ -963,7 +967,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
   const setF = (k,v) => setForm(f=>({...f,[k]:v}));
 
   const loadFila = useCallback(() => {
-    let q = supabase.from('agenda').select('*').eq('data',today()).not('status','eq','Não Compareceu').order('hora');
+    let q = supabase.from('agenda').select('*').eq('data',today()).not('status','in','("Não Compareceu","Cancelado")').order('hora');
     if (user.perfil === 'opto') {
       // Opto vê todos os agendamentos da sua loja
       const unidade = user.unidade || selectedUnidade;

@@ -1,5 +1,6 @@
 // calendar-sync — substitui os workflows n8n "Clínica | Calendar → Sistema" e "Sistema → Calendar"
-// 1) Lê os 4 Google Agendas (hoje até +20 dias) e insere na tabela `agenda` os eventos novos (agendado_por = 'IA')
+// 1) Lê os 4 Google Agendas (hoje até +21 dias), só eventos "IAW - ...", e espelha na tabela `agenda`:
+//    novos → insere (agendado_por = 'IA'); remarcados → atualiza data/hora; apagados → status "Cancelado"
 // 2) Agendamentos com status "Não Compareceu" e google_event_id → pinta o evento de Flamingo (colorId 4) no Google
 // Disparado pelo pg_cron a cada 5 minutos. Credencial: secret GOOGLE_SERVICE_ACCOUNT (JSON da conta de serviço).
 import { createClient } from 'npm:@supabase/supabase-js@2'
@@ -85,7 +86,7 @@ Deno.serve(async (req: Request) => {
   if (!raw) return json({ ok: false, erro: 'Secret GOOGLE_SERVICE_ACCOUNT não configurado' }, 500)
 
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
-  let inseridos = 0, marcados = 0
+  let inseridos = 0, marcados = 0, atualizados = 0, canceladosN = 0
   const erros: string[] = []
 
   let token: string
@@ -117,26 +118,71 @@ Deno.serve(async (req: Request) => {
 
   for (const [unidade, calId] of Object.entries(CALENDARIOS)) {
     try {
-      const url = new URL(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`)
-      url.search = new URLSearchParams({
-        timeMin, timeMax, singleEvents: 'true', orderBy: 'startTime', maxResults: '500', timeZone: TZ,
-      }).toString()
-      const r = await fetch(url, { headers: gHeaders })
-      if (!r.ok) { erros.push(`${unidade}: ${r.status} ${await r.text()}`); continue }
-      const eventos = ((await r.json()).items || []).filter((e: any) => e.status !== 'cancelled')
-      eventosPorUnidade[unidade] = eventos.length
-      if (!eventos.length) continue
+      // Lê todas as páginas de eventos do período (inclui apagados)
+      const items: any[] = []
+      let pageToken = '', falhaGoogle = false
+      do {
+        const url = new URL(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`)
+        const params: Record<string, string> = {
+          timeMin, timeMax, singleEvents: 'true', orderBy: 'startTime', maxResults: '250', timeZone: TZ,
+          showDeleted: 'true',
+        }
+        if (pageToken) params.pageToken = pageToken
+        url.search = new URLSearchParams(params).toString()
+        const r = await fetch(url, { headers: gHeaders })
+        if (!r.ok) { erros.push(`${unidade}: ${r.status} ${await r.text()}`); falhaGoogle = true; break }
+        const j = await r.json()
+        items.push(...(j.items || []))
+        pageToken = j.nextPageToken || ''
+      } while (pageToken)
+      if (falhaGoogle) continue
+      // Só eventos criados pela IA (título "IAW - Nome"); reuniões e outros compromissos ficam de fora
+      // (apagados podem vir sem título; esses são casados só pelo id com o que já está no sistema)
+      const ativos = items.filter((e: any) => e.status !== 'cancelled' && /^IAW\b/i.test(String(e.summary || '').trim()))
+      const cancelados = items.filter((e: any) => e.status === 'cancelled')
+      const todos = [...ativos, ...cancelados]
+      eventosPorUnidade[unidade] = ativos.length
+      if (!todos.length) continue
 
-      const ids = eventos.map((e: any) => e.id)
-      const { data: existentes, error } = await admin.from('agenda').select('google_event_id').in('google_event_id', ids)
-      if (error) { erros.push(`${unidade}: ${error.message}`); continue }
-      const jaTem = new Set((existentes || []).map(x => x.google_event_id))
+      // Busca o que já existe no sistema, em lotes de 100 ids (evita URL longa demais)
+      const ids: string[] = todos.map((e: any) => e.id)
+      const existentes: any[] = []
+      let falhou = false
+      for (let i = 0; i < ids.length; i += 100) {
+        const { data, error } = await admin.from('agenda')
+          .select('id, google_event_id, data, hora, status').in('google_event_id', ids.slice(i, i + 100))
+        if (error) { erros.push(`${unidade}: ${error.message}`); falhou = true; break }
+        existentes.push(...(data || []))
+      }
+      if (falhou) continue
+      const porEvento = new Map(existentes.map(x => [x.google_event_id, x]))
 
-      const novos = eventos.filter((e: any) => !jaTem.has(e.id)).map((e: any) => montarLinha(e, unidade))
+      // Novos → insere
+      const novos = ativos.filter((e: any) => !porEvento.has(e.id)).map((e: any) => montarLinha(e, unidade))
       if (novos.length) {
         const { error: insErr } = await admin.from('agenda').insert(novos)
         if (insErr) erros.push(`${unidade} insert: ${insErr.message}`)
         else inseridos += novos.length
+      }
+
+      // Remarcados no Google (data/hora mudou) → atualiza, só se ainda estiver "Agendado"
+      for (const e of ativos) {
+        const row = porEvento.get(e.id)
+        if (!row || row.status !== 'Agendado') continue
+        const l = montarLinha(e, unidade)
+        if (row.data !== l.data || row.hora !== l.hora) {
+          const { error: upErr } = await admin.from('agenda')
+            .update({ data: l.data, hora: l.hora }).eq('id', row.id)
+          if (upErr) erros.push(`${unidade} update: ${upErr.message}`); else atualizados++
+        }
+      }
+
+      // Apagados no Google → status "Cancelado", só se ainda estiver "Agendado"
+      for (const e of cancelados) {
+        const row = porEvento.get(e.id)
+        if (!row || row.status !== 'Agendado') continue
+        const { error: cErr } = await admin.from('agenda').update({ status: 'Cancelado' }).eq('id', row.id)
+        if (cErr) erros.push(`${unidade} cancel: ${cErr.message}`); else canceladosN++
       }
     } catch (e) { erros.push(`${unidade}: ${String(e)}`) }
   }
@@ -165,5 +211,5 @@ Deno.serve(async (req: Request) => {
     } catch (e) { erros.push(`cor ${f.google_event_id}: ${String(e)}`) }
   }
 
-  return json({ ok: erros.length === 0, eventos_no_google: eventosPorUnidade, inseridos, marcados_nao_compareceu: marcados, erros })
+  return json({ ok: erros.length === 0, eventos_no_google: eventosPorUnidade, inseridos, atualizados, cancelados: canceladosN, marcados_nao_compareceu: marcados, erros })
 })
