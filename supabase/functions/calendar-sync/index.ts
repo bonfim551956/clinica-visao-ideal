@@ -79,7 +79,8 @@ function montarLinha(ev: any, unidade: string) {
   }
 }
 
-Deno.serve(async () => {
+Deno.serve(async (req: Request) => {
+  const body = await req.json().catch(() => ({}))
   const raw = Deno.env.get('GOOGLE_SERVICE_ACCOUNT')
   if (!raw) return json({ ok: false, erro: 'Secret GOOGLE_SERVICE_ACCOUNT não configurado' }, 500)
 
@@ -90,6 +91,24 @@ Deno.serve(async () => {
   let token: string
   try { token = await googleToken(JSON.parse(raw)) } catch (e) { return json({ ok: false, erro: String(e) }, 500) }
   const gHeaders = { Authorization: `Bearer ${token}` }
+  const eventosPorUnidade: Record<string, number> = {}
+
+  // Diagnóstico: lista os calendários que a conta de serviço enxerga
+  if (body?.debug) {
+    const out: Record<string, unknown> = {}
+    for (const [unidade, calId] of Object.entries(CALENDARIOS)) {
+      const r = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}`, { headers: gHeaders })
+      const ev = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?maxResults=5&orderBy=updated&timeMin=${encodeURIComponent(new Date(Date.now() - 30 * 86400000).toISOString())}`, { headers: gHeaders })
+      const evj = await ev.json()
+      out[unidade] = {
+        calendario: r.status, eventos_status: ev.status,
+        recentes: (evj.items || []).map((e: any) => ({ s: e.summary, ini: e.start?.dateTime || e.start?.date, st: e.status })),
+      }
+    }
+    const lista = await (await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', { headers: gHeaders })).json()
+    out.calendarList = (lista.items || []).map((c: any) => ({ id: c.id, nome: c.summary, acesso: c.accessRole }))
+    return json(out)
+  }
 
   // ── 1) Google Calendar → Sistema ───────────────────────────
   const hoje = hojeSP()
@@ -105,6 +124,7 @@ Deno.serve(async () => {
       const r = await fetch(url, { headers: gHeaders })
       if (!r.ok) { erros.push(`${unidade}: ${r.status} ${await r.text()}`); continue }
       const eventos = ((await r.json()).items || []).filter((e: any) => e.status !== 'cancelled')
+      eventosPorUnidade[unidade] = eventos.length
       if (!eventos.length) continue
 
       const ids = eventos.map((e: any) => e.id)
@@ -145,5 +165,5 @@ Deno.serve(async () => {
     } catch (e) { erros.push(`cor ${f.google_event_id}: ${String(e)}`) }
   }
 
-  return json({ ok: erros.length === 0, inseridos, marcados_nao_compareceu: marcados, erros })
+  return json({ ok: erros.length === 0, eventos_no_google: eventosPorUnidade, inseridos, marcados_nao_compareceu: marcados, erros })
 })
