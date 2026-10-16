@@ -517,6 +517,7 @@ function Agenda({ user, selectedUnidade='' }) {
   // Tabela da agenda: células e botões de ação com o mesmo tamanho e alinhamento
   const celAg = { padding:'10px 16px', verticalAlign:'middle', height:52 };
   const btnAcao = { width:112, padding:'7px 0', textAlign:'center' };
+  const acoesAg = { display:'flex', gap:8, justifyContent:'flex-end', alignItems:'center' };
   const unidadeFixa = user.unidade || selectedUnidade;
 
   const handleDelete = async (id) => {
@@ -544,7 +545,7 @@ function Agenda({ user, selectedUnidade='' }) {
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
               <thead>
                 <tr style={{background:C.teal,color:C.white}}>
-                  {[['Horário',90],['Paciente',null],['Procedimento',150],['Contato',130],['Status',170],['',140]].map(([h,w])=>(
+                  {[['Horário',90],['Paciente',null],['Procedimento',150],['Contato',130],['Status',170],['',264]].map(([h,w])=>(
                     <th key={h} style={{padding:'10px 16px',textAlign:'left',width:w||undefined}}>{h}</th>
                   ))}
                 </tr>
@@ -560,8 +561,11 @@ function Agenda({ user, selectedUnidade='' }) {
                         <td style={celAg}></td>
                         <td style={celAg}></td>
                         <td style={celAg}></td>
-                        <td style={{...celAg,textAlign:'right'}}>
-                          <Btn size="sm" color={C.orange} style={btnAcao} onClick={()=>setModal({hora})}>+ Agendar</Btn>
+                        <td style={celAg}>
+                          <div style={acoesAg}>
+                            <span style={{width:btnAcao.width}}/>
+                            <Btn size="sm" color={C.orange} style={btnAcao} onClick={()=>setModal({hora})}>+ Agendar</Btn>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -581,8 +585,13 @@ function Agenda({ user, selectedUnidade='' }) {
                         <td style={celAg}>{slot.procedimento||''}</td>
                         <td style={celAg}>{slot.meio_contato||''}</td>
                         <td style={celAg}><Badge color={slot.status==='Compareceu'?C.success:slot.status==='Não Compareceu'?C.danger:C.teal}>{slot.status}</Badge></td>
-                        <td style={{...celAg,textAlign:'right'}}>
-                          <Btn size="sm" color={C.teal} style={btnAcao} onClick={()=>setModal({hora,existing:slot})}>Editar</Btn>
+                        <td style={celAg}>
+                          <div style={acoesAg}>
+                            <Btn size="sm" color={C.teal} style={btnAcao} onClick={()=>setModal({hora,existing:slot})}>Editar</Btn>
+                            {si === horaSlots.length - 1
+                              ? <Btn size="sm" color={C.orange} style={btnAcao} onClick={()=>setModal({hora})}>+ Agendar</Btn>
+                              : <span style={{width:btnAcao.width}}/>}
+                          </div>
                         </td>
                       </tr>
                       );
