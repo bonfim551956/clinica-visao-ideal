@@ -563,7 +563,6 @@ function Agenda({ user, selectedUnidade='' }) {
                   }
                   return [
                     ...horaSlots.map((slot, si) => {
-                      const isLast = si === horaSlots.length - 1;
                       return (
                       <tr key={slot.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
                         <td style={{padding:'8px 12px',fontWeight:600,color:C.teal,whiteSpace:'nowrap'}}>{si===0?hora:''}</td>
@@ -576,12 +575,7 @@ function Agenda({ user, selectedUnidade='' }) {
                         <td style={{padding:'8px 12px'}}><Badge color={slot.status==='Compareceu'?C.success:slot.status==='Não Compareceu'?C.danger:C.teal}>{slot.status}</Badge></td>
                         <td style={{padding:'8px 12px'}}>
                           <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
-                            {slot.paciente_telefone && (
-                              <Btn size="sm" color={C.success} title="Abrir conversa com o paciente no WhatsApp"
-                                onClick={()=>window.open(`https://wa.me/${String(slot.paciente_telefone).replace(/\D/g,'')}`,'_blank','noopener')}>WhatsApp</Btn>
-                            )}
                             <Btn size="sm" color={C.teal} outline onClick={()=>setModal({hora,existing:slot})}>Editar</Btn>
-                            {isLast && <Btn size="sm" color={C.orange} outline onClick={()=>setModal({hora})}>+ Encaixe</Btn>}
                           </div>
                         </td>
                       </tr>
@@ -942,6 +936,108 @@ function Agendamentos({ user, onAtender, selectedUnidade='' }) {
   );
 }
 
+
+/* ══════════════════════════════════════════════════════
+   RECEITA IMPRESSA (única para Atendimento e Receitas)
+══════════════════════════════════════════════════════ */
+const idadeEm = (nasc, ref) => {
+  if (!nasc) return '';
+  const n = new Date(String(nasc).slice(0,10)+'T12:00:00');
+  const r = ref ? new Date(String(ref).slice(0,10)+'T12:00:00') : new Date();
+  if (isNaN(n) || isNaN(r)) return '';
+  let a = r.getFullYear() - n.getFullYear();
+  if (r.getMonth() < n.getMonth() || (r.getMonth() === n.getMonth() && r.getDate() < n.getDate())) a--;
+  return a >= 0 ? `${a} ${a === 1 ? 'ano' : 'anos'}` : '';
+};
+const esc = v => String(v ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtCro = cro => { const c = String(cro||'').trim(); return !c ? '' : /^cro/i.test(c) ? c : `CRO-SP ${c}`; };
+
+function imprimirReceita(r) {
+  const logoUrl = window.location.origin + '/logo-clinica.png';
+  const [dAt, tAt] = String(r.data_hora_atendimento || '').split(' ');
+  const dtAtend = dAt ? fmtDate(dAt) + (tAt ? ' às ' + tAt : '') : fmtDate(r.data);
+  const unidade = r.unidade || r.opto_unidade || 'São Vicente';
+  const dtExtenso = unidade + ', ' + new Date((r.data || today()) + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+  const idade = idadeEm(r.paciente_data_nascimento, dAt || r.data);
+  const cro = fmtCro(r.opto_cro);
+  const endereco = r.opto_endereco || ENDERECOS_UNIDADES[unidade] || ENDERECOS_UNIDADES['São Vicente'];
+  const eixo = v => v && v !== '—' ? esc(v) + '°' : '—';
+  const dnp = v => v && v !== 'N/A' ? esc(v) : '—';
+  const temAdicao = (r.od_adicao && r.od_adicao !== 'N/A') || (r.oe_adicao && r.oe_adicao !== 'N/A');
+  const w = window.open('', '_blank');
+  if (!w) { alert('Permita popups neste site para imprimir a receita.'); return; }
+  w.document.write(`<!DOCTYPE html><html><head><title>Prescrição de Óculos</title><meta charset="utf-8"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#173D43;padding:20mm 22mm 16mm 22mm;width:210mm;min-height:297mm}
+    .header{display:flex;align-items:center;gap:20px;padding-bottom:14px;border-bottom:3px solid #16AFA3;margin-bottom:22px}
+    .logo{height:58px;object-fit:contain}
+    .titulo{font-size:18px;font-weight:800;letter-spacing:.5px;text-transform:uppercase}
+    .subtitulo{font-size:12px;color:#16AFA3;font-weight:600;margin-top:3px}
+    .section-box{border:1.5px solid #e0e0e0;border-radius:8px;padding:12px 16px;margin-bottom:20px;background:#fafaf8}
+    .field-row{display:flex;gap:24px;flex-wrap:wrap}
+    .field{display:flex;flex-direction:column;gap:2px;flex:1}
+    .label{font-size:10px;font-weight:700;color:#16AFA3;text-transform:uppercase;letter-spacing:.5px}
+    .value{font-size:14px;font-weight:600;border-bottom:1px solid #d0d0d0;padding-bottom:4px;margin-top:2px;min-height:22px}
+    .section-title{font-size:11px;font-weight:700;color:#16AFA3;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+    table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:22px}
+    table th{background:#173D43;color:#fff;padding:10px 12px;text-align:center;font-size:12px;font-weight:700}
+    table th:first-child{border-radius:6px 0 0 0} table th:last-child{border-radius:0 6px 0 0}
+    table td{border:1px solid #e0e0e0;padding:10px 12px;text-align:center}
+    table tbody tr:nth-child(even){background:#f7fffe}
+    .olho{font-weight:800;font-size:14px;background:#e8f8f7!important}
+    .adicao-row td{background:#fff8f0!important;color:#F47700;font-weight:700}
+    .obs-box{font-size:13px;line-height:1.6;color:#333;background:#fafaf8;border:1px solid #e0e0e0;border-radius:6px;padding:10px 14px;margin-bottom:22px}
+    .assinatura-area{display:flex;align-items:flex-end;justify-content:space-between;margin:28px 0 20px;gap:24px}
+    .assinatura-col{display:flex;flex-direction:column;align-items:center;gap:4px}
+    .assinatura-linha{border-top:1.5px solid #173D43;width:220px;margin-bottom:6px}
+    .assinatura-nome{font-size:13px;font-weight:700;text-align:center}
+    .assinatura-cro{font-size:11px;color:#555;text-align:center}
+    .data-local{font-size:13px;text-align:right;flex:1}
+    .lembrete{font-size:11px;color:#173D43;line-height:1.6;border-left:3px solid #16AFA3;padding:10px 14px;background:#f2fbfa;border-radius:0 6px 6px 0;margin-bottom:18px}
+    .lembrete b{color:#16AFA3}
+    .footer{border-top:1px solid #ddd;padding-top:10px;font-size:10px;color:#999;text-align:center}
+    @media print{html,body{width:210mm;height:297mm}body{padding:18mm 20mm 14mm 20mm}@page{size:A4 portrait;margin:0}}
+  </style></head><body>
+    <div class="header">
+      <img src="${logoUrl}" alt="Clínica Visão Ideal" class="logo" onerror="this.style.display='none'"/>
+      <div><div class="titulo">Prescrição de Óculos</div><div class="subtitulo">Clínica Visão Ideal</div></div>
+    </div>
+    <div class="section-box"><div class="field-row">
+      <div class="field"><span class="label">Paciente</span><span class="value">${esc(r.paciente_nome)}</span></div>
+      <div class="field" style="flex:0 0 auto;min-width:90px"><span class="label">Idade</span><span class="value">${idade || '&nbsp;'}</span></div>
+      <div class="field" style="flex:0 0 auto;min-width:180px"><span class="label">Data do atendimento</span><span class="value">${dtAtend}</span></div>
+    </div></div>
+    <div class="section-title">Grau de correção visual</div>
+    <table>
+      <thead><tr><th style="width:60px"></th><th>Esférico</th><th>Cilíndrico</th><th>Eixo</th><th>AV</th><th>DNP (mm)</th></tr></thead>
+      <tbody>
+        <tr><td class="olho">OD</td><td>${esc(r.od_esf)||'—'}</td><td>${esc(r.od_cil)||'—'}</td><td>${eixo(r.od_eixo)}</td><td></td><td>${dnp(r.od_dnp)}</td></tr>
+        <tr><td class="olho">OE</td><td>${esc(r.oe_esf)||'—'}</td><td>${esc(r.oe_cil)||'—'}</td><td>${eixo(r.oe_eixo)}</td><td></td><td>${dnp(r.oe_dnp)}</td></tr>
+        ${temAdicao ? `<tr class="adicao-row"><td class="olho" colspan="2">Adição</td><td colspan="4" style="text-align:left;padding-left:16px">OD: ${esc(r.od_adicao)||'—'} &nbsp;&nbsp; OE: ${esc(r.oe_adicao)||'—'}</td></tr>` : ''}
+      </tbody>
+    </table>
+    ${r.observacoes ? `<div class="section-title">Observações</div><div class="obs-box">${esc(r.observacoes)}</div>` : ''}
+    <div class="assinatura-area">
+      <div class="assinatura-col">
+        <div class="assinatura-linha"></div>
+        <div class="assinatura-nome">${esc(r.opto_nome)}</div>
+        ${cro ? `<div class="assinatura-cro">${esc(cro)}</div>` : ''}
+      </div>
+      <div class="data-local">${esc(dtExtenso)}</div>
+    </div>
+    <div class="lembrete">
+      <b>Cuide da sua visão todo ano.</b> A visão muda com o tempo, muitas vezes sem que a gente perceba.
+      Refaça seu exame de acuidade visual com um especialista uma vez por ano, mesmo que esteja enxergando bem,
+      e procure antes se notar qualquer mudança. Esta prescrição não substitui a avaliação médica para diagnóstico
+      e tratamento de doenças oculares.
+    </div>
+    <div class="footer">Clínica Visão Ideal &nbsp;·&nbsp; ${esc(endereco)}</div>
+    <script>window.onload=()=>{ setTimeout(()=>window.print(),200); };</script>
+  </body></html>`);
+  w.document.close();
+}
+
 /* ══════════════════════════════════════════════════════
    ATENDIMENTO
 ══════════════════════════════════════════════════════ */
@@ -950,7 +1046,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
   const [loading, setLoading] = useState(true);
   const [sel, setSel] = useState(null);
   const [tabAte, setTabAte] = useState('anamnese');
-  const [form, setForm] = useState({ anamnese:'', queixa:'', medicamentos:'',
+  const [form, setForm] = useState({ anamnese:'', queixa:'', medicamentos:'', nasc:'',
     od_esf:'Plano',od_cil:'Plano',od_eixo:'90',od_add:'N/A',od_dnp:'N/A',
     oe_esf:'Plano',oe_cil:'Plano',oe_eixo:'90',oe_add:'N/A',oe_dnp:'N/A' });
   const [receita, setReceita] = useState(null);
@@ -981,7 +1077,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
     if (!agendaItem) return;
     setSel(agendaItem);
     setTabAte('anamnese');
-    setForm({ anamnese:'', queixa:'', medicamentos:'',
+    setForm({ anamnese:'', queixa:'', medicamentos:'', nasc:'',
       od_esf:'Plano',od_cil:'Plano',od_eixo:'90',od_add:'N/A',od_dnp:'N/A',
       oe_esf:'Plano',oe_cil:'Plano',oe_eixo:'90',oe_add:'N/A',oe_dnp:'N/A' });
     setReceita(null);
@@ -990,8 +1086,12 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
 
   useEffect(()=>{
     if (!sel) return;
-    supabase.from('receitas').select('*').eq('agenda_id',sel.id).single()
+    supabase.from('receitas').select('*').eq('agenda_id',sel.id).maybeSingle()
       .then(({data})=>{ if(data) setReceita(data); });
+    if (sel.paciente_id) {
+      supabase.from('pacientes').select('data_nascimento').eq('id', sel.paciente_id).maybeSingle()
+        .then(({data})=>{ if (data?.data_nascimento) setForm(f=>({...f, nasc: f.nasc || data.data_nascimento})); });
+    }
   },[sel]);
 
   const iniciarAtendimento = async (a) => {
@@ -1002,7 +1102,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
     }
     setSel(a);
     setTabAte('anamnese');
-    setForm({ anamnese:'', queixa:'', medicamentos:'',
+    setForm({ anamnese:'', queixa:'', medicamentos:'', nasc:'',
       od_esf:'Plano',od_cil:'Plano',od_eixo:'90',od_add:'N/A',od_dnp:'N/A',
       oe_esf:'Plano',oe_cil:'Plano',oe_eixo:'90',oe_add:'N/A',oe_dnp:'N/A' });
     setReceita(null);
@@ -1020,12 +1120,15 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
       data:today(), data_hora_atendimento: dataHora,
       meio_contato: sel.meio_contato||'', agendado_por: sel.agendado_por||'',
       unidade: sel.unidade||opto.unidade||'',
+      paciente_data_nascimento: form.nasc || null,
       od_esf:form.od_esf, od_cil:form.od_cil, od_eixo:form.od_eixo, od_adicao:form.od_add, od_dnp:form.od_dnp,
       oe_esf:form.oe_esf, oe_cil:form.oe_cil, oe_eixo:form.oe_eixo, oe_adicao:form.oe_add, oe_dnp:form.oe_dnp,
       observacoes:form.anamnese,
     };
     const {data, error} = await supabase.from('receitas').insert(row).select().single();
     if (error) { alert('Erro ao gerar a receita: ' + error.message); return; }
+    // guarda a data de nascimento no cadastro do paciente, se ainda não tiver
+    if (form.nasc && sel.paciente_id) await supabase.from('pacientes').update({ data_nascimento: form.nasc }).eq('id', sel.paciente_id).is('data_nascimento', null);
     // Atendido: tira da regra automática de "Não Compareceu"
     if (sel.status === 'Agendado') await supabase.from('agenda').update({ status: 'Compareceu' }).eq('id', sel.id);
     setReceita(data);
@@ -1105,6 +1208,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
         <Card>
           <h4 style={{marginBottom:16,color:C.navy}}>Anamnese</h4>
           <div style={{display:'flex',flexDirection:'column',gap:14}}>
+            <Input label="Data de nascimento (sai a idade na receita)" type="date" value={form.nasc} onChange={e=>setF('nasc',e.target.value)} style={{maxWidth:280}}/>
             <div><label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:4}}>Queixa principal</label>
               <textarea value={form.queixa} onChange={e=>setF('queixa',e.target.value)} rows={3}
                 style={{width:'100%',border:`1.5px solid ${C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,resize:'vertical'}}/></div>
@@ -1172,160 +1276,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
             </table>
           </div>
           <div style={{textAlign:'right',marginTop:16}}>
-            <Btn color={C.teal} onClick={()=>{
-              const logoUrl = window.location.origin + '/logo-clinica.png';
-              // Formata a data/hora do atendimento
-              const dtAtend = receita.data_hora_atendimento
-                ? (() => { const [d,t]=(receita.data_hora_atendimento||'').split(' '); return fmtDate(d)+(t?' às '+t:''); })()
-                : fmtDate(receita.data);
-              // Monta cidade + data por extenso
-              const dtExtenso = (() => {
-                const d=new Date(receita.data+'T12:00:00');
-                return 'São Vicente, '+d.toLocaleDateString('pt-BR',{day:'numeric',month:'long',year:'numeric'});
-              })();
-              const w=window.open('','_blank');
-              if (!w) { alert('Permita popups neste site para imprimir a receita.'); return; }
-              w.document.write(`<!DOCTYPE html><html><head><title>Prescrição de Óculos</title>
-                <meta charset="utf-8"/>
-                <style>
-                  *{box-sizing:border-box;margin:0;padding:0}
-                  body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#173D43;padding:20mm 22mm 16mm 22mm;width:210mm;min-height:297mm;position:relative}
-                  /* HEADER */
-                  .header{display:flex;align-items:center;gap:20px;padding-bottom:14px;border-bottom:3px solid #16AFA3;margin-bottom:22px}
-                  .logo{height:58px;object-fit:contain}
-                  .titulo{font-size:18px;font-weight:800;color:#173D43;letter-spacing:.5px;text-transform:uppercase}
-                  .subtitulo{font-size:12px;color:#16AFA3;font-weight:600;margin-top:3px;letter-spacing:.3px}
-                  /* PACIENTE BOX */
-                  .section-box{border:1.5px solid #e0e0e0;border-radius:8px;padding:12px 16px;margin-bottom:20px;background:#fafaf8}
-                  .field-row{display:flex;gap:24px;flex-wrap:wrap}
-                  .field{display:flex;flex-direction:column;gap:2px;flex:1}
-                  .label{font-size:10px;font-weight:700;color:#16AFA3;text-transform:uppercase;letter-spacing:.5px}
-                  .value{font-size:14px;font-weight:600;color:#173D43;border-bottom:1px solid #d0d0d0;padding-bottom:4px;margin-top:2px;min-height:22px}
-                  /* SECTION TITLE */
-                  .section-title{font-size:11px;font-weight:700;color:#16AFA3;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
-                  /* TABELA */
-                  table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:22px}
-                  table th{background:#173D43;color:#fff;padding:10px 12px;text-align:center;font-size:12px;font-weight:700;letter-spacing:.3px}
-                  table th:first-child{border-radius:6px 0 0 0}
-                  table th:last-child{border-radius:0 6px 0 0}
-                  table td{border:1px solid #e0e0e0;padding:10px 12px;text-align:center;font-size:13px}
-                  table tbody tr:nth-child(even){background:#f7fffe}
-                  .olho{font-weight:800;color:#173D43;font-size:14px;background:#e8f8f7!important}
-                  .adicao-row td{background:#fff8f0!important;color:#F47700;font-weight:700;font-size:13px}
-                  /* OBS */
-                  .obs-box{font-size:13px;line-height:1.6;color:#333;background:#fafaf8;border:1px solid #e0e0e0;border-radius:6px;padding:10px 14px;margin-bottom:22px}
-                  /* ASSINATURA */
-                  .assinatura-area{display:flex;align-items:flex-end;justify-content:space-between;margin-top:28px;margin-bottom:20px;gap:24px}
-                  .assinatura-col{display:flex;flex-direction:column;align-items:center;gap:4px}
-                  .assinatura-linha{border-top:1.5px solid #173D43;width:220px;margin-bottom:6px}
-                  .assinatura-nome{font-size:13px;font-weight:700;color:#173D43;text-align:center}
-                  .assinatura-cargo{font-size:11px;color:#555;text-align:center}
-                  .data-local{font-size:13px;color:#173D43;text-align:right;flex:1}
-                  /* DISCLAIMER */
-                  .disclaimer{font-size:10px;color:#666;line-height:1.6;text-align:justify;border:1px solid #ddd;padding:10px 14px;background:#fafafa;border-radius:6px;margin-bottom:18px}
-                  /* INFO META */
-                  .info-meta{font-size:10px;color:#888;border-top:1px solid #eee;padding-top:8px;display:flex;gap:20px;flex-wrap:wrap;margin-bottom:16px}
-                  .info-meta b{color:#555}
-                  /* FOOTER */
-                  .footer{border-top:1px solid #ddd;padding-top:10px;font-size:10px;color:#999;text-align:center}
-                  @media print{
-                    html,body{width:210mm;height:297mm;margin:0;padding:0}
-                    body{padding:18mm 20mm 14mm 20mm}
-                    @page{size:A4 portrait;margin:0}
-                    .no-print{display:none}
-                  }
-                </style>
-              </head><body>
-                <!-- CABEÇALHO -->
-                <div class="header">
-                  <img src="${logoUrl}" alt="Clínica Visão Ideal" class="logo" onerror="this.style.display='none'"/>
-                  <div>
-                    <div class="titulo">PRESCRIÇÃO DE ÓCULOS</div>
-                    <div class="subtitulo">Clínica Visão Ideal</div>
-                  </div>
-                </div>
-
-                <!-- PACIENTE -->
-                <div class="section-box">
-                  <div class="field-row">
-                    <div class="field"><span class="label">Paciente</span><span class="value">${receita.paciente_nome}</span></div>
-                    <div class="field" style="flex:0 0 auto;min-width:180px"><span class="label">Data do Atendimento</span><span class="value">${dtAtend}</span></div>
-                  </div>
-                </div>
-
-                <!-- TABELA DE GRAU -->
-                <div class="section-title">Grau de Correção Visual</div>
-                <table>
-                  <thead>
-                    <tr>
-                      <th style="width:60px"></th>
-                      <th>Esférico</th>
-                      <th>Cilíndrico</th>
-                      <th>Eixo</th>
-                      <th>AV</th>
-                      <th>DNP (mm)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td class="olho">OD</td>
-                      <td>${receita.od_esf||'—'}</td>
-                      <td>${receita.od_cil||'—'}</td>
-                      <td>${receita.od_eixo&&receita.od_eixo!=='—'?receita.od_eixo+'°':'—'}</td>
-                      <td></td>
-                      <td>${receita.od_dnp&&receita.od_dnp!=='N/A'?receita.od_dnp:'—'}</td>
-                    </tr>
-                    <tr>
-                      <td class="olho">OE</td>
-                      <td>${receita.oe_esf||'—'}</td>
-                      <td>${receita.oe_cil||'—'}</td>
-                      <td>${receita.oe_eixo&&receita.oe_eixo!=='—'?receita.oe_eixo+'°':'—'}</td>
-                      <td></td>
-                      <td>${receita.oe_dnp&&receita.oe_dnp!=='N/A'?receita.oe_dnp:'—'}</td>
-                    </tr>
-                    ${(receita.od_adicao&&receita.od_adicao!=='N/A')||(receita.oe_adicao&&receita.oe_adicao!=='N/A') ? `
-                    <tr class="adicao-row">
-                      <td class="olho" colspan="2">Adição</td>
-                      <td colspan="4" style="text-align:left;padding-left:16px">OD: ${receita.od_adicao||'—'} &nbsp;&nbsp; OE: ${receita.oe_adicao||'—'}</td>
-                    </tr>` : ''}
-                  </tbody>
-                </table>
-
-                ${receita.observacoes ? `
-                <div class="section-title">Observações</div>
-                <div class="obs-box">${receita.observacoes}</div>` : ''}
-
-                <!-- ÁREA DE ASSINATURA -->
-                <div class="assinatura-area">
-                  <div class="assinatura-col">
-                    <div class="assinatura-linha"></div>
-                    <div class="assinatura-nome">${receita.opto_nome}</div>
-                    <div class="assinatura-cargo">Optometrista${receita.opto_cro?' · CRO-SP '+receita.opto_cro:''}</div>
-                  </div>
-                  <div class="data-local">${dtExtenso}</div>
-                </div>
-
-                <!-- DISCLAIMER -->
-                <div class="disclaimer">
-                  O presente exame efetuado pelo optometrista tem por finalidade a correção dos defeitos refrativos, a avaliação sensorial e motora, através da indicação de lentes corretivas refrativas e/ou exercícios ortópticos. O diagnóstico de doenças oculares e seu tratamento são de competência do profissional médico.
-                </div>
-
-                <!-- INFO META (interno) -->
-                <div class="info-meta">
-                  <span><b>Profissional:</b> ${receita.opto_nome}</span>
-                  ${receita.meio_contato?`<span><b>Canal:</b> ${receita.meio_contato}</span>`:''}
-                  ${receita.agendado_por?`<span><b>Agendado por:</b> ${receita.agendado_por}</span>`:''}
-                </div>
-
-                <!-- RODAPÉ -->
-                <div class="footer">
-                  <div>Clínica Visão Ideal &nbsp;·&nbsp; ${receita.opto_endereco||ENDERECOS_UNIDADES[receita.opto_unidade]||'Av. Antônio Emerich, 477 - Vila Melo – São Vicente – SP'}</div>
-                </div>
-
-                <script>window.onload=()=>{ setTimeout(()=>window.print(),200); };</script>
-              </body></html>`);
-              w.document.close();
-            }}>Imprimir Receita</Btn>
+            <Btn color={C.teal} onClick={()=>imprimirReceita(receita)}>Imprimir Receita</Btn>
           </div>
         </Card>
       )}
@@ -1962,34 +1913,7 @@ function Receitas({ user, selectedUnidade='' }) {
             </div>
             {detalhe.observacoes && <div style={{background:C.orangeBg,borderLeft:`3px solid ${C.orange}`,borderRadius:'0 8px 8px 0',padding:'10px 14px',fontSize:13}}><strong>Observações:</strong> {detalhe.observacoes}</div>}
             <div style={{textAlign:'right',paddingTop:4}}>
-              <Btn size="sm" color={C.teal} onClick={()=>{ /* dispara o mesmo print da aba Atendimento */
-                const logoUrl = window.location.origin + '/logo-clinica.png';
-                const dtAtend = detalhe.data_hora_atendimento
-                  ? (()=>{ const [d,t]=(detalhe.data_hora_atendimento||'').split(' '); return fmtDate(d)+(t?' às '+t:''); })()
-                  : fmtDate(detalhe.data);
-                const dtExtenso = (()=>{ const d=new Date(detalhe.data+'T12:00:00'); return 'São Vicente, '+d.toLocaleDateString('pt-BR',{day:'numeric',month:'long',year:'numeric'}); })();
-                const w=window.open('','_blank');
-                if (!w) { alert('Permita popups neste site para imprimir a receita.'); return; }
-                w.document.write(`<!DOCTYPE html><html><head><title>Prescrição de Óculos</title><meta charset="utf-8"/>
-                <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#173D43;padding:40px 48px;max-width:800px;margin:0 auto}.header{display:flex;align-items:center;justify-content:space-between;padding-bottom:16px;border-bottom:2px solid #16AFA3;margin-bottom:24px}.logo{height:64px;object-fit:contain}.titulo{font-size:16px;font-weight:700;color:#173D43;text-align:center;letter-spacing:.5px}.paciente-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:20px}.paciente-nome{font-size:14px}.paciente-nome b{font-size:15px}table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:20px}table th,table td{border:1px solid #ccc;padding:9px 12px;text-align:center}table thead tr{background:#f5f5f5}table thead th{font-weight:700;font-size:13px}.obs-row{font-size:13px;margin-bottom:20px;line-height:1.5}.info-meta{font-size:12px;color:#555;margin-bottom:24px;border-top:1px solid #eee;border-bottom:1px solid #eee;padding:10px 0;display:flex;gap:24px;flex-wrap:wrap}.info-meta span b{color:#173D43}.disclaimer{font-size:11px;color:#555;line-height:1.5;margin-bottom:32px;text-align:justify;border:1px solid #ddd;padding:12px 14px;background:#fafafa;border-radius:4px}.assinatura{display:flex;flex-direction:column;align-items:center;margin-bottom:20px}.assinatura .linha{border-top:1px solid #173D43;width:240px;margin-bottom:6px}.assinatura p{font-size:13px;color:#173D43;text-align:center}.footer{border-top:1px solid #ddd;padding-top:10px;font-size:11px;color:#888;text-align:center}.data-local{text-align:center;font-size:13px;margin-bottom:24px;color:#173D43}@media print{body{padding:20px 28px}@page{margin:1cm}}</style>
-                </head><body>
-                <div class="header"><img src="${logoUrl}" alt="Clínica Visão Ideal" class="logo"/><div class="titulo">PRESCRIÇÃO DE ÓCULOS</div><div style="width:100px"></div></div>
-                <div class="paciente-row"><div class="paciente-nome"><b>Paciente:</b> ${detalhe.paciente_nome}</div><div>Idade:</div></div>
-                <table><thead><tr><th></th><th>Esférico</th><th>Cilíndrico</th><th>Eixo</th><th>AV</th><th>DNP</th></tr></thead>
-                <tbody>
-                  <tr><td><b>OD</b></td><td>${detalhe.od_esf||'—'}</td><td>${detalhe.od_cil||'—'}</td><td>${detalhe.od_eixo||'—'}°</td><td></td><td>${detalhe.od_dnp&&detalhe.od_dnp!=='N/A'?detalhe.od_dnp:''}</td></tr>
-                  <tr><td><b>OE</b></td><td>${detalhe.oe_esf||'—'}</td><td>${detalhe.oe_cil||'—'}</td><td>${detalhe.oe_eixo||'—'}°</td><td></td><td>${detalhe.oe_dnp&&detalhe.oe_dnp!=='N/A'?detalhe.oe_dnp:''}</td></tr>
-                  ${(detalhe.od_adicao&&detalhe.od_adicao!=='N/A')||(detalhe.oe_adicao&&detalhe.oe_adicao!=='N/A')?`<tr><td><b>Adição</b></td><td colspan="5">${detalhe.od_adicao||detalhe.oe_adicao||''}</td></tr>`:''}
-                </tbody></table>
-                ${detalhe.observacoes?`<div class="obs-row"><b>Observações:</b> ${detalhe.observacoes}</div>`:''}
-                <div class="info-meta"><span><b>Profissional:</b> ${detalhe.opto_nome}</span>${detalhe.meio_contato?`<span><b>Meio de contato:</b> ${detalhe.meio_contato}</span>`:''}${detalhe.agendado_por?`<span><b>Agendado por:</b> ${detalhe.agendado_por}</span>`:''}<span><b>Atendimento:</b> ${dtAtend}</span></div>
-                <div class="assinatura"><div class="linha"></div><p>${detalhe.opto_nome}</p><p>Optometrista</p></div>
-                <div class="data-local">${dtExtenso}</div>
-                <div class="disclaimer">O presente exame efetuado pelo optometrista, tem por finalidade a correção dos defeitos refrativos, a avaliação sensorial e motora, através da indicação de lentes corretivas refrativas e/ou exercícios ortópticos. O diagnóstico de doenças oculares e seu tratamento são de competência do profissional médico.</div>
-                <div class="footer">Clínica Visão Ideal · Avenida Antonio Emerick, São Vicente</div>
-                <script>window.onload=()=>window.print();</script></body></html>`);
-                w.document.close();
-              }}>Imprimir Receita</Btn>
+              <Btn size="sm" color={C.teal} onClick={()=>imprimirReceita(detalhe)}>Imprimir Receita</Btn>
             </div>
           </div>
         </Modal>
