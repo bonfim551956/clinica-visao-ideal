@@ -514,6 +514,11 @@ function Agenda({ user, selectedUnidade='' }) {
     showToast('Agendamento salvo!');
   };
 
+  // Tabela da agenda: células e botões de ação com o mesmo tamanho e alinhamento
+  const celAg = { padding:'10px 16px', verticalAlign:'middle', height:52 };
+  const btnAcao = { width:112, padding:'7px 0', textAlign:'center' };
+  const unidadeFixa = user.unidade || selectedUnidade;
+
   const handleDelete = async (id) => {
     const item = slots.find(x => x.id === id);
     const { error } = item?.google_event_id
@@ -539,8 +544,8 @@ function Agenda({ user, selectedUnidade='' }) {
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
               <thead>
                 <tr style={{background:C.teal,color:C.white}}>
-                  {['Horário','Paciente','Procedimento','Contato','Status',''].map(h=>(
-                    <th key={h} style={{padding:'9px 12px',textAlign:'left'}}>{h}</th>
+                  {[['Horário',90],['Paciente',null],['Procedimento',150],['Contato',130],['Status',170],['',140]].map(([h,w])=>(
+                    <th key={h} style={{padding:'10px 16px',textAlign:'left',width:w||undefined}}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -550,13 +555,13 @@ function Agenda({ user, selectedUnidade='' }) {
                   if (horaSlots.length === 0) {
                     return (
                       <tr key={hora} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
-                        <td style={{padding:'8px 12px',fontWeight:600,color:C.teal,whiteSpace:'nowrap'}}>{hora}</td>
-                        <td style={{padding:'8px 12px'}}><span style={{color:C.border}}>—</span></td>
-                        <td style={{padding:'8px 12px'}}></td>
-                        <td style={{padding:'8px 12px'}}></td>
-                        <td style={{padding:'8px 12px'}}></td>
-                        <td style={{padding:'8px 12px'}}>
-                          <Btn size="sm" color={C.orange} outline onClick={()=>setModal({hora})}>+ Agendar</Btn>
+                        <td style={{...celAg,fontWeight:600,color:C.teal,whiteSpace:'nowrap'}}>{hora}</td>
+                        <td style={celAg}><span style={{color:C.border}}>—</span></td>
+                        <td style={celAg}></td>
+                        <td style={celAg}></td>
+                        <td style={celAg}></td>
+                        <td style={{...celAg,textAlign:'right'}}>
+                          <Btn size="sm" color={C.orange} style={btnAcao} onClick={()=>setModal({hora})}>+ Agendar</Btn>
                         </td>
                       </tr>
                     );
@@ -565,18 +570,19 @@ function Agenda({ user, selectedUnidade='' }) {
                     ...horaSlots.map((slot, si) => {
                       return (
                       <tr key={slot.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
-                        <td style={{padding:'8px 12px',fontWeight:600,color:C.teal,whiteSpace:'nowrap'}}>{si===0?hora:''}</td>
-                        <td style={{padding:'8px 12px'}}>
-                          {slot.paciente_nome}
-                          {slot.agendado_por==='IA' && <span style={{marginLeft:6,fontSize:10,background:C.orangeBg,color:C.orange,borderRadius:4,padding:'1px 5px'}}>IA</span>}
-                        </td>
-                        <td style={{padding:'8px 12px'}}>{slot.procedimento||''}</td>
-                        <td style={{padding:'8px 12px'}}>{slot.meio_contato||''}</td>
-                        <td style={{padding:'8px 12px'}}><Badge color={slot.status==='Compareceu'?C.success:slot.status==='Não Compareceu'?C.danger:C.teal}>{slot.status}</Badge></td>
-                        <td style={{padding:'8px 12px'}}>
-                          <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
-                            <Btn size="sm" color={C.teal} outline onClick={()=>setModal({hora,existing:slot})}>Editar</Btn>
+                        <td style={{...celAg,fontWeight:600,color:C.teal,whiteSpace:'nowrap'}}>{si===0?hora:''}</td>
+                        <td style={celAg}>
+                          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                            <span>{slot.paciente_nome}</span>
+                            {slot.agendado_por==='IA' && <span style={{fontSize:10,fontWeight:700,background:C.orangeBg,color:C.orange,borderRadius:4,padding:'2px 6px'}}>IA</span>}
+                            {!unidadeFixa && slot.unidade && <span style={{fontSize:11,color:C.gray}}>{slot.unidade}</span>}
                           </div>
+                        </td>
+                        <td style={celAg}>{slot.procedimento||''}</td>
+                        <td style={celAg}>{slot.meio_contato||''}</td>
+                        <td style={celAg}><Badge color={slot.status==='Compareceu'?C.success:slot.status==='Não Compareceu'?C.danger:C.teal}>{slot.status}</Badge></td>
+                        <td style={{...celAg,textAlign:'right'}}>
+                          <Btn size="sm" color={C.teal} style={btnAcao} onClick={()=>setModal({hora,existing:slot})}>Editar</Btn>
                         </td>
                       </tr>
                       );
