@@ -87,7 +87,7 @@ input,select,textarea{font-family:inherit;outline:none}
 .resp-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
 .resp-grid-main{display:grid;grid-template-columns:1fr 300px;gap:16px}
 .nav-item{transition:all .15s;border-radius:6px}
-.nav-item:hover{background:${C.teal}11 !important}
+.nav-item:not(.ativo):hover{background:${C.teal}11 !important}
 @media(max-width:767px){
   .resp-grid-4{grid-template-columns:1fr 1fr;gap:10px}
   .resp-grid-2{grid-template-columns:1fr}
@@ -136,7 +136,7 @@ function Login({ onLogin }) {
       <div className="hide-mobile" style={{width:420,background:`linear-gradient(160deg,${C.navy} 0%,${C.teal} 100%)`,display:'flex',flexDirection:'column',justifyContent:'center',padding:56,color:C.white}}>
         <img src="/logo-clinica.png" alt="Clínica Visão Ideal" style={{width:180,marginBottom:32,filter:'brightness(0) invert(1)'}}/>
         <div style={{fontSize:15,opacity:.8,marginBottom:40}}>Sistema de Gestão Clínica</div>
-        {['Agenda inteligente por optometrista','Fluxo completo de atendimento','Controle de conversão e no-show','Relatórios e indicadores em tempo real'].map(t=>(
+        {['Agenda inteligente por loja','Fluxo completo de atendimento','Controle de conversão e no-show','Relatórios e indicadores em tempo real'].map(t=>(
           <div key={t} style={{display:'flex',alignItems:'center',gap:10,marginBottom:14,fontSize:14,opacity:.9}}>
             <span style={{width:8,height:8,borderRadius:'50%',background:C.orange,flexShrink:0}}/>
             {t}
@@ -195,7 +195,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
         const active = tab===n.id;
         return (
           <button key={n.id} onClick={()=>{setTab(n.id);onItemClick&&onItemClick();}}
-            className="nav-item"
+            className={active ? 'nav-item ativo' : 'nav-item'}
             style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderRadius:6,margin:'0 8px',
               background:active?C.teal:'transparent',color:active?C.white:C.text,
               fontWeight:active?700:500,fontSize:13.5,border:'none',cursor:'pointer',textAlign:'left',position:'relative'}}>
@@ -224,9 +224,11 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
         <img src="/logo-clinica.png" alt="Clínica Visão Ideal" style={{height:30,objectFit:'contain'}}/>
         <Badge color={perfil?.cor||C.teal}>{perfil?.label}</Badge>
       </div>
+      {podeVerTodasUnidades && (
       <div style={{padding:'6px 12px 8px',overflowX:'auto',display:'flex',gap:6,borderTop:`1px solid ${C.border}11`}}>
         <UnidadeFilter/>
       </div>
+      )}
       </div>
       {/* Drawer */}
       {drawer && <>
@@ -240,7 +242,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
         </div>
       </>}
       {/* Content */}
-      <div style={{flex:1,marginTop:88,padding:'16px 12px 80px'}}>
+      <div style={{flex:1,marginTop:podeVerTodasUnidades?88:52,padding:'16px 12px 80px'}}>
         {children}
       </div>
       {/* Bottom nav */}
@@ -297,10 +299,12 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
               {user.unidade && <span style={{fontSize:12,color:C.gray}}>{user.unidade}</span>}
             </div>
           </div>
+          {podeVerTodasUnidades && (
           <div style={{padding:'6px 28px 10px',background:C.bg+'cc',display:'flex',alignItems:'center',gap:10,borderTop:`1px solid ${C.border}22`}}>
             <span style={{fontSize:11,fontWeight:700,color:C.textSm,whiteSpace:'nowrap',textTransform:'uppercase',letterSpacing:'0.5px'}}>Unidade:</span>
             <UnidadeFilter/>
           </div>
+          )}
         </div>
         <div style={{flex:1,padding:28,maxWidth:1300}}>{children}</div>
       </div>
