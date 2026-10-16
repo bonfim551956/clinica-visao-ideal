@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase, entrar, usuarioDaSessao, gerirUsuario } from './supabase';
+import { supabase, entrar, usuarioDaSessao, gerirUsuario, sair } from './supabase';
 
 /* ── helpers ── */
 const pad = n => String(n).padStart(2,'0');
@@ -86,7 +86,7 @@ input,select,textarea{font-family:inherit;outline:none}
 .resp-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
 .resp-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
 .resp-grid-main{display:grid;grid-template-columns:1fr 300px;gap:16px}
-.nav-item{transition:all .15s;border-radius:10px}
+.nav-item{transition:all .15s;border-radius:6px}
 .nav-item:hover{background:${C.teal}11 !important}
 @media(max-width:767px){
   .resp-grid-4{grid-template-columns:1fr 1fr;gap:10px}
@@ -102,7 +102,7 @@ function useIsMobile(){ const [m,setM]=useState(window.innerWidth<768); useEffec
 const Btn = ({children,onClick,color=C.teal,outline=false,size='md',style:sx={},...p}) => {
   const pad = size==='sm'?'6px 14px':size==='lg'?'12px 28px':'9px 20px';
   const fs = size==='sm'?'13px':'14px';
-  return <button onClick={onClick} style={{background:outline?'transparent':color,color:outline?color:C.white,border:`2px solid ${color}`,borderRadius:24,padding:pad,fontSize:fs,fontWeight:600,transition:'all .15s',...sx}} {...p}>{children}</button>;
+  return <button onClick={onClick} style={{background:outline?'transparent':color,color:outline?color:C.white,border:`2px solid ${color}`,borderRadius:6,padding:pad,fontSize:fs,fontWeight:600,transition:'all .15s',...sx}} {...p}>{children}</button>;
 };
 const Card = ({children,style:sx={}}) => <div style={{background:C.white,borderRadius:16,padding:20,boxShadow:'0 2px 8px rgba(0,0,0,.06)',...sx}}>{children}</div>;
 const Badge = ({children,color=C.teal}) => <span style={{background:color+'22',color,borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:600}}>{children}</span>;
@@ -180,7 +180,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
           const active = selectedUnidade===val;
           return (
             <button key={u} onClick={()=>setSelectedUnidade(val)}
-              style={{padding:'4px 12px',borderRadius:20,fontSize:12,fontWeight:600,cursor:'pointer',border:`1.5px solid ${active?C.teal:C.border}`,background:active?C.teal:'transparent',color:active?C.white:C.gray,transition:'all .15s',whiteSpace:'nowrap'}}>
+              style={{padding:'4px 12px',borderRadius:6,fontSize:12,fontWeight:600,cursor:'pointer',border:`1.5px solid ${active?C.teal:C.border}`,background:active?C.teal:'transparent',color:active?C.white:C.gray,transition:'all .15s',whiteSpace:'nowrap'}}>
               {u}
             </button>
           );
@@ -196,7 +196,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
         return (
           <button key={n.id} onClick={()=>{setTab(n.id);onItemClick&&onItemClick();}}
             className="nav-item"
-            style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderRadius:10,margin:'0 8px',
+            style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderRadius:6,margin:'0 8px',
               background:active?C.teal:'transparent',color:active?C.white:C.text,
               fontWeight:active?700:500,fontSize:13.5,border:'none',cursor:'pointer',textAlign:'left',position:'relative'}}>
             {active && <span style={{position:'absolute',left:0,top:'20%',bottom:'20%',width:3,background:C.orange,borderRadius:'0 3px 3px 0'}}/>}
@@ -320,8 +320,8 @@ function Dashboard({ user, selectedUnidade='' }) {
     const load = async () => {
       const applyU = q => selectedUnidade ? q.eq('unidade', selectedUnidade) : q;
       const [ag, rec, conv, prox] = await Promise.all([
-        applyU(supabase.from('agenda').select('status').gte('data', today())),
-        applyU(supabase.from('receitas').select('id').gte('data', today())),
+        applyU(supabase.from('agenda').select('status').eq('data', today())),
+        applyU(supabase.from('receitas').select('id').eq('data', today())),
         applyU(supabase.from('conversoes').select('converteu,valor_venda')),
         applyU(supabase.from('agenda').select('*').eq('data', today()).eq('status','Agendado').order('hora').limit(8)),
       ]);
@@ -423,13 +423,10 @@ function Agenda({ user, selectedUnidade='' }) {
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(''),3000); };
 
   useEffect(() => {
-    // Busca optos via Edge Function (bypassa RLS)
+    // Optometristas ativos (cada loja tem o seu); usado para preencher o opto do agendamento
     gerirUsuario('listar', {}).then(r => {
       const todos = r?.usuarios || [];
-      const ativos = todos.filter(u => u.perfil === 'opto' && u.ativo);
-      setOptos(ativos);
-      const first = ativos[0];
-      if (first) setSelOpto(first.id);
+      setOptos(todos.filter(u => u.perfil === 'opto' && u.ativo));
     });
     supabase.from('pacientes').select('*').order('nome').then(({data})=>setPacientes(data||[]));
   }, []);
@@ -456,54 +453,34 @@ function Agenda({ user, selectedUnidade='' }) {
     loadSlots(selOpto, selData).then(data => setSlots(data||[]));
   });
 
-  // Auto-update: agendamentos da data atual com mais de 1h sem atendimento → Não Compareceu
-  useEffect(()=>{
-    const checkNoshow = async () => {
-      const now = new Date();
-      const dd = today();
-      const { data: agendados } = await supabase.from('agenda')
-        .select('id,hora,data').eq('status','Agendado').eq('data',dd);
-      if (!agendados?.length) return;
-      const vencidos = agendados.filter(a => {
-        const [h,m] = a.hora.split(':').map(Number);
-        const agendadoMs = new Date(dd+'T'+a.hora+':00').getTime();
-        return now.getTime() - agendadoMs > 60*60*1000; // mais de 1 hora
-      });
-      if (!vencidos.length) return;
-      await Promise.all(vencidos.map(a =>
-        supabase.from('agenda').update({status:'Não Compareceu'}).eq('id',a.id)
-      ));
-      // Recarrega slots se a data exibida for hoje
-      if (selData === dd) {
-        loadSlots(selOpto, dd).then(data => setSlots(data||[]));
-      }
-    };
-    checkNoshow();
-    const interval = setInterval(checkNoshow, 5*60*1000); // verifica a cada 5 min
-    return () => clearInterval(interval);
-  }, [selOpto, selData, loadSlots]);
+  // "Não Compareceu" automático roda no servidor (pg_cron, a cada 5 min)
 
   const getSlot = hora => slots.find(s=>s.hora===hora);
 
   const handleSave = async (form) => {
     const pac = pacientes.find(p=>p.id===form.pacienteId)||{nome:form.pacienteNome};
-    const opto = optos.find(o=>o.id===selOpto);
+    // Loja do agendamento: a do usuário, a do filtro global ou a escolhida no formulário
+    const unidadeAlvo = user.unidade || selectedUnidade || form.unidade || modal?.existing?.unidade || '';
+    if (!unidadeAlvo) { alert('Selecione a unidade do agendamento.'); return; }
+    // Opto do agendamento: quem está logado (se for opto) ou o opto ativo da loja
+    const opto = user.perfil === 'opto' ? user : optos.find(o => o.unidade === unidadeAlvo);
     const horaFinal = form.hora || modal?.hora;
     const dataFinal = form.data || selData;
     const rowData = {
       paciente_id: form.pacienteId||null,
       paciente_nome: pac?.nome||form.pacienteNome,
       paciente_telefone: form.telefone||'',
-      opto_id: selOpto,
-      opto_nome: opto?.nome,
+      opto_id: opto?.id || null,
+      opto_nome: opto?.nome || '',
       data: dataFinal,
       hora: horaFinal,
       procedimento: form.procedimento,
       meio_contato: form.meioContato,
       status: 'Agendado',
       observacoes: form.obs||'',
-      agendado_por: user?.nome||'',
-      unidade: selectedUnidade || opto?.unidade || ''
+      // mantém "IA" e quem agendou originalmente ao editar
+      agendado_por: modal?.existing?.agendado_por || user?.nome || '',
+      unidade: unidadeAlvo
     };
     let err;
     if (modal.existing) {
@@ -534,7 +511,11 @@ function Agenda({ user, selectedUnidade='' }) {
   };
 
   const handleDelete = async (id) => {
-    await supabase.from('agenda').delete().eq('id',id);
+    const item = slots.find(x => x.id === id);
+    const { error } = item?.google_event_id
+      ? await supabase.from('agenda').update({ status: 'Cancelado' }).eq('id', id)
+      : await supabase.from('agenda').delete().eq('id', id);
+    if (error) { alert('Erro ao remover: ' + error.message); return; }
     setSlots(s=>s.filter(x=>x.id!==id));
     setModal(null);
     showToast('Agendamento removido.');
@@ -610,12 +591,13 @@ function Agenda({ user, selectedUnidade='' }) {
         </Card>
       )}
       {modal && <AgendaModal hora={modal.hora} existing={modal.existing} encaixe={modal.encaixe} pacientes={pacientes} optos={optos}
+        pedirUnidade={!(user.unidade || selectedUnidade)}
         onSave={handleSave} onDelete={handleDelete} onClose={()=>setModal(null)}/>}
     </div>
   );
 }
 
-function AgendaModal({ hora, existing, encaixe, pacientes, optos, onSave, onDelete, onClose }) {
+function AgendaModal({ hora, existing, encaixe, pacientes, optos, pedirUnidade, onSave, onDelete, onClose }) {
   const [form, setForm] = useState({
     hora: existing?.hora||hora,
     data: existing?.data||today(),
@@ -626,6 +608,7 @@ function AgendaModal({ hora, existing, encaixe, pacientes, optos, onSave, onDele
     procedimento: existing?.procedimento||PROCEDIMENTOS[0],
     meioContato: existing?.meio_contato||MEIOS_CONTATO[0],
     obs: existing?.observacoes||'',
+    unidade: existing?.unidade||'',
   });
   const [busca, setBusca] = useState(existing?.paciente_nome||'');
   const [sugestoes, setSugestoes] = useState([]);
@@ -671,6 +654,7 @@ function AgendaModal({ hora, existing, encaixe, pacientes, optos, onSave, onDele
   const handleSalvar = async () => {
     if (!form.pacienteNome.trim()) { alert('Informe o nome do paciente.'); return; }
     if (!form.telefone.trim()) { alert('WhatsApp é obrigatório.'); return; }
+    if (pedirUnidade && !form.unidade) { alert('Selecione a unidade.'); return; }
 
     let pacId = form.pacienteId;
 
@@ -751,7 +735,7 @@ function AgendaModal({ hora, existing, encaixe, pacientes, optos, onSave, onDele
                 )}
               </div>
               <button onClick={abrirCadastro}
-                style={{background:C.orange,color:C.white,border:'none',borderRadius:8,
+                style={{background:C.orange,color:C.white,border:'none',borderRadius:6,
                   padding:'8px 14px',fontSize:13,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>
                 + Cadastrar
               </button>
@@ -815,6 +799,10 @@ function AgendaModal({ hora, existing, encaixe, pacientes, optos, onSave, onDele
           </div>
         )}
 
+        {pedirUnidade && (
+          <Select label="Unidade" value={form.unidade} onChange={e=>set('unidade',e.target.value)}
+            options={[{value:'',label:'Selecionar unidade'},...UNIDADES.map(u=>({value:u,label:u}))]}/>
+        )}
         <Select label="Procedimento" value={form.procedimento} onChange={e=>set('procedimento',e.target.value)} options={PROCEDIMENTOS}/>
         <Select label="Meio de Contato" value={form.meioContato} onChange={e=>set('meioContato',e.target.value)} options={MEIOS_CONTATO}/>
         <Input label="Observações" value={form.obs} onChange={e=>set('obs',e.target.value)} placeholder="Opcional"/>
@@ -1018,15 +1006,18 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
       id:uid(), agenda_id:sel.id, paciente_nome:sel.paciente_nome,
       paciente_telefone:sel.paciente_telefone||'',
       opto_id:opto.id, opto_nome:opto.nome, opto_cro:opto.cro||'', opto_unidade:opto.unidade||'',
-      opto_endereco:opto.endereco||ENDERECOS_UNIDADES[opto.unidade]||'',
+      opto_endereco:opto.endereco||ENDERECOS_UNIDADES[sel.unidade||opto.unidade]||'',
       data:today(), data_hora_atendimento: dataHora,
       meio_contato: sel.meio_contato||'', agendado_por: sel.agendado_por||'',
-      unidade: opto.unidade||'',
+      unidade: sel.unidade||opto.unidade||'',
       od_esf:form.od_esf, od_cil:form.od_cil, od_eixo:form.od_eixo, od_adicao:form.od_add, od_dnp:form.od_dnp,
       oe_esf:form.oe_esf, oe_cil:form.oe_cil, oe_eixo:form.oe_eixo, oe_adicao:form.oe_add, oe_dnp:form.oe_dnp,
       observacoes:form.anamnese,
     };
-    const {data} = await supabase.from('receitas').insert(row).select().single();
+    const {data, error} = await supabase.from('receitas').insert(row).select().single();
+    if (error) { alert('Erro ao gerar a receita: ' + error.message); return; }
+    // Atendido: tira da regra automática de "Não Compareceu"
+    if (sel.status === 'Agendado') await supabase.from('agenda').update({ status: 'Compareceu' }).eq('id', sel.id);
     setReceita(data);
     showToast('Receita gerada! Pre-venda ja pode registrar a conversao.');
     setTabAte('receita');
@@ -1452,10 +1443,10 @@ function ConvModal({ receita, onSave, onClose }) {
       </div>
       <p style={{fontWeight:600,marginBottom:12,color:C.navy}}>Converteu a venda?</p>
       <div style={{display:'flex',gap:12,marginBottom:20}}>
-        <button onClick={()=>setConverteu(true)} style={{flex:1,padding:'20px',border:`3px solid ${converteu===true?C.success:C.border}`,borderRadius:12,background:converteu===true?C.success+'11':C.white,color:converteu===true?C.success:C.gray,fontWeight:700,fontSize:16,cursor:'pointer'}}>
+        <button onClick={()=>setConverteu(true)} style={{flex:1,padding:'20px',border:`3px solid ${converteu===true?C.success:C.border}`,borderRadius:6,background:converteu===true?C.success+'11':C.white,color:converteu===true?C.success:C.gray,fontWeight:700,fontSize:16,cursor:'pointer'}}>
           SIM
         </button>
-        <button onClick={()=>setConverteu(false)} style={{flex:1,padding:'20px',border:`3px solid ${converteu===false?C.danger:C.border}`,borderRadius:12,background:converteu===false?C.danger+'11':C.white,color:converteu===false?C.danger:C.gray,fontWeight:700,fontSize:16,cursor:'pointer'}}>
+        <button onClick={()=>setConverteu(false)} style={{flex:1,padding:'20px',border:`3px solid ${converteu===false?C.danger:C.border}`,borderRadius:6,background:converteu===false?C.danger+'11':C.white,color:converteu===false?C.danger:C.gray,fontWeight:700,fontSize:16,cursor:'pointer'}}>
           NÃO
         </button>
       </div>
@@ -2052,24 +2043,36 @@ export default function App() {
     setSelectedUnidade(u.unidade || '');
   };
 
-  // Confere a sessão do Supabase: atualiza dados se tiver sessão Auth válida,
-  // mas só força logout se vier evento SIGNED_OUT explícito (evita expulsar usuários sem auth_id)
+  // Confere a sessão do Supabase ao abrir o app. Sem sessão válida (ou usuário desativado),
+  // volta para o login — os dados só respondem com sessão.
+  const [verificando, setVerificando] = useState(() => {
+    try { return !!localStorage.getItem(SESSION_KEY); } catch { return false; }
+  });
   useEffect(() => {
     let vivo = true;
     usuarioDaSessao().then((u) => {
       if (!vivo) return;
       if (u) {
         try { localStorage.setItem(SESSION_KEY, JSON.stringify(u)); } catch {}
-        setUsuario((atual) => (atual ? { ...atual, ...u } : atual));
+        setUsuario((atual) => (atual ? { ...atual, ...u } : u));
+      } else {
+        try { localStorage.removeItem(SESSION_KEY); } catch {}
+        setUsuario(null);
       }
-      // Se u === null mas há sessão no localStorage, mantém o usuário logado
-      // (usuários sem auth_id continuam funcionando)
+      setVerificando(false);
     });
-    return () => { vivo = false; };
+    const { data: sub } = supabase.auth.onAuthStateChange((evento) => {
+      if (evento === 'SIGNED_OUT') {
+        try { localStorage.removeItem(SESSION_KEY); } catch {}
+        setUsuario(null);
+      }
+    });
+    return () => { vivo = false; sub?.subscription?.unsubscribe(); };
   }, []);
 
   const handleLogout = () => {
     try { localStorage.removeItem(SESSION_KEY); } catch {}
+    sair();
     setUsuario(null);
     setTab('inicio');
     setSelectedUnidade('');
@@ -2080,6 +2083,7 @@ export default function App() {
     setTab('atendimento');
   };
 
+  if (verificando) return <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:C.bg}}><style>{GLOBAL_CSS}</style><Spinner/></div>;
   if (!usuario) return <Login onLogin={handleLogin}/>;
 
   const navPerm = PERFIS[usuario.perfil]?.nav || [];
