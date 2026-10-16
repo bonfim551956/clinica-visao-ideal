@@ -102,7 +102,8 @@ function useIsMobile(){ const [m,setM]=useState(window.innerWidth<768); useEffec
 const Btn = ({children,onClick,color=C.teal,outline=false,size='md',style:sx={},...p}) => {
   const pad = size==='sm'?'6px 14px':size==='lg'?'12px 28px':'9px 20px';
   const fs = size==='sm'?'13px':'14px';
-  return <button onClick={onClick} style={{background:outline?'transparent':color,color:outline?color:C.white,border:`2px solid ${color}`,borderRadius:6,padding:pad,fontSize:fs,fontWeight:600,transition:'all .15s',...sx}} {...p}>{children}</button>;
+  // Botões sempre preenchidos com texto branco (o "outline" ficou só por compatibilidade)
+  return <button onClick={onClick} style={{background:color,color:C.white,border:`2px solid ${color}`,borderRadius:6,padding:pad,fontSize:fs,fontWeight:600,transition:'all .15s',opacity:p.disabled?.6:1,...sx}} {...p}>{children}</button>;
 };
 const Card = ({children,style:sx={}}) => <div style={{background:C.white,borderRadius:16,padding:20,boxShadow:'0 2px 8px rgba(0,0,0,.06)',...sx}}>{children}</div>;
 const Badge = ({children,color=C.teal}) => <span style={{background:color+'22',color,borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:600}}>{children}</span>;
@@ -199,7 +200,6 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
             style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderRadius:6,margin:'0 8px',
               background:active?C.teal:'transparent',color:active?C.white:C.text,
               fontWeight:active?700:500,fontSize:13.5,border:'none',cursor:'pointer',textAlign:'left',position:'relative'}}>
-            {active && <span style={{position:'absolute',left:0,top:'20%',bottom:'20%',width:3,background:C.orange,borderRadius:'0 3px 3px 0'}}/>}
             {n.label}
           </button>
         );
@@ -577,8 +577,8 @@ function Agenda({ user, selectedUnidade='' }) {
                         <td style={{padding:'8px 12px'}}>
                           <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
                             {slot.paciente_telefone && (
-                              <a href={`https://wa.me/${String(slot.paciente_telefone).replace(/\D/g,'')}`} target="_blank" rel="noreferrer"
-                                style={{fontSize:12,color:C.teal,alignSelf:'center',textDecoration:'none',whiteSpace:'nowrap'}}>WhatsApp</a>
+                              <Btn size="sm" color={C.success} title="Abrir conversa com o paciente no WhatsApp"
+                                onClick={()=>window.open(`https://wa.me/${String(slot.paciente_telefone).replace(/\D/g,'')}`,'_blank','noopener')}>WhatsApp</Btn>
                             )}
                             <Btn size="sm" color={C.teal} outline onClick={()=>setModal({hora,existing:slot})}>Editar</Btn>
                             {isLast && <Btn size="sm" color={C.orange} outline onClick={()=>setModal({hora})}>+ Encaixe</Btn>}
@@ -959,7 +959,8 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
   const setF = (k,v) => setForm(f=>({...f,[k]:v}));
 
   const loadFila = useCallback(() => {
-    let q = supabase.from('agenda').select('*').eq('data',today()).not('status','in','("Não Compareceu","Cancelado")').order('hora');
+    // Todos os pacientes do dia, menos cancelados — quem chega atrasado ("Não Compareceu") ainda pode ser atendido
+    let q = supabase.from('agenda').select('*').eq('data',today()).neq('status','Cancelado').order('hora');
     if (user.perfil === 'opto') {
       // Opto vê todos os agendamentos da sua loja
       const unidade = user.unidade || selectedUnidade;
@@ -993,7 +994,12 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
       .then(({data})=>{ if(data) setReceita(data); });
   },[sel]);
 
-  const iniciarAtendimento = (a) => {
+  const iniciarAtendimento = async (a) => {
+    // Paciente presente: marca como "Compareceu" (inclusive se tinha sido marcado como falta)
+    if (a.status !== 'Compareceu') {
+      await supabase.from('agenda').update({ status: 'Compareceu' }).eq('id', a.id);
+      a = { ...a, status: 'Compareceu' };
+    }
     setSel(a);
     setTabAte('anamnese');
     setForm({ anamnese:'', queixa:'', medicamentos:'',
@@ -1047,7 +1053,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
           <div className="tbl-wrap">
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
               <thead><tr style={{background:C.teal,color:C.white}}>
-                {['Hora','Paciente','Procedimento','Contato',''].map(h=><th key={h} style={{padding:'9px 12px',textAlign:'left'}}>{h}</th>)}
+                {['Hora','Paciente','Procedimento','Contato','Status',''].map(h=><th key={h} style={{padding:'9px 12px',textAlign:'left'}}>{h}</th>)}
               </tr></thead>
               <tbody>{fila.map((a,i)=>(
                 <tr key={a.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
@@ -1055,6 +1061,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
                   <td style={{padding:'8px 12px',fontWeight:500}}>{a.paciente_nome}</td>
                   <td style={{padding:'8px 12px'}}>{a.procedimento}</td>
                   <td style={{padding:'8px 12px'}}>{a.meio_contato||'—'}</td>
+                  <td style={{padding:'8px 12px'}}><Badge color={a.status==='Compareceu'?C.success:a.status==='Não Compareceu'?C.danger:C.teal}>{a.status}</Badge></td>
                   <td style={{padding:'8px 12px'}}>
                     <Btn size="sm" color={C.teal} onClick={()=>iniciarAtendimento(a)}>Atender</Btn>
                   </td>
