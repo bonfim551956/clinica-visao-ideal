@@ -221,7 +221,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
       <div style={{position:'fixed',top:0,left:0,right:0,background:C.white,borderBottom:`1px solid ${C.border}`,zIndex:200}}>
       <div style={{height:52,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px'}}>
         <button onClick={()=>setDrawer(true)} style={{background:'none',fontSize:22,color:C.navy,border:'none',fontWeight:700}}>&#9776;</button>
-        <img src="/logo-clinica.png" alt="Clínica Visão Ideal" style={{height:30,objectFit:'contain'}}/>
+        <img src="/logo-clinica-texto.png" alt="Clínica Visão Ideal" style={{height:24,objectFit:'contain'}}/>
         <Badge color={perfil?.cor||C.teal}>{perfil?.label}</Badge>
       </div>
       {podeVerTodasUnidades && (
@@ -235,7 +235,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
         <div onClick={()=>setDrawer(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.4)',zIndex:300}}/>
         <div style={{position:'fixed',top:0,left:0,bottom:0,width:260,background:C.white,zIndex:400,overflowY:'auto',boxShadow:'4px 0 16px rgba(0,0,0,.1)'}}>
           <div style={{padding:'16px',background:`linear-gradient(135deg,${C.navy},${C.teal})`,color:C.white,display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
-            <img src="/logo-clinica.png" alt="Clínica Visão Ideal" style={{width:120,filter:'brightness(0) invert(1)'}}/>
+            <img src="/logo-clinica-texto.png" alt="Clínica Visão Ideal" style={{width:140,filter:'brightness(0) invert(1)'}}/>
             <div style={{fontSize:12,opacity:.8}}>{user.nome} · {perfil?.label}</div>
           </div>
           <SideNav onItemClick={()=>setDrawer(false)}/>
@@ -257,6 +257,9 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
   );
 
   const sideW = 220;
+  // Altura do cabeçalho (linha principal + barra de unidade) — o bloco da logo acompanha a mesma linha
+  const TOPO_H = 64, UNIDADE_H = 48;
+  const alturaTopo = TOPO_H + (podeVerTodasUnidades ? UNIDADE_H : 0) + 1;
   const currentNav = NAV_ITEMS.find(n=>n.id===tab);
 
   return (
@@ -264,9 +267,8 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
       <style>{GLOBAL_CSS}</style>
       {/* Sidebar */}
       <div style={{width:sideW,background:C.white,borderRight:`1px solid ${C.border}`,position:'fixed',top:0,left:0,bottom:0,overflowY:'auto',display:'flex',flexDirection:'column',boxShadow:'2px 0 8px rgba(0,0,0,.04)'}}>
-        <div style={{padding:'20px 16px 16px',background:`linear-gradient(160deg,${C.navy} 0%,${C.teal} 100%)`,color:C.white,display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
-          <img src="/logo-clinica.png" alt="Clínica Visão Ideal" style={{width:85,filter:'brightness(0) invert(1)'}}/>
-          <div style={{fontSize:10,opacity:.75,textTransform:'uppercase',letterSpacing:'0.8px',fontWeight:600}}>Sistema de Gestão</div>
+        <div style={{height:alturaTopo,boxSizing:'border-box',flexShrink:0,background:`linear-gradient(160deg,${C.navy} 0%,${C.teal} 100%)`,borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',padding:'0 24px'}}>
+          <img src="/logo-clinica-texto.png" alt="Clínica Visão Ideal" style={{height:podeVerTodasUnidades?40:34,width:'auto',filter:'brightness(0) invert(1)'}}/>
         </div>
         <div style={{flex:1,overflowY:'auto',paddingTop:6}}><SideNav/></div>
         <div style={{padding:'14px 16px',borderTop:`1px solid ${C.border}`,background:C.bg}}>
@@ -285,7 +287,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
       {/* Main */}
       <div style={{marginLeft:sideW,flex:1,display:'flex',flexDirection:'column',minHeight:'100vh'}}>
         <div style={{background:C.white,borderBottom:`1px solid ${C.border}`,position:'sticky',top:0,zIndex:100,boxShadow:'0 2px 8px rgba(0,0,0,.04)'}}>
-          <div style={{height:56,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 28px'}}>
+          <div style={{height:TOPO_H,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 28px'}}>
             <div>
               <div style={{fontSize:11,color:C.teal,fontWeight:600,letterSpacing:'0.5px',textTransform:'uppercase',marginBottom:1}}>
                 {currentNav?.label}
@@ -300,7 +302,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
             </div>
           </div>
           {podeVerTodasUnidades && (
-          <div style={{padding:'6px 28px 10px',background:C.bg+'cc',display:'flex',alignItems:'center',gap:10,borderTop:`1px solid ${C.border}22`}}>
+          <div style={{height:UNIDADE_H,boxSizing:'border-box',padding:'0 28px',background:C.bg+'cc',display:'flex',alignItems:'center',gap:10,borderTop:`1px solid ${C.border}`}}>
             <span style={{fontSize:11,fontWeight:700,color:C.textSm,whiteSpace:'nowrap',textTransform:'uppercase',letterSpacing:'0.5px'}}>Unidade:</span>
             <UnidadeFilter/>
           </div>
