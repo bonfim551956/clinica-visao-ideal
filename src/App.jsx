@@ -152,7 +152,7 @@ const Btn = ({children,onClick,color=C.teal,outline=false,size='md',style:sx={},
 };
 const Card = ({children,style:sx={}}) => <div style={{background:C.white,borderRadius:16,padding:20,boxShadow:'0 2px 8px rgba(0,0,0,.06)',...sx}}>{children}</div>;
 const Badge = ({children,color=C.teal}) => <span style={{background:color+'22',color,borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:600}}>{children}</span>;
-const Input = ({label,style:sx={},...p}) => <div style={{display:'flex',flexDirection:'column',gap:4,...sx}}>{label&&<label style={{fontSize:12,fontWeight:600,color:C.textSm}}>{label}</label>}<input style={{border:`1.5px solid ${C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,background:C.white}} {...p}/></div>;
+const Input = ({label,style:sx={},...p}) => <div style={{display:'flex',flexDirection:'column',gap:4,...sx}}>{label&&<label style={{fontSize:12,fontWeight:600,color:C.textSm}}>{label}</label>}<input style={{border:`1.5px solid ${sx['--borda']||C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,background:C.white}} {...p}/></div>;
 const Select = ({label,options=[],style:sx={},...p}) => <div style={{display:'flex',flexDirection:'column',gap:4,...sx}}><label style={{fontSize:12,fontWeight:600,color:C.textSm}}>{label}</label><select style={{border:`1.5px solid ${C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,background:C.white}} {...p}>{options.map(o=><option key={o.value??o} value={o.value??o}>{o.label??o}</option>)}</select></div>;
 const Modal = ({title,onClose,children,width=500}) => <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.45)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}><div style={{background:C.white,borderRadius:20,width:'100%',maxWidth:width,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 8px 32px rgba(0,0,0,.2)'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'18px 24px',borderBottom:`1px solid ${C.border}`}}><h3 style={{fontSize:16,fontWeight:700,color:C.navy}}>{title}</h3><button onClick={onClose} style={{background:'none',fontSize:20,color:C.gray}}>×</button></div><div style={{padding:24}}>{children}</div></div></div>;
 const Spinner = () => <div style={{display:'flex',justifyContent:'center',padding:40}}><div style={{width:32,height:32,border:`3px solid ${C.tealL}`,borderTopColor:C.teal,borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>;
@@ -419,9 +419,9 @@ function Dashboard({ user, selectedUnidade='' }) {
     load();
   }, [selectedUnidade, de, ate]);
 
-  const KPI = ({label, value, sub, color=C.teal}) => (
+  const KPI = ({label, value, sub}) => (
     <Card style={{padding:'20px 18px'}}>
-      <div style={{fontSize:28,fontWeight:800,color,lineHeight:1}}>{value}</div>
+      <div style={{fontSize:28,fontWeight:800,color:C.navy,lineHeight:1}}>{value}</div>
       <div style={{fontSize:12,fontWeight:600,color:C.navy,marginTop:4}}>{label}</div>
       {sub && <div style={{fontSize:10,color:C.gray,marginTop:2}}>{sub}</div>}
     </Card>
@@ -454,14 +454,14 @@ function Dashboard({ user, selectedUnidade='' }) {
       </div>
       {loading ? <Spinner/> : <>
       <div className="resp-grid-4" style={{marginBottom:24}}>
-        <KPI label="Agendados" value={stats.agendados} color={C.teal}/>
-        <KPI label="Compareceram" value={stats.compareceu} color={C.success}/>
-        <KPI label="Não Compareceram" value={stats.naoComp} color={C.danger}/>
-        <KPI label="Receitas" value={stats.receitas} color={C.tealL}/>
-        {verComercial && <KPI label="Conversões" value={stats.conversoes} color={C.orange}/>}
-        {verComercial && <KPI label="Faturamento" value={fmtMoney(stats.valorTotal)} color={C.teal}/>}
-        {verComercial && <KPI label="Taxa No-Show" value={`${stats.noshow}%`} color={C.danger}/>}
-        {verComercial && <KPI label="Taxa Conversão" value={`${stats.taxaConv||0}%`} color={C.success}/>}
+        <KPI label="Agendados" value={stats.agendados}/>
+        <KPI label="Compareceram" value={stats.compareceu}/>
+        <KPI label="Não Compareceram" value={stats.naoComp}/>
+        <KPI label="Receitas" value={stats.receitas}/>
+        {verComercial && <KPI label="Conversões" value={stats.conversoes}/>}
+        {verComercial && <KPI label="Faturamento" value={fmtMoney(stats.valorTotal)}/>}
+        {verComercial && <KPI label="Taxa No-Show" value={`${stats.noshow}%`}/>}
+        {verComercial && <KPI label="Taxa Conversão" value={`${stats.taxaConv||0}%`}/>}
       </div>
       <Card style={{padding:24}}>
         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
@@ -1226,7 +1226,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
   useEffect(()=>{
     if (!sel) return;
     supabase.from('receitas').select('*').eq('agenda_id',sel.id).maybeSingle()
-      .then(({data})=>{ if(data) setReceita(data); });
+      .then(({data})=>{ if(data){ setReceita(data); if (data.paciente_data_nascimento) setForm(f=>({...f, nasc: f.nasc || data.paciente_data_nascimento})); } });
     if (sel.paciente_id) {
       supabase.from('pacientes').select('data_nascimento').eq('id', sel.paciente_id).maybeSingle()
         .then(({data})=>{ if (data?.data_nascimento) setForm(f=>({...f, nasc: f.nasc || data.data_nascimento})); });
@@ -1234,7 +1234,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
   },[sel]);
 
   const iniciarAtendimento = (a) => {
-    setSel(a);
+    setSel(a); setErroNasc('');
     setTabAte('anamnese');
     setForm({ anamnese:'', queixa:'', medicamentos:'', nasc:'',
       od_esf:'',od_cil:'',od_eixo:'',od_add:'',od_dnp:'',
@@ -1242,7 +1242,23 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
     setReceita(null);
   };
 
+  // Data de nascimento é obrigatória (vem do cadastro quando já existe)
+  const [erroNasc, setErroNasc] = useState('');
+  const conferirNasc = () => {
+    const n = form.nasc;
+    let msg = '';
+    if (!n) msg = 'Informe a data de nascimento do paciente.';
+    else if (n > today() || n < '1900-01-01') msg = 'Data de nascimento inválida.';
+    setErroNasc(msg);
+    if (msg) { setTabAte('anamnese'); alert(msg); return false; }
+    return true;
+  };
+  const salvarNascNoCadastro = async () => {
+    if (form.nasc && sel?.paciente_id) await supabase.from('pacientes').update({ data_nascimento: form.nasc }).eq('id', sel.paciente_id).is('data_nascimento', null);
+  };
+
   const gerarReceita = async () => {
+    if (!conferirNasc()) return;
     const { erros, valores: rx } = validarRx(form);
     if (Object.keys(erros).length) { setErrosRx(erros); setTabAte('refracao'); alert('Confira os campos da refração marcados em vermelho.'); return; }
     const opto = user;
@@ -1264,7 +1280,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
     const {data, error} = await supabase.from('receitas').insert(row).select().single();
     if (error) { alert('Erro ao gerar a receita: ' + error.message); return; }
     // guarda a data de nascimento no cadastro do paciente, se ainda não tiver
-    if (form.nasc && sel.paciente_id) await supabase.from('pacientes').update({ data_nascimento: form.nasc }).eq('id', sel.paciente_id).is('data_nascimento', null);
+    await salvarNascNoCadastro();
     setReceita(data);
     showToast('Receita gerada! A pré-venda já pode registrar a conversão.');
     setTabAte('receita');
@@ -1272,7 +1288,9 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
 
   const [finalizando, setFinalizando] = useState(false);
   const finalizarAtendimento = async () => {
+    if (!conferirNasc()) return;
     setFinalizando(true);
+    await salvarNascNoCadastro();
     const { error } = await supabase.from('agenda').update({ status: 'Compareceu' }).eq('id', sel.id);
     setFinalizando(false);
     if (error) { alert('Erro ao finalizar: ' + error.message); return; }
@@ -1369,7 +1387,13 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
         <Card>
           <h4 style={{marginBottom:16,color:C.navy}}>Anamnese</h4>
           <div style={{display:'flex',flexDirection:'column',gap:14}}>
-            <Input label="Data de nascimento (sai a idade na receita)" type="date" value={form.nasc} onChange={e=>setF('nasc',e.target.value)} style={{maxWidth:280}}/>
+            <div style={{maxWidth:280}}>
+              <Input label={<>Data de nascimento <span style={{color:C.danger}}>*</span></>} type="date" max={today()} value={form.nasc}
+                onChange={e=>{ setF('nasc',e.target.value); setErroNasc(''); }}
+                style={erroNasc ? {['--borda']:C.danger} : {}}/>
+              {erroNasc ? <div style={{fontSize:11,color:C.danger,marginTop:4,fontWeight:600}}>{erroNasc}</div>
+                : <div style={{fontSize:11,color:C.gray,marginTop:4}}>Obrigatória · sai a idade na receita</div>}
+            </div>
             <div><label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:4}}>Queixa principal</label>
               <textarea value={form.queixa} onChange={e=>setF('queixa',e.target.value)} rows={3}
                 style={{width:'100%',border:`1.5px solid ${C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,resize:'vertical'}}/></div>
@@ -1379,7 +1403,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
             <div><label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:4}}>Observações adicionais</label>
               <textarea value={form.anamnese} onChange={e=>setF('anamnese',e.target.value)} rows={3}
                 style={{width:'100%',border:`1.5px solid ${C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,resize:'vertical'}}/></div>
-            <div style={{textAlign:'right'}}><Btn color={C.teal} onClick={()=>setTabAte('refracao')}>Próximo: Refração</Btn></div>
+            <div style={{textAlign:'right'}}><Btn color={C.teal} onClick={()=>{ if (conferirNasc()) setTabAte('refracao'); }}>Próximo: Refração</Btn></div>
           </div>
         </Card>
       )}
