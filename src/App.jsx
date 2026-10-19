@@ -68,6 +68,8 @@ const validarRx = form => {
     for (const c of CAMPOS_RX) { const r = REGRAS_RX[c](form[`${olho}_${c}`]); if (r.erro) erros[`${olho}_${c}`] = r.erro; else valores[`${olho}_${c}`] = r.valor; }
     const cil = valores[`${olho}_cil`];
     if (cil && cil !== 'Plano' && !valores[`${olho}_eixo`] && !erros[`${olho}_eixo`]) erros[`${olho}_eixo`] = 'Informe o eixo (há cilíndrico)';
+    // sem cilíndrico o eixo não vale: não sai na receita nem trava a geração
+    if (cil === 'Plano') { valores[`${olho}_eixo`] = ''; delete erros[`${olho}_eixo`]; }
   }
   return { erros, valores };
 };
