@@ -33,6 +33,45 @@ const HORARIOS = (() => {
 
 const PROCEDIMENTOS = ['Consulta','Retorno'];
 const MEIOS_CONTATO = ['Loja','Visão Ideal'];
+/* ── Refração digitada: regras e formatação ──
+   Esférico: -30 a +30, de 0,25 em 0,25 (0 = "Plano")
+   Cilíndrico: sempre negativo (positivo é convertido), 0 a -10, de 0,25 em 0,25
+   Eixo: inteiro de 0 a 180 — obrigatório quando há cilíndrico
+   Adição: +0,25 a +4,00, de 0,25 em 0,25 (vazio = "N/A")
+   DNP: 20 a 40 mm (aceita meio milímetro; vazio = "N/A") */
+const numRx = v => { const t = String(v ?? '').trim().replace(',', '.').replace(/^\+/, ''); if (t === '' ) return null; if (/^plano$/i.test(t)) return 0; return /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : NaN; };
+const quarto = n => Math.abs(n * 4 - Math.round(n * 4)) < 1e-9;
+const fmtDiop = n => n === 0 ? 'Plano' : (n > 0 ? '+' : '-') + Math.abs(n).toFixed(2).replace('.', ',');
+const REGRAS_RX = {
+  esf: v => { const n = numRx(v); if (n === null) return { valor: 'Plano' };
+    if (isNaN(n) || !quarto(n) || n < -30 || n > 30) return { erro: 'Esférico: de -30 a +30, em passos de 0,25' };
+    return { valor: fmtDiop(n) }; },
+  cil: v => { let n = numRx(v); if (n === null) return { valor: 'Plano' };
+    if (isNaN(n)) return { erro: 'Cilíndrico inválido' };
+    n = -Math.abs(n); // cilíndrico sempre negativo
+    if (!quarto(n) || n < -10) return { erro: 'Cilíndrico: de 0 a -10, em passos de 0,25' };
+    return { valor: fmtDiop(n) }; },
+  eixo: v => { const t = String(v ?? '').trim().replace('°', ''); if (t === '') return { valor: '' };
+    if (!/^\d{1,3}$/.test(t) || Number(t) > 180) return { erro: 'Eixo: número inteiro de 0 a 180' };
+    return { valor: String(Number(t)) }; },
+  add: v => { const t = String(v ?? '').trim(); if (t === '' || /^n\/?a$/i.test(t)) return { valor: 'N/A' };
+    const n = numRx(t); if (isNaN(n) || n === null || !quarto(n) || n <= 0 || n > 4) return { erro: 'Adição: de +0,25 a +4,00, em passos de 0,25' };
+    return { valor: fmtDiop(n) }; },
+  dnp: v => { const t = String(v ?? '').trim(); if (t === '' || /^n\/?a$/i.test(t)) return { valor: 'N/A' };
+    const n = numRx(t); if (isNaN(n) || n === null || n < 20 || n > 40 || Math.abs(n * 2 - Math.round(n * 2)) > 1e-9) return { erro: 'DNP: de 20 a 40 mm' };
+    return { valor: String(n).replace('.', ',') }; },
+};
+const CAMPOS_RX = ['esf','cil','eixo','add','dnp'];
+const validarRx = form => {
+  const erros = {}, valores = {};
+  for (const olho of ['od','oe']) {
+    for (const c of CAMPOS_RX) { const r = REGRAS_RX[c](form[`${olho}_${c}`]); if (r.erro) erros[`${olho}_${c}`] = r.erro; else valores[`${olho}_${c}`] = r.valor; }
+    const cil = valores[`${olho}_cil`];
+    if (cil && cil !== 'Plano' && !valores[`${olho}_eixo`] && !erros[`${olho}_eixo`]) erros[`${olho}_eixo`] = 'Informe o eixo (há cilíndrico)';
+  }
+  return { erros, valores };
+};
+
 const SPH = ['Plano','+0,25','+0,50','+0,75','+1,00','+1,25','+1,50','+1,75','+2,00','+2,25','+2,50',
   '+2,75','+3,00','+3,50','+4,00','+4,50','+5,00','+5,50','+6,00',
   '-0,25','-0,50','-0,75','-1,00','-1,25','-1,50','-1,75','-2,00','-2,25','-2,50',
@@ -1147,8 +1186,8 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
   const [sel, setSel] = useState(null);
   const [tabAte, setTabAte] = useState('anamnese');
   const [form, setForm] = useState({ anamnese:'', queixa:'', medicamentos:'', nasc:'',
-    od_esf:'Plano',od_cil:'Plano',od_eixo:'90',od_add:'N/A',od_dnp:'N/A',
-    oe_esf:'Plano',oe_cil:'Plano',oe_eixo:'90',oe_add:'N/A',oe_dnp:'N/A' });
+    od_esf:'',od_cil:'',od_eixo:'',od_add:'',od_dnp:'',
+    oe_esf:'',oe_cil:'',oe_eixo:'',oe_add:'',oe_dnp:'' });
   const [receita, setReceita] = useState(null);
   const [toast, setToast] = useState('');
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(''),3000); };
@@ -1178,8 +1217,8 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
     setSel(agendaItem);
     setTabAte('anamnese');
     setForm({ anamnese:'', queixa:'', medicamentos:'', nasc:'',
-      od_esf:'Plano',od_cil:'Plano',od_eixo:'90',od_add:'N/A',od_dnp:'N/A',
-      oe_esf:'Plano',oe_cil:'Plano',oe_eixo:'90',oe_add:'N/A',oe_dnp:'N/A' });
+      od_esf:'',od_cil:'',od_eixo:'',od_add:'',od_dnp:'',
+      oe_esf:'',oe_cil:'',oe_eixo:'',oe_add:'',oe_dnp:'' });
     setReceita(null);
     clearAgendaItem();
   },[agendaItem, clearAgendaItem]);
@@ -1198,12 +1237,14 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
     setSel(a);
     setTabAte('anamnese');
     setForm({ anamnese:'', queixa:'', medicamentos:'', nasc:'',
-      od_esf:'Plano',od_cil:'Plano',od_eixo:'90',od_add:'N/A',od_dnp:'N/A',
-      oe_esf:'Plano',oe_cil:'Plano',oe_eixo:'90',oe_add:'N/A',oe_dnp:'N/A' });
+      od_esf:'',od_cil:'',od_eixo:'',od_add:'',od_dnp:'',
+      oe_esf:'',oe_cil:'',oe_eixo:'',oe_add:'',oe_dnp:'' });
     setReceita(null);
   };
 
   const gerarReceita = async () => {
+    const { erros, valores: rx } = validarRx(form);
+    if (Object.keys(erros).length) { setErrosRx(erros); setTabAte('refracao'); alert('Confira os campos da refração marcados em vermelho.'); return; }
     const opto = user;
     const agora = new Date();
     const dataHora = `${agora.getFullYear()}-${pad(agora.getMonth()+1)}-${pad(agora.getDate())} ${pad(agora.getHours())}:${pad(agora.getMinutes())}`;
@@ -1216,8 +1257,8 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
       meio_contato: sel.meio_contato||'', agendado_por: sel.agendado_por||'',
       unidade: sel.unidade||opto.unidade||'',
       paciente_data_nascimento: form.nasc || null,
-      od_esf:form.od_esf, od_cil:form.od_cil, od_eixo:form.od_eixo, od_adicao:form.od_add, od_dnp:form.od_dnp,
-      oe_esf:form.oe_esf, oe_cil:form.oe_cil, oe_eixo:form.oe_eixo, oe_adicao:form.oe_add, oe_dnp:form.oe_dnp,
+      od_esf:rx.od_esf, od_cil:rx.od_cil, od_eixo:rx.od_eixo, od_adicao:rx.od_add, od_dnp:rx.od_dnp,
+      oe_esf:rx.oe_esf, oe_cil:rx.oe_cil, oe_eixo:rx.oe_eixo, oe_adicao:rx.oe_add, oe_dnp:rx.oe_dnp,
       observacoes:form.anamnese,
     };
     const {data, error} = await supabase.from('receitas').insert(row).select().single();
@@ -1240,12 +1281,25 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
     loadFila();
   };
 
-  const RxField = ({label,fk,opts}) => (
-    <td style={{padding:'6px 8px'}}>
-      <select value={form[fk]} onChange={e=>setF(fk,e.target.value)}
-        style={{border:`1px solid ${C.border}`,borderRadius:6,padding:'4px 6px',fontSize:12,width:'100%',background:C.white}}>
-        {opts.map(o=><option key={o}>{o}</option>)}
-      </select>
+  const [errosRx, setErrosRx] = useState({});
+  const PLACEHOLDER_RX = { esf:'Plano', cil:'Plano', eixo:'0 a 180', add:'N/A', dnp:'N/A' };
+  // Ao sair do campo: confere a regra e formata (ex.: "1.25" → "+1,25"; cilíndrico "0,75" → "-0,75")
+  const formatarRx = fk => {
+    const tipo = fk.slice(3), olho = fk.slice(0,2);
+    const bruto = form[fk];
+    if (String(bruto ?? '').trim() === '') { setErrosRx(e => { const n = {...e}; delete n[fk]; return n; }); return; }
+    const r = REGRAS_RX[tipo](bruto);
+    setErrosRx(e => { const n = {...e}; if (r.erro) n[fk] = r.erro; else delete n[fk];
+      if (tipo === 'cil') delete n[`${olho}_eixo`]; // cilíndrico mudou: reavalia o aviso de eixo na validação final
+      return n; });
+    if (!r.erro) setF(fk, r.valor === 'Plano' || r.valor === 'N/A' ? r.valor : r.valor);
+  };
+  const rxCell = fk => (
+    <td key={fk} style={{padding:'6px 8px',verticalAlign:'top'}}>
+      <input value={form[fk]} onChange={e=>setF(fk,e.target.value)} onBlur={()=>formatarRx(fk)}
+        placeholder={PLACEHOLDER_RX[fk.slice(3)]} inputMode="decimal"
+        style={{border:`1.5px solid ${errosRx[fk]?C.danger:C.border}`,borderRadius:6,padding:'7px 8px',fontSize:13,width:'100%',background:C.white,textAlign:'center'}}/>
+      {errosRx[fk] && <div style={{color:C.danger,fontSize:11,marginTop:4,lineHeight:1.3}}>{errosRx[fk]}</div>}
     </td>
   );
 
@@ -1337,18 +1391,16 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
             <table style={{width:'100%',borderCollapse:'collapse'}}>
               <thead><tr style={{background:C.teal,color:C.white}}>
                 <th style={{padding:'8px 12px',textAlign:'left'}}>Olho</th>
-                {['Esf','Cil','Eixo','Adição','DNP'].map(h=><th key={h} style={{padding:'8px 12px',textAlign:'left'}}>{h}</th>)}
+                {['Esférico','Cilíndrico (−)','Eixo (0–180)','Adição','DNP (mm)'].map(h=><th key={h} style={{padding:'8px 12px',textAlign:'center'}}>{h}</th>)}
               </tr></thead>
               <tbody>
                 <tr style={{background:C.bg}}>
                   <td style={{padding:'8px 12px',fontWeight:700,color:C.teal}}>OD</td>
-                  <RxField fk="od_esf" opts={SPH}/><RxField fk="od_cil" opts={CYL}/><RxField fk="od_eixo" opts={AXIS}/>
-                  <RxField fk="od_add" opts={ADD_VALS}/><RxField fk="od_dnp" opts={DNP_VALS}/>
+                  {CAMPOS_RX.map(c => rxCell(`od_${c}`))}
                 </tr>
                 <tr>
                   <td style={{padding:'8px 12px',fontWeight:700,color:C.tealL}}>OE</td>
-                  <RxField fk="oe_esf" opts={SPH}/><RxField fk="oe_cil" opts={CYL}/><RxField fk="oe_eixo" opts={AXIS}/>
-                  <RxField fk="oe_add" opts={ADD_VALS}/><RxField fk="oe_dnp" opts={DNP_VALS}/>
+                  {CAMPOS_RX.map(c => rxCell(`oe_${c}`))}
                 </tr>
               </tbody>
             </table>
@@ -1358,6 +1410,9 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
             {!receita && <Btn color={C.orange} onClick={gerarReceita}>Gerar Receita</Btn>}
             {receita && <Badge color={C.success}>Receita gerada — disponível para conversão</Badge>}
           </div>
+          <p style={{fontSize:12,color:C.gray,marginTop:12}}>
+            Digite os valores (vírgula ou ponto). O cilíndrico é sempre negativo, o eixo vai de 0 a 180 e é obrigatório quando há cilíndrico. Campos vazios saem como "Plano" ou "N/A".
+          </p>
         </Card>
       )}
 
