@@ -130,7 +130,7 @@ input,select,textarea{font-family:inherit;outline:none}
 .resp-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
 .resp-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
 .resp-grid-main{display:grid;grid-template-columns:1fr 300px;gap:16px}
-.nav-item{transition:all .15s;border-radius:6px}
+.nav-item{transition:all .15s;border-radius:12px}
 .nav-item:not(.ativo):hover{background:${C.teal}11 !important}
 @media(max-width:767px){
   .resp-grid-4{grid-template-columns:1fr 1fr;gap:10px}
@@ -149,7 +149,7 @@ const Btn = ({children,onClick,color=C.teal,outline=false,size='md',style:sx={},
   const pad = size==='sm'?'6px 14px':size==='lg'?'12px 28px':'9px 20px';
   const fs = size==='sm'?'13px':'14px';
   // Botões sempre preenchidos com texto branco (o "outline" ficou só por compatibilidade)
-  return <button onClick={onClick} style={{background:color,color:C.white,border:`2px solid ${color}`,borderRadius:6,padding:pad,fontSize:fs,fontWeight:600,transition:'all .15s',opacity:p.disabled?.6:1,...sx}} {...p}>{children}</button>;
+  return <button onClick={onClick} style={{background:color,color:C.white,border:`2px solid ${color}`,borderRadius:999,padding:pad,fontSize:fs,fontWeight:600,transition:'all .15s',opacity:p.disabled?.6:1,...sx}} {...p}>{children}</button>;
 };
 const Card = ({children,style:sx={}}) => <div style={{background:C.white,borderRadius:16,padding:20,boxShadow:'0 2px 8px rgba(0,0,0,.06)',...sx}}>{children}</div>;
 const Badge = ({children,color=C.teal}) => <span style={{whiteSpace:'nowrap',background:color+'22',color,borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:600}}>{children}</span>;
@@ -295,7 +295,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
           const active = selectedUnidade===val;
           return (
             <button key={u} onClick={()=>setSelectedUnidade(val)}
-              style={{padding:'4px 12px',borderRadius:6,fontSize:12,fontWeight:600,cursor:'pointer',border:`1.5px solid ${active?C.teal:C.border}`,background:active?C.teal:'transparent',color:active?C.white:C.gray,transition:'all .15s',whiteSpace:'nowrap'}}>
+              style={{padding:'4px 12px',borderRadius:999,fontSize:12,fontWeight:600,cursor:'pointer',border:`1.5px solid ${active?C.teal:C.border}`,background:active?C.teal:'transparent',color:active?C.white:C.gray,transition:'all .15s',whiteSpace:'nowrap'}}>
               {u}
             </button>
           );
@@ -311,7 +311,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
         return (
           <button key={n.id} onClick={()=>{setTab(n.id);onItemClick&&onItemClick();}}
             className={active ? 'nav-item ativo' : 'nav-item'}
-            style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderRadius:6,margin:'0 8px',
+            style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderRadius:12,margin:'0 8px',
               background:active?C.teal:'transparent',color:active?C.white:C.text,
               fontWeight:active?700:500,fontSize:13.5,border:'none',cursor:'pointer',textAlign:'left',position:'relative'}}>
             {n.label}
@@ -514,7 +514,7 @@ function Dashboard({ user, selectedUnidade='' }) {
             {PERIODOS.map(([id,label])=>{
               const ativo = periodo === id;
               return <button key={id} onClick={()=>setPeriodo(id)}
-                style={{padding:'8px 14px',borderRadius:6,fontSize:13,fontWeight:600,cursor:'pointer',
+                style={{padding:'8px 14px',borderRadius:999,fontSize:13,fontWeight:600,cursor:'pointer',
                   border:`1.5px solid ${ativo?C.teal:C.border}`,background:ativo?C.teal:C.white,color:ativo?C.white:C.textSm}}>{label}</button>;
             })}
           </div>
@@ -903,7 +903,7 @@ function AgendaModal({ hora, existing, encaixe, pacientes, optos, pedirUnidade, 
                 )}
               </div>
               <button onClick={abrirCadastro}
-                style={{background:C.orange,color:C.white,border:'none',borderRadius:6,
+                style={{background:C.orange,color:C.white,border:'none',borderRadius:999,
                   padding:'8px 14px',fontSize:13,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>
                 + Cadastrar
               </button>
@@ -1613,10 +1613,10 @@ function ConvModal({ receita, onSave, onClose }) {
       </div>
       <p style={{fontWeight:600,marginBottom:12,color:C.navy}}>Converteu a venda?</p>
       <div style={{display:'flex',gap:12,marginBottom:20}}>
-        <button onClick={()=>setConverteu(true)} style={{flex:1,padding:'20px',border:`3px solid ${converteu===true?C.success:C.border}`,borderRadius:6,background:converteu===true?C.success+'11':C.white,color:converteu===true?C.success:C.gray,fontWeight:700,fontSize:16,cursor:'pointer'}}>
+        <button onClick={()=>setConverteu(true)} style={{flex:1,padding:'20px',border:`3px solid ${converteu===true?C.success:C.border}`,borderRadius:16,background:converteu===true?C.success+'11':C.white,color:converteu===true?C.success:C.gray,fontWeight:700,fontSize:16,cursor:'pointer'}}>
           SIM
         </button>
-        <button onClick={()=>setConverteu(false)} style={{flex:1,padding:'20px',border:`3px solid ${converteu===false?C.danger:C.border}`,borderRadius:6,background:converteu===false?C.danger+'11':C.white,color:converteu===false?C.danger:C.gray,fontWeight:700,fontSize:16,cursor:'pointer'}}>
+        <button onClick={()=>setConverteu(false)} style={{flex:1,padding:'20px',border:`3px solid ${converteu===false?C.danger:C.border}`,borderRadius:16,background:converteu===false?C.danger+'11':C.white,color:converteu===false?C.danger:C.gray,fontWeight:700,fontSize:16,cursor:'pointer'}}>
           NÃO
         </button>
       </div>
