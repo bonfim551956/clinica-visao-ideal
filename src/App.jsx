@@ -84,12 +84,12 @@ const ADD_VALS = ['N/A','+0,75','+1,00','+1,25','+1,50','+1,75','+2,00','+2,25',
 const DNP_VALS = ['N/A','28','29','30','31','32','33','34','35','36','37','38','39','40'];
 
 const PERFIS = {
-  opto:      { label:'Optometrista', cor:C.teal,    nav:['inicio','agenda','agendamentos','atendimento','receitas'] },
-  comercial: { label:'Comercial',    cor:'#4DA6A4',  nav:['inicio','agendamentos','atendimento','receitas'] },
+  opto:      { label:'Optometrista', cor:C.teal,    nav:['inicio','agenda','atendimento','receitas'] },
+  comercial: { label:'Comercial',    cor:'#4DA6A4',  nav:['inicio','atendimento','receitas'] },
   prevenda:  { label:'Pré-Venda',    cor:'#3F6FA0',  nav:['inicio','conversao','noshow','receitas'] },
-  gerente:   { label:'Gerente',      cor:C.orange,   nav:['inicio','agenda','agendamentos','atendimento','receitas','conversao','noshow','relatorios'] },
-  supervisor:{ label:'Supervisor',   cor:'#2A5790',  nav:['inicio','agenda','agendamentos','atendimento','receitas','conversao','noshow','relatorios','usuarios'] },
-  diretor:   { label:'Diretor',      cor:C.navy,     nav:['inicio','agenda','agendamentos','atendimento','receitas','conversao','noshow','relatorios','usuarios'] },
+  gerente:   { label:'Gerente',      cor:C.orange,   nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios'] },
+  supervisor:{ label:'Supervisor',   cor:'#2A5790',  nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios'] },
+  diretor:   { label:'Diretor',      cor:C.navy,     nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios'] },
 };
 
 const UNIDADES = ['São Vicente','Piracicaba','Sorocaba','Campinas'];
@@ -108,8 +108,7 @@ const PERFIS_COMERCIAL = ['prevenda','supervisor','diretor','gerente'];
 const NAV_ITEMS = [
   { id:'inicio',       label:'Início'        },
   { id:'agenda',       label:'Agenda'        },
-  { id:'agendamentos', label:'Agendamentos'  },
-  { id:'atendimento',  label:'Atendimento'   },
+  { id:'atendimento',  label:'Atendimentos'  },
   { id:'receitas',     label:'Receitas'      },
   { id:'conversao',    label:'Conversão'     },
   { id:'noshow',       label:'No-Show'       },
@@ -153,7 +152,7 @@ const Btn = ({children,onClick,color=C.teal,outline=false,size='md',style:sx={},
   return <button onClick={onClick} style={{background:color,color:C.white,border:`2px solid ${color}`,borderRadius:6,padding:pad,fontSize:fs,fontWeight:600,transition:'all .15s',opacity:p.disabled?.6:1,...sx}} {...p}>{children}</button>;
 };
 const Card = ({children,style:sx={}}) => <div style={{background:C.white,borderRadius:16,padding:20,boxShadow:'0 2px 8px rgba(0,0,0,.06)',...sx}}>{children}</div>;
-const Badge = ({children,color=C.teal}) => <span style={{background:color+'22',color,borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:600}}>{children}</span>;
+const Badge = ({children,color=C.teal}) => <span style={{whiteSpace:'nowrap',background:color+'22',color,borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:600}}>{children}</span>;
 const Input = ({label,style:sx={},...p}) => <div style={{display:'flex',flexDirection:'column',gap:4,...sx}}>{label&&<label style={{fontSize:12,fontWeight:600,color:C.textSm}}>{label}</label>}<input style={{border:`1.5px solid ${sx['--borda']||C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,background:C.white}} {...p}/></div>;
 // Seletor padrão do sistema: caixa com a lista de opções no estilo da marca (substitui o <select> nativo)
 const Select = ({label,options=[],style:sx={},value,onChange,disabled}) => {
@@ -357,7 +356,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
         </div>
       </>}
       {/* Content */}
-      <div style={{flex:1,marginTop:podeVerTodasUnidades?88:52,padding:'16px 12px 80px'}}>
+      <div style={{flex:1,minWidth:0,marginTop:podeVerTodasUnidades?88:52,padding:'16px 12px 80px'}}>
         {children}
       </div>
       {/* Bottom nav */}
@@ -400,7 +399,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
         </div>
       </div>
       {/* Main */}
-      <div style={{marginLeft:sideW,flex:1,display:'flex',flexDirection:'column',minHeight:'100vh'}}>
+      <div style={{marginLeft:sideW,flex:1,minWidth:0,display:'flex',flexDirection:'column',minHeight:'100vh'}}>
         <div style={{background:C.white,borderBottom:`1px solid ${C.border}`,position:'sticky',top:0,zIndex:100,boxShadow:'0 2px 8px rgba(0,0,0,.04)'}}>
           <div style={{height:TOPO_H,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 28px'}}>
             <div>
@@ -423,7 +422,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
           </div>
           )}
         </div>
-        <div style={{flex:1,padding:28,maxWidth:1300}}>{children}</div>
+        <div style={{flex:1,padding:28,maxWidth:1300,minWidth:0}}>{children}</div>
       </div>
     </div>
   );
@@ -551,7 +550,7 @@ function Dashboard({ user, selectedUnidade='' }) {
                   <tr key={a.id} style={{background:i%2===0?C.white:C.bg}}>
                     <td style={{padding:'8px 12px',fontWeight:600,color:C.teal}}>{a.hora}</td>
                     <td style={{padding:'8px 12px'}}>{a.paciente_nome}</td>
-                    <td style={{padding:'8px 12px'}}>{a.opto_nome}</td>
+                    <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{a.opto_nome}</td>
                     <td style={{padding:'8px 12px'}}>{a.procedimento}</td>
                     <td style={{padding:'8px 12px'}}><Badge color={C.success}>{a.status}</Badge></td>
                   </tr>
@@ -1021,7 +1020,8 @@ function ReagendarModal({ item, onSave, onClose }) {
 /* ══════════════════════════════════════════════════════
    AGENDAMENTOS (lista filtrada)
 ══════════════════════════════════════════════════════ */
-function Agendamentos({ user, onAtender, selectedUnidade='' }) {
+// Lista única de agendamentos e atendimentos (filtros + reagendar + atender)
+function ListaAtendimentos({ user, onAtender, selectedUnidade='' }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filtros, setFiltros] = useState({ data: today(), opto:'', status:'', proc:'', agendadoPor:'', unidade:'' });
@@ -1042,15 +1042,14 @@ function Agendamentos({ user, onAtender, selectedUnidade='' }) {
   },[]);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    let q = supabase.from('agenda').select('*').order('hora');
+    let q = supabase.from('agenda').select('*').order('data').order('hora');
     if (filtros.data) q = q.eq('data', filtros.data);
     if (filtros.opto) q = q.eq('opto_id', filtros.opto);
     if (filtros.status) q = q.eq('status', filtros.status);
     if (filtros.proc) q = q.eq('procedimento', filtros.proc);
     if (filtros.agendadoPor) q = q.eq('agendado_por', filtros.agendadoPor);
     // Global unit filter takes priority over local unidade filter
-    const unidadeFilter = selectedUnidade || filtros.unidade;
+    const unidadeFilter = user.unidade || selectedUnidade || filtros.unidade;
     if (unidadeFilter) q = q.eq('unidade', unidadeFilter);
     const {data} = await q;
     setRows(data||[]);
@@ -1058,8 +1057,12 @@ function Agendamentos({ user, onAtender, selectedUnidade='' }) {
   }, [filtros, selectedUnidade]);
 
   useEffect(()=>{ load(); },[load]);
+  useRealtime('agenda', load);
 
   const [reagendar, setReagendar] = useState(null);
+  const conta = st => rows.filter(a=>a.status===st).length;
+  const resumo = `${rows.length} registro(s) · ${conta('Agendado')} aguardando · ${conta('Compareceu')} atendido(s) · ${conta('Não Compareceu')} não compareceu`;
+  const podeAtender = PERFIS[user.perfil]?.nav.includes('atendimento');
   const salvarReagendamento = async ({ data, hora }) => {
     const a = reagendar;
     const { error } = await supabase.from('agenda').update({
@@ -1076,6 +1079,13 @@ function Agendamentos({ user, onAtender, selectedUnidade='' }) {
   return (
     <div>
       <Toast msg={toast}/>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',gap:12,flexWrap:'wrap',marginBottom:16}}>
+        <div>
+          <h2 style={{fontSize:22,fontWeight:800,color:C.navy}}>Atendimentos</h2>
+          <p style={{color:C.gray,fontSize:13,marginTop:2}}>{filtros.data ? (filtros.data===today() ? 'Hoje · ' : '') + fmtDate(filtros.data) : 'Todas as datas'} · {resumo}</p>
+        </div>
+        {filtros.data !== today() && <Btn size="sm" color={C.teal} onClick={()=>setFiltros(f=>({...f,data:today()}))}>Voltar para hoje</Btn>}
+      </div>
       <Card style={{marginBottom:16}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end'}}>
           <Input label="Data" type="date" value={filtros.data} onChange={e=>setFiltros(f=>({...f,data:e.target.value}))}/>
@@ -1087,19 +1097,19 @@ function Agendamentos({ user, onAtender, selectedUnidade='' }) {
             options={[{value:'',label:'Todos'},...PROCEDIMENTOS.map(p=>({value:p,label:p}))]}/>
           <Select label="Agendado por" value={filtros.agendadoPor} onChange={e=>setFiltros(f=>({...f,agendadoPor:e.target.value}))}
             options={[{value:'',label:'Todos'},...prevs.map(n=>({value:n,label:n}))]}/>
-          <Select label="Unidade" value={filtros.unidade} onChange={e=>setFiltros(f=>({...f,unidade:e.target.value}))}
-            options={[{value:'',label:'Todas'},...UNIDADES.map(u=>({value:u,label:u}))]}/>
+          {!user.unidade && !selectedUnidade && <Select label="Unidade" value={filtros.unidade} onChange={e=>setFiltros(f=>({...f,unidade:e.target.value}))}
+            options={[{value:'',label:'Todas'},...UNIDADES.map(u=>({value:u,label:u}))]}/>}
         </div>
       </Card>
       {reagendar && <ReagendarModal item={reagendar} onSave={salvarReagendamento} onClose={()=>setReagendar(null)}/>}
       {loading ? <Spinner/> : (
         <Card>
-          <p style={{fontSize:13,color:C.gray,marginBottom:12}}>{rows.length} registro(s)</p>
+          {rows.length===0 && <p style={{textAlign:'center',color:C.gray,padding:20}}>Nenhum agendamento encontrado</p>}
           <div className="tbl-wrap">
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
               <thead>
                 <tr style={{background:C.teal,color:C.white}}>
-                  {['Data','Hora','Paciente','Opto','Procedimento','Contato','Agendado por','Status','Ações'].map(h=>(
+                  {['Data','Hora','Paciente','Opto','Procedimento','Contato','Agendado por','Status','Ações'].filter(h=>rows.length && (h!=='Data' || !filtros.data)).map(h=>(
                     <th key={h} style={{padding:'9px 12px',textAlign:'left',whiteSpace:'nowrap'}}>{h}</th>
                   ))}
                 </tr>
@@ -1107,16 +1117,16 @@ function Agendamentos({ user, onAtender, selectedUnidade='' }) {
               <tbody>
                 {rows.map((a,i)=>(
                   <tr key={a.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
-                    <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{fmtDate(a.data)}</td>
+                    {!filtros.data && <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{fmtDate(a.data)}</td>}
                     <td style={{padding:'8px 12px',fontWeight:600,color:C.teal}}>{a.hora}</td>
                     <td style={{padding:'8px 12px'}}>{a.paciente_nome}</td>
-                    <td style={{padding:'8px 12px'}}>{a.opto_nome}</td>
+                    <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{a.opto_nome}</td>
                     <td style={{padding:'8px 12px'}}>{a.procedimento}</td>
                     <td style={{padding:'8px 12px'}}>{a.meio_contato}</td>
                     <td style={{padding:'8px 12px'}}>
                       {a.agendado_por
                         ? <span style={{
-                            display:'inline-block',padding:'2px 10px',borderRadius:20,fontSize:12,fontWeight:600,
+                            display:'inline-block',padding:'2px 10px',borderRadius:20,fontSize:12,fontWeight:600,whiteSpace:'nowrap',
                             background: a.agendado_por==='IA' ? C.orangeBg : C.tealBg,
                             color: a.agendado_por==='IA' ? C.orange : C.teal
                           }}>{a.agendado_por}</span>
@@ -1126,11 +1136,12 @@ function Agendamentos({ user, onAtender, selectedUnidade='' }) {
                       <Badge color={a.status==='Compareceu'?C.success:a.status==='Não Compareceu'?C.danger:a.status==='Cancelado'?C.gray:C.teal}>{a.status}</Badge>
                     </td>
                     <td style={{padding:'8px 12px'}}>
-                      <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                      <div style={{display:'flex',gap:6}}>
+                        {/* Atender: pacientes do dia (inclusive quem chegou atrasado). Atendidos: abre a ficha/receita em qualquer data */}
+                        {podeAtender && (a.status==='Compareceu' || (a.data===today() && a.status!=='Cancelado')) &&
+                          <Btn size="sm" color={C.teal} style={{width:112,padding:'7px 0'}} onClick={()=>onAtender(a)}>{a.status==='Compareceu'?'Ver ficha':'Atender'}</Btn>}
                         {a.status!=='Compareceu' &&
                           <Btn size="sm" color={C.orange} style={{width:112,padding:'7px 0'}} onClick={()=>setReagendar(a)}>Reagendar</Btn>}
-                        {a.status==='Compareceu' && PERFIS[user.perfil]?.nav.includes('atendimento') &&
-                          <Btn size="sm" color={C.teal} style={{width:112,padding:'7px 0'}} onClick={()=>onAtender(a)}>Atender</Btn>}
                       </div>
                     </td>
                   </tr>
@@ -1249,9 +1260,7 @@ function imprimirReceita(r) {
 /* ══════════════════════════════════════════════════════
    ATENDIMENTO
 ══════════════════════════════════════════════════════ */
-function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) {
-  const [fila, setFila] = useState([]);
-  const [loading, setLoading] = useState(true);
+function Atendimento({ user, selectedUnidade='' }) {
   const [sel, setSel] = useState(null);
   const [tabAte, setTabAte] = useState('anamnese');
   const [form, setForm] = useState({ anamnese:'', queixa:'', medicamentos:'', nasc:'',
@@ -1261,36 +1270,6 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
   const [toast, setToast] = useState('');
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(''),3000); };
   const setF = (k,v) => setForm(f=>({...f,[k]:v}));
-
-  const loadFila = useCallback(() => {
-    // Todos os pacientes do dia, menos cancelados — quem chega atrasado ("Não Compareceu") ainda pode ser atendido
-    let q = supabase.from('agenda').select('*').eq('data',today()).neq('status','Cancelado').order('hora');
-    if (user.perfil === 'opto') {
-      // Opto vê todos os agendamentos da sua loja
-      const unidade = user.unidade || selectedUnidade;
-      if (unidade) q = q.eq('unidade', unidade);
-    } else {
-      if (selectedUnidade) q = q.eq('unidade', selectedUnidade);
-    }
-    q.then(({data})=>{ setFila(data||[]); setLoading(false); });
-  }, [selectedUnidade, user]);
-
-  useEffect(()=>{ loadFila(); },[loadFila]);
-
-  // Realtime: fila atualiza quando status muda
-  useRealtime('agenda', loadFila);
-
-  // Quando chegar item de Agendamentos: selecionar diretamente
-  useEffect(()=>{
-    if (!agendaItem) return;
-    setSel(agendaItem);
-    setTabAte('anamnese');
-    setForm({ anamnese:'', queixa:'', medicamentos:'', nasc:'',
-      od_esf:'',od_cil:'',od_eixo:'',od_add:'',od_dnp:'',
-      oe_esf:'',oe_cil:'',oe_eixo:'',oe_add:'',oe_dnp:'' });
-    setReceita(null);
-    clearAgendaItem();
-  },[agendaItem, clearAgendaItem]);
 
   useEffect(()=>{
     if (!sel) return;
@@ -1365,7 +1344,6 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
     if (error) { alert('Erro ao finalizar: ' + error.message); return; }
     showToast(`Atendimento de ${sel.paciente_nome} finalizado.`);
     setSel(null); setReceita(null); setTabAte('anamnese');
-    loadFila();
   };
 
   const [errosRx, setErrosRx] = useState({});
@@ -1393,32 +1371,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
   if (!sel) return (
     <div>
       <Toast msg={toast}/>
-      <h3 style={{fontSize:16,fontWeight:700,marginBottom:16,color:C.navy}}>Fila do Dia — {fmtDate(today())}</h3>
-      {loading ? <Spinner/> : fila.length===0 ? (
-        <Card><p style={{textAlign:'center',color:C.gray,padding:20}}>Nenhum paciente aguardando atendimento</p></Card>
-      ) : (
-        <Card>
-          <div className="tbl-wrap">
-            <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
-              <thead><tr style={{background:C.teal,color:C.white}}>
-                {['Hora','Paciente','Procedimento','Contato','Status',''].map(h=><th key={h} style={{padding:'9px 12px',textAlign:'left'}}>{h}</th>)}
-              </tr></thead>
-              <tbody>{fila.map((a,i)=>(
-                <tr key={a.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
-                  <td style={{padding:'8px 12px',fontWeight:600,color:C.teal}}>{a.hora}</td>
-                  <td style={{padding:'8px 12px',fontWeight:500}}>{a.paciente_nome}</td>
-                  <td style={{padding:'8px 12px'}}>{a.procedimento}</td>
-                  <td style={{padding:'8px 12px'}}>{a.meio_contato||'—'}</td>
-                  <td style={{padding:'8px 12px'}}><Badge color={a.status==='Compareceu'?C.success:a.status==='Não Compareceu'?C.danger:C.teal}>{a.status}</Badge></td>
-                  <td style={{padding:'8px 12px'}}>
-                    <Btn size="sm" color={C.teal} onClick={()=>iniciarAtendimento(a)}>Atender</Btn>
-                  </td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+      <ListaAtendimentos user={user} selectedUnidade={selectedUnidade} onAtender={iniciarAtendimento}/>
     </div>
   );
 
@@ -2217,7 +2170,6 @@ export default function App() {
     } catch {}
     return 'inicio';
   });
-  const [agendaItem, setAgendaItem] = useState(null);
   const [selectedUnidade, setSelectedUnidade] = useState(() => {
     try {
       const saved = localStorage.getItem(SESSION_KEY);
@@ -2268,10 +2220,6 @@ export default function App() {
     setSelectedUnidade('');
   };
 
-  const handleAtender = (item) => {
-    setAgendaItem(item);
-    setTab('atendimento');
-  };
 
   if (verificando) return <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:C.bg}}><style>{GLOBAL_CSS}</style><Spinner/></div>;
   if (!usuario) return <Login onLogin={handleLogin}/>;
@@ -2286,8 +2234,7 @@ export default function App() {
   const pages = {
     inicio:       <Dashboard user={usuario} selectedUnidade={selectedUnidade}/>,
     agenda:       <Agenda user={usuario} selectedUnidade={selectedUnidade}/>,
-    agendamentos: <Agendamentos user={usuario} onAtender={handleAtender} selectedUnidade={selectedUnidade}/>,
-    atendimento:  <Atendimento user={usuario} agendaItem={agendaItem} clearAgendaItem={()=>setAgendaItem(null)} selectedUnidade={selectedUnidade}/>,
+    atendimento:  <Atendimento user={usuario} selectedUnidade={selectedUnidade}/>,
     receitas:     <Receitas user={usuario} selectedUnidade={selectedUnidade}/>,
     conversao:    <Conversao user={usuario} selectedUnidade={selectedUnidade}/>,
     noshow:       <NoShow user={usuario} selectedUnidade={selectedUnidade}/>,
