@@ -1149,12 +1149,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
     }
   },[sel]);
 
-  const iniciarAtendimento = async (a) => {
-    // Paciente presente: marca como "Compareceu" (inclusive se tinha sido marcado como falta)
-    if (a.status !== 'Compareceu') {
-      await supabase.from('agenda').update({ status: 'Compareceu' }).eq('id', a.id);
-      a = { ...a, status: 'Compareceu' };
-    }
+  const iniciarAtendimento = (a) => {
     setSel(a);
     setTabAte('anamnese');
     setForm({ anamnese:'', queixa:'', medicamentos:'', nasc:'',
@@ -1184,11 +1179,20 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
     if (error) { alert('Erro ao gerar a receita: ' + error.message); return; }
     // guarda a data de nascimento no cadastro do paciente, se ainda não tiver
     if (form.nasc && sel.paciente_id) await supabase.from('pacientes').update({ data_nascimento: form.nasc }).eq('id', sel.paciente_id).is('data_nascimento', null);
-    // Atendido: tira da regra automática de "Não Compareceu"
-    if (sel.status === 'Agendado') await supabase.from('agenda').update({ status: 'Compareceu' }).eq('id', sel.id);
     setReceita(data);
-    showToast('Receita gerada! Pre-venda ja pode registrar a conversao.');
+    showToast('Receita gerada! A pré-venda já pode registrar a conversão.');
     setTabAte('receita');
+  };
+
+  const [finalizando, setFinalizando] = useState(false);
+  const finalizarAtendimento = async () => {
+    setFinalizando(true);
+    const { error } = await supabase.from('agenda').update({ status: 'Compareceu' }).eq('id', sel.id);
+    setFinalizando(false);
+    if (error) { alert('Erro ao finalizar: ' + error.message); return; }
+    showToast(`Atendimento de ${sel.paciente_nome} finalizado.`);
+    setSel(null); setReceita(null); setTabAte('anamnese');
+    loadFila();
   };
 
   const RxField = ({label,fk,opts}) => (
@@ -1234,19 +1238,22 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
 
   const tabs = [
     {id:'anamnese',label:'Anamnese'},
-    {id:'refracao',label:'Refracao'},
+    {id:'refracao',label:'Refração'},
     {id:'receita',label:'Receita',disabled:!receita},
   ];
 
   return (
     <div>
       <Toast msg={toast}/>
-      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:20}}>
-        <Btn size="sm" color={C.gray} outline onClick={()=>{setSel(null);setReceita(null);setTabAte('anamnese');}}>Voltar</Btn>
-        <div>
+      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:20,flexWrap:'wrap'}}>
+        <Btn size="sm" color={C.gray} onClick={()=>{setSel(null);setReceita(null);setTabAte('anamnese');}}>Voltar</Btn>
+        <div style={{flex:1,minWidth:180}}>
           <h3 style={{fontSize:16,fontWeight:700,color:C.navy}}>{sel.paciente_nome}</h3>
           <p style={{fontSize:12,color:C.gray}}>{sel.procedimento} · {sel.hora} · {fmtDate(sel.data)}</p>
         </div>
+        {sel.status === 'Compareceu'
+          ? <Badge color={C.success}>Atendimento finalizado</Badge>
+          : <Btn color={C.orange} onClick={finalizarAtendimento} disabled={finalizando}>{finalizando ? 'Finalizando...' : 'Finalizar atendimento'}</Btn>}
       </div>
       {/* Tabs */}
       <div style={{display:'flex',gap:4,marginBottom:16,borderBottom:`2px solid ${C.border}`,paddingBottom:0}}>
@@ -1273,19 +1280,19 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
             <div><label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:4}}>Observações adicionais</label>
               <textarea value={form.anamnese} onChange={e=>setF('anamnese',e.target.value)} rows={3}
                 style={{width:'100%',border:`1.5px solid ${C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,resize:'vertical'}}/></div>
-            <div style={{textAlign:'right'}}><Btn color={C.teal} onClick={()=>setTabAte('refracao')}>Proximo: Refracao</Btn></div>
+            <div style={{textAlign:'right'}}><Btn color={C.teal} onClick={()=>setTabAte('refracao')}>Próximo: Refração</Btn></div>
           </div>
         </Card>
       )}
 
       {tabAte==='refracao' && (
         <Card>
-          <h4 style={{marginBottom:16,color:C.navy}}>Refracao</h4>
+          <h4 style={{marginBottom:16,color:C.navy}}>Refração</h4>
           <div className="tbl-wrap">
             <table style={{width:'100%',borderCollapse:'collapse'}}>
               <thead><tr style={{background:C.teal,color:C.white}}>
                 <th style={{padding:'8px 12px',textAlign:'left'}}>Olho</th>
-                {['Esf','Cil','Eixo','Adicao','DNP'].map(h=><th key={h} style={{padding:'8px 12px',textAlign:'left'}}>{h}</th>)}
+                {['Esf','Cil','Eixo','Adição','DNP'].map(h=><th key={h} style={{padding:'8px 12px',textAlign:'left'}}>{h}</th>)}
               </tr></thead>
               <tbody>
                 <tr style={{background:C.bg}}>
@@ -1304,7 +1311,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
           <div style={{display:'flex',justifyContent:'space-between',marginTop:16,flexWrap:'wrap',gap:8}}>
             <Btn color={C.gray} outline onClick={()=>setTabAte('anamnese')}>Anamnese</Btn>
             {!receita && <Btn color={C.orange} onClick={gerarReceita}>Gerar Receita</Btn>}
-            {receita && <Badge color={C.success}>Receita gerada — disponivel para conversao</Badge>}
+            {receita && <Badge color={C.success}>Receita gerada — disponível para conversão</Badge>}
           </div>
         </Card>
       )}
@@ -1317,7 +1324,7 @@ function Atendimento({ user, agendaItem, clearAgendaItem, selectedUnidade='' }) 
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:14,border:`1px solid ${C.border}`}}>
               <thead><tr style={{background:C.teal,color:C.white}}>
                 <th style={{padding:'8px 12px'}}>Olho</th>
-                {['Esferico','Cilindrico','Eixo','Adicao','DNP'].map(h=><th key={h} style={{padding:'8px 12px'}}>{h}</th>)}
+                {['Esférico','Cilíndrico','Eixo','Adição','DNP'].map(h=><th key={h} style={{padding:'8px 12px'}}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {[['OD','od_esf','od_cil','od_eixo','od_adicao','od_dnp'],
