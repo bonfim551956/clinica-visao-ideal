@@ -10,13 +10,17 @@ const uid = () => Math.random().toString(36).slice(2,10).toUpperCase();
 const fmtMoney = v => Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 
 /* ── design tokens ── */
+// Paleta tirada da logo Visão Ideal: verde-água (#4DA6A4) → azul (#2A5790).
+// "teal" é o tom intermediário, escurecido o suficiente para texto branco legível (contraste AA);
+// "orange" (nome mantido por compatibilidade) agora é o azul da logo — cor das ações principais.
 const C = {
-  teal:'#16AFA3', tealD:'#0d8f8a', tealL:'#55BDB5', tealBg:'#e8f8f7',
-  orange:'#F47700', orangeD:'#d96800', orangeBg:'#fff3e6',
-  navy:'#173D43', bg:'#F8F8F5', white:'#fff',
+  teal:'#357F96', tealD:'#2B6A7E', tealL:'#4DA6A4', tealBg:'#EAF4F4',
+  orange:'#2A5790', orangeD:'#22477A', orangeBg:'#E9EEF6',
+  navy:'#1E3A5F', bg:'#F5F7F8', white:'#fff',
+  gradiente:'linear-gradient(135deg,#4DA6A4 0%,#2A5790 100%)',
   success:'#28A745', danger:'#DC3545', warn:'#FFC107',
   gray:'#6c757d', grayL:'#f0f0ee', border:'#dee2e6',
-  text:'#173D43', textSm:'#555'
+  text:'#1E3A5F', textSm:'#555'
 };
 
 const HORARIOS = (() => {
@@ -40,10 +44,10 @@ const DNP_VALS = ['N/A','28','29','30','31','32','33','34','35','36','37','38','
 
 const PERFIS = {
   opto:      { label:'Optometrista', cor:C.teal,    nav:['inicio','agenda','agendamentos','atendimento','receitas'] },
-  comercial: { label:'Comercial',    cor:'#E91E8C',  nav:['inicio','agendamentos','atendimento','receitas'] },
-  prevenda:  { label:'Pré-Venda',    cor:'#6F42C1',  nav:['inicio','conversao','noshow','receitas'] },
+  comercial: { label:'Comercial',    cor:'#4DA6A4',  nav:['inicio','agendamentos','atendimento','receitas'] },
+  prevenda:  { label:'Pré-Venda',    cor:'#3F6FA0',  nav:['inicio','conversao','noshow','receitas'] },
   gerente:   { label:'Gerente',      cor:C.orange,   nav:['inicio','agenda','agendamentos','atendimento','receitas','conversao','noshow','relatorios'] },
-  supervisor:{ label:'Supervisor',   cor:'#007BFF',  nav:['inicio','agenda','agendamentos','atendimento','receitas','conversao','noshow','relatorios','usuarios'] },
+  supervisor:{ label:'Supervisor',   cor:'#2A5790',  nav:['inicio','agenda','agendamentos','atendimento','receitas','conversao','noshow','relatorios','usuarios'] },
   diretor:   { label:'Diretor',      cor:C.navy,     nav:['inicio','agenda','agendamentos','atendimento','receitas','conversao','noshow','relatorios','usuarios'] },
 };
 
@@ -93,7 +97,9 @@ input,select,textarea{font-family:inherit;outline:none}
   .resp-grid-2{grid-template-columns:1fr}
   .resp-grid-main{grid-template-columns:1fr}
   .hide-mobile{display:none!important}
+  .so-mobile{display:block!important}
 }
+.so-mobile{display:none}
 `;
 
 function useIsMobile(){ const [m,setM]=useState(window.innerWidth<768); useEffect(()=>{const h=()=>setM(window.innerWidth<768);window.addEventListener('resize',h);return()=>window.removeEventListener('resize',h)},[]);return m; }
@@ -134,12 +140,12 @@ function Login({ onLogin }) {
     <div style={{minHeight:'100vh',display:'flex',background:C.bg}}>
       <style>{GLOBAL_CSS}</style>
       {/* Left panel */}
-      <div className="hide-mobile" style={{width:420,background:`linear-gradient(160deg,${C.navy} 0%,${C.teal} 100%)`,display:'flex',flexDirection:'column',justifyContent:'center',padding:56,color:C.white}}>
-        <img src="/logo-clinica.png" alt="Clínica Visão Ideal" style={{width:180,marginBottom:32,filter:'brightness(0) invert(1)'}}/>
+      <div className="hide-mobile" style={{width:420,background:C.gradiente,display:'flex',flexDirection:'column',justifyContent:'center',padding:56,color:C.white}}>
+        <img src="/logo-visao-ideal.png" alt="Visão Ideal" style={{width:200,marginBottom:32,filter:'brightness(0) invert(1)'}}/>
         <div style={{fontSize:15,opacity:.8,marginBottom:40}}>Sistema de Gestão Clínica</div>
         {['Agenda inteligente por loja','Fluxo completo de atendimento','Controle de conversão e no-show','Relatórios e indicadores em tempo real'].map(t=>(
           <div key={t} style={{display:'flex',alignItems:'center',gap:10,marginBottom:14,fontSize:14,opacity:.9}}>
-            <span style={{width:8,height:8,borderRadius:'50%',background:C.orange,flexShrink:0}}/>
+            <span style={{width:8,height:8,borderRadius:'50%',background:'rgba(255,255,255,.85)',flexShrink:0}}/>
             {t}
           </div>
         ))}
@@ -147,6 +153,7 @@ function Login({ onLogin }) {
       {/* Right form */}
       <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
         <div style={{width:'100%',maxWidth:380}}>
+          <img src="/logo-visao-ideal.png" alt="Visão Ideal" className="so-mobile" style={{width:160,margin:'0 auto 32px'}}/>
           <h2 style={{fontSize:24,fontWeight:800,color:C.navy,marginBottom:6}}>Entrar</h2>
           <p style={{color:C.gray,fontSize:14,marginBottom:32}}>Acesse o sistema com suas credenciais</p>
           <Input label="Usuário" value={user} onChange={e=>setUser(e.target.value)} placeholder="Seu nome de usuário" style={{marginBottom:16}}/>
@@ -221,7 +228,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
       <div style={{position:'fixed',top:0,left:0,right:0,background:C.white,borderBottom:`1px solid ${C.border}`,zIndex:200}}>
       <div style={{height:52,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px'}}>
         <button onClick={()=>setDrawer(true)} style={{background:'none',fontSize:22,color:C.navy,border:'none',fontWeight:700}}>&#9776;</button>
-        <img src="/logo-clinica-texto.png" alt="Clínica Visão Ideal" style={{height:24,objectFit:'contain'}}/>
+        <img src="/logo-visao-ideal.png" alt="Visão Ideal" style={{height:36,objectFit:'contain'}}/>
         <Badge color={perfil?.cor||C.teal}>{perfil?.label}</Badge>
       </div>
       {podeVerTodasUnidades && (
@@ -234,8 +241,8 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
       {drawer && <>
         <div onClick={()=>setDrawer(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.4)',zIndex:300}}/>
         <div style={{position:'fixed',top:0,left:0,bottom:0,width:260,background:C.white,zIndex:400,overflowY:'auto',boxShadow:'4px 0 16px rgba(0,0,0,.1)'}}>
-          <div style={{padding:'16px',background:`linear-gradient(135deg,${C.navy},${C.teal})`,color:C.white,display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
-            <img src="/logo-clinica-texto.png" alt="Clínica Visão Ideal" style={{width:140,filter:'brightness(0) invert(1)'}}/>
+          <div style={{padding:'16px',background:C.gradiente,color:C.white,display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
+            <img src="/logo-visao-ideal.png" alt="Visão Ideal" style={{width:120,filter:'brightness(0) invert(1)'}}/>
             <div style={{fontSize:12,opacity:.8}}>{user.nome} · {perfil?.label}</div>
           </div>
           <SideNav onItemClick={()=>setDrawer(false)}/>
@@ -267,13 +274,13 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
       <style>{GLOBAL_CSS}</style>
       {/* Sidebar */}
       <div style={{width:sideW,background:C.white,borderRight:`1px solid ${C.border}`,position:'fixed',top:0,left:0,bottom:0,overflowY:'auto',display:'flex',flexDirection:'column',boxShadow:'2px 0 8px rgba(0,0,0,.04)'}}>
-        <div style={{height:alturaTopo,boxSizing:'border-box',flexShrink:0,background:`linear-gradient(160deg,${C.navy} 0%,${C.teal} 100%)`,borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',padding:'0 24px'}}>
-          <img src="/logo-clinica-texto.png" alt="Clínica Visão Ideal" style={{height:podeVerTodasUnidades?40:34,width:'auto',filter:'brightness(0) invert(1)'}}/>
+        <div style={{height:alturaTopo,boxSizing:'border-box',flexShrink:0,background:C.white,borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'center',padding:'8px 16px'}}>
+          <img src="/logo-visao-ideal.png" alt="Visão Ideal" style={{height:'100%',maxHeight:podeVerTodasUnidades?88:48,width:'auto',objectFit:'contain'}}/>
         </div>
         <div style={{flex:1,overflowY:'auto',paddingTop:6}}><SideNav/></div>
         <div style={{padding:'14px 16px',borderTop:`1px solid ${C.border}`,background:C.bg}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <div style={{width:34,height:34,borderRadius:'50%',background:`linear-gradient(135deg,${C.teal},${C.navy})`,display:'flex',alignItems:'center',justifyContent:'center',color:C.white,fontWeight:700,fontSize:13,flexShrink:0}}>
+            <div style={{width:34,height:34,borderRadius:'50%',background:C.gradiente,display:'flex',alignItems:'center',justifyContent:'center',color:C.white,fontWeight:700,fontSize:13,flexShrink:0}}>
               {user.nome?.charAt(0)?.toUpperCase()}
             </div>
             <div style={{minWidth:0}}>
@@ -411,7 +418,7 @@ function Dashboard({ user, selectedUnidade='' }) {
         <KPI label="Agendados" value={stats.agendados} color={C.teal}/>
         <KPI label="Compareceram" value={stats.compareceu} color={C.success}/>
         <KPI label="Não Compareceram" value={stats.naoComp} color={C.danger}/>
-        <KPI label="Receitas" value={stats.receitas} color='#6F42C1'/>
+        <KPI label="Receitas" value={stats.receitas} color={C.tealL}/>
         {verComercial && <KPI label="Conversões" value={stats.conversoes} color={C.orange}/>}
         {verComercial && <KPI label="Faturamento" value={fmtMoney(stats.valorTotal)} color={C.teal}/>}
         {verComercial && <KPI label="Taxa No-Show" value={`${stats.noshow}%`} color={C.danger}/>}
@@ -816,7 +823,7 @@ function AgendaModal({ hora, existing, encaixe, pacientes, optos, pedirUnidade, 
 
         {/* Mini-cadastro de novo paciente */}
         {novoCliente && (
-          <div style={{background:'#fff8f0',border:`1.5px solid ${C.orange}`,borderRadius:12,padding:16}}>
+          <div style={{background:'#E9EEF6',border:`1.5px solid ${C.orange}`,borderRadius:12,padding:16}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
               <span style={{fontSize:13,fontWeight:700,color:C.orange}}>Novo Paciente</span>
               <span style={{fontSize:12,color:C.gray,cursor:'pointer',textDecoration:'underline'}}
@@ -1046,7 +1053,7 @@ const esc = v => String(v ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;
 const fmtCro = cro => { const c = String(cro||'').trim(); return !c ? '' : /^cro/i.test(c) ? c : `CRO-SP ${c}`; };
 
 function imprimirReceita(r) {
-  const logoUrl = window.location.origin + '/logo-clinica.png';
+  const logoUrl = window.location.origin + '/logo-visao-ideal.png';
   const [dAt, tAt] = String(r.data_hora_atendimento || '').split(' ');
   const dtAtend = dAt ? fmtDate(dAt) + (tAt ? ' às ' + tAt : '') : fmtDate(r.data);
   const unidade = r.unidade || r.opto_unidade || 'São Vicente';
@@ -1062,33 +1069,33 @@ function imprimirReceita(r) {
   w.document.write(`<!DOCTYPE html><html><head><title>Prescrição de Óculos</title><meta charset="utf-8"/>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#173D43;padding:20mm 22mm 16mm 22mm;width:210mm;min-height:297mm}
-    .header{display:flex;align-items:center;gap:20px;padding-bottom:14px;border-bottom:3px solid #16AFA3;margin-bottom:22px}
+    body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#1E3A5F;padding:20mm 22mm 16mm 22mm;width:210mm;min-height:297mm}
+    .header{display:flex;align-items:center;gap:20px;padding-bottom:14px;border-bottom:3px solid #357F96;margin-bottom:22px}
     .logo{height:58px;object-fit:contain}
     .titulo{font-size:18px;font-weight:800;letter-spacing:.5px;text-transform:uppercase}
-    .subtitulo{font-size:12px;color:#16AFA3;font-weight:600;margin-top:3px}
+    .subtitulo{font-size:12px;color:#357F96;font-weight:600;margin-top:3px}
     .section-box{border:1.5px solid #e0e0e0;border-radius:8px;padding:12px 16px;margin-bottom:20px;background:#fafaf8}
     .field-row{display:flex;gap:24px;flex-wrap:wrap}
     .field{display:flex;flex-direction:column;gap:2px;flex:1}
-    .label{font-size:10px;font-weight:700;color:#16AFA3;text-transform:uppercase;letter-spacing:.5px}
+    .label{font-size:10px;font-weight:700;color:#357F96;text-transform:uppercase;letter-spacing:.5px}
     .value{font-size:14px;font-weight:600;border-bottom:1px solid #d0d0d0;padding-bottom:4px;margin-top:2px;min-height:22px}
-    .section-title{font-size:11px;font-weight:700;color:#16AFA3;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+    .section-title{font-size:11px;font-weight:700;color:#357F96;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
     table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:22px}
-    table th{background:#173D43;color:#fff;padding:10px 12px;text-align:center;font-size:12px;font-weight:700}
+    table th{background:#1E3A5F;color:#fff;padding:10px 12px;text-align:center;font-size:12px;font-weight:700}
     table th:first-child{border-radius:6px 0 0 0} table th:last-child{border-radius:0 6px 0 0}
     table td{border:1px solid #e0e0e0;padding:10px 12px;text-align:center}
-    table tbody tr:nth-child(even){background:#f7fffe}
-    .olho{font-weight:800;font-size:14px;background:#e8f8f7!important}
-    .adicao-row td{background:#fff8f0!important;color:#F47700;font-weight:700}
+    table tbody tr:nth-child(even){background:#F4F9F9}
+    .olho{font-weight:800;font-size:14px;background:#EAF4F4!important}
+    .adicao-row td{background:#E9EEF6!important;color:#2A5790;font-weight:700}
     .obs-box{font-size:13px;line-height:1.6;color:#333;background:#fafaf8;border:1px solid #e0e0e0;border-radius:6px;padding:10px 14px;margin-bottom:22px}
     .assinatura-area{display:flex;align-items:flex-end;justify-content:space-between;margin:28px 0 20px;gap:24px}
     .assinatura-col{display:flex;flex-direction:column;align-items:center;gap:4px}
-    .assinatura-linha{border-top:1.5px solid #173D43;width:220px;margin-bottom:6px}
+    .assinatura-linha{border-top:1.5px solid #1E3A5F;width:220px;margin-bottom:6px}
     .assinatura-nome{font-size:13px;font-weight:700;text-align:center}
     .assinatura-cro{font-size:11px;color:#555;text-align:center}
     .data-local{font-size:13px;text-align:right;flex:1}
-    .lembrete{font-size:11px;color:#173D43;line-height:1.6;border-left:3px solid #16AFA3;padding:10px 14px;background:#f2fbfa;border-radius:0 6px 6px 0;margin-bottom:18px}
-    .lembrete b{color:#16AFA3}
+    .lembrete{font-size:11px;color:#1E3A5F;line-height:1.6;border-left:3px solid #357F96;padding:10px 14px;background:#EEF6F6;border-radius:0 6px 6px 0;margin-bottom:18px}
+    .lembrete b{color:#357F96}
     .footer{border-top:1px solid #ddd;padding-top:10px;font-size:10px;color:#999;text-align:center}
     @media print{html,body{width:210mm;height:297mm}body{padding:18mm 20mm 14mm 20mm}@page{size:A4 portrait;margin:0}}
   </style></head><body>
@@ -1692,7 +1699,7 @@ function Relatorios({ selectedUnidade='' }) {
         {[
           {label:'Agendamentos',value:totais.agendados,color:C.teal},
           {label:'Comparecimentos',value:totais.compareceu,color:C.success},
-          {label:'Receitas Geradas',value:totais.receitas,color:'#6F42C1'},
+          {label:'Receitas Geradas',value:totais.receitas,color:C.tealL},
           {label:'Conversões',value:totais.conversoes,color:C.orange},
         ].map(k=>(
           <Card key={k.label} style={{textAlign:'center'}}>
