@@ -331,14 +331,14 @@ function Dashboard({ user, selectedUnidade='' }) {
         applyU(supabase.from('conversoes').select('converteu,valor_venda')),
         applyU(supabase.from('agenda').select('*').eq('data', today()).eq('status','Agendado').order('hora').limit(8)),
       ]);
-      const agenda = ag.data || [];
+      const agenda = (ag.data || []).filter(a => a.status !== 'Cancelado');
       const cvs = conv.data || [];
       const totalConv = cvs.filter(c=>c.converteu).length;
       const valorTotal = cvs.filter(c=>c.converteu).reduce((s,c)=>s+Number(c.valor_venda||0),0);
       const naoComp = agenda.filter(a=>a.status==='Não Compareceu').length;
       const total = agenda.length || 1;
       setStats({
-        agendados: agenda.filter(a=>a.status==='Agendado').length,
+        agendados: agenda.length,
         compareceu: agenda.filter(a=>a.status==='Compareceu').length,
         naoComp,
         receitas: (rec.data||[]).length,
@@ -490,8 +490,11 @@ function Agenda({ user, selectedUnidade='' }) {
     };
     let err;
     if (modal.existing) {
-      // Editar existente
-      const { error } = await supabase.from('agenda').update(rowData).eq('id', modal.existing.id);
+      // Editar existente (se for da IA e mudou dia/hora, a sincronização move o evento no Google)
+      const ex = modal.existing;
+      const mudouHorario = ex.data !== rowData.data || ex.hora !== rowData.hora;
+      const extra = ex.google_event_id && mudouHorario ? { google_sync_pendente: true } : {};
+      const { error } = await supabase.from('agenda').update({ ...rowData, ...extra }).eq('id', ex.id);
       err = error;
     } else {
       // Novo agendamento manual: verifica se existe slot da IA *vazio* (sem paciente) nesse horário
@@ -590,9 +593,7 @@ function Agenda({ user, selectedUnidade='' }) {
                         <td style={celAg}>
                           <div style={acoesAg}>
                             <Btn size="sm" color={C.teal} style={btnAcao} onClick={()=>setModal({hora,existing:slot})}>Editar</Btn>
-                            {si === horaSlots.length - 1
-                              ? <Btn size="sm" color={C.orange} style={btnAcao} onClick={()=>setModal({hora})}>+ Agendar</Btn>
-                              : <span style={{width:btnAcao.width}}/>}
+                            <Btn size="sm" color={C.orange} style={btnAcao} onClick={()=>setModal({hora})}>+ Agendar</Btn>
                           </div>
                         </td>
                       </tr>
@@ -834,6 +835,36 @@ function AgendaModal({ hora, existing, encaixe, pacientes, optos, pedirUnidade, 
   );
 }
 
+
+/* ── Reagendar: escolhe nova data e horário ── */
+function ReagendarModal({ item, onSave, onClose }) {
+  const [data, setData] = useState(item.data >= today() ? item.data : today());
+  const [hora, setHora] = useState(HORARIOS.includes(item.hora) ? item.hora : HORARIOS[0]);
+  const [salvando, setSalvando] = useState(false);
+  const salvar = async () => {
+    if (!data || !hora) { alert('Escolha a nova data e o horário.'); return; }
+    setSalvando(true); await onSave({ data, hora }); setSalvando(false);
+  };
+  return (
+    <Modal title="Reagendar paciente" onClose={onClose} width={420}>
+      <div style={{display:'flex',flexDirection:'column',gap:16}}>
+        <div style={{background:C.tealBg,borderRadius:8,padding:'12px 16px'}}>
+          <div style={{fontWeight:700,color:C.navy}}>{item.paciente_nome}</div>
+          <div style={{fontSize:12,color:C.gray,marginTop:4}}>Atual: {fmtDate(item.data)} às {item.hora}{item.unidade ? ` · ${item.unidade}` : ''}</div>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+          <Input label="Nova data" type="date" value={data} min={today()} onChange={e=>setData(e.target.value)}/>
+          <Select label="Novo horário" value={hora} onChange={e=>setHora(e.target.value)} options={HORARIOS}/>
+        </div>
+        <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+          <Btn color={C.gray} onClick={onClose}>Cancelar</Btn>
+          <Btn color={C.orange} onClick={salvar} disabled={salvando}>{salvando ? 'Salvando...' : 'Confirmar'}</Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 /* ══════════════════════════════════════════════════════
    AGENDAMENTOS (lista filtrada)
 ══════════════════════════════════════════════════════ */
@@ -875,9 +906,17 @@ function Agendamentos({ user, onAtender, selectedUnidade='' }) {
 
   useEffect(()=>{ load(); },[load]);
 
-  const setStatus = async (id, status) => {
-    await supabase.from('agenda').update({status}).eq('id',id);
-    showToast(`Status atualizado: ${status}`);
+  const [reagendar, setReagendar] = useState(null);
+  const salvarReagendamento = async ({ data, hora }) => {
+    const a = reagendar;
+    const { error } = await supabase.from('agenda').update({
+      data, hora, status: 'Agendado', calendar_updated: false,
+      // agendamento da IA: a sincronização move o evento no Google Agenda
+      ...(a.google_event_id ? { google_sync_pendente: true } : {}),
+    }).eq('id', a.id);
+    if (error) { alert('Erro ao reagendar: ' + error.message); return; }
+    setReagendar(null);
+    showToast(`Reagendado para ${fmtDate(data)} às ${hora}`);
     load();
   };
 
@@ -899,6 +938,7 @@ function Agendamentos({ user, onAtender, selectedUnidade='' }) {
             options={[{value:'',label:'Todas'},...UNIDADES.map(u=>({value:u,label:u}))]}/>
         </div>
       </Card>
+      {reagendar && <ReagendarModal item={reagendar} onSave={salvarReagendamento} onClose={()=>setReagendar(null)}/>}
       {loading ? <Spinner/> : (
         <Card>
           <p style={{fontSize:13,color:C.gray,marginBottom:12}}>{rows.length} registro(s)</p>
@@ -934,12 +974,10 @@ function Agendamentos({ user, onAtender, selectedUnidade='' }) {
                     </td>
                     <td style={{padding:'8px 12px'}}>
                       <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                        {a.status==='Agendado' && <>
-                          <Btn size="sm" color={C.success} onClick={()=>setStatus(a.id,'Compareceu')}>Comp.</Btn>
-                          <Btn size="sm" color={C.danger} outline onClick={()=>setStatus(a.id,'Não Compareceu')}>N. Comp.</Btn>
-                        </>}
+                        {a.status!=='Compareceu' &&
+                          <Btn size="sm" color={C.orange} style={{width:112,padding:'7px 0'}} onClick={()=>setReagendar(a)}>Reagendar</Btn>}
                         {a.status==='Compareceu' && PERFIS[user.perfil]?.nav.includes('atendimento') &&
-                          <Btn size="sm" color={C.teal} onClick={()=>onAtender(a)}>Atender</Btn>}
+                          <Btn size="sm" color={C.teal} style={{width:112,padding:'7px 0'}} onClick={()=>onAtender(a)}>Atender</Btn>}
                       </div>
                     </td>
                   </tr>

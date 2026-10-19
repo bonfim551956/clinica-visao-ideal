@@ -1,6 +1,7 @@
 // calendar-sync — substitui os workflows n8n "Clínica | Calendar → Sistema" e "Sistema → Calendar"
 // 1) Lê os 4 Google Agendas (hoje até +21 dias), só eventos "IAW - ...", e espelha na tabela `agenda`:
 //    novos → insere (agendado_por = 'IA'); remarcados → atualiza data/hora; apagados → status "Cancelado"
+// 0) Reagendados no sistema (google_sync_pendente) → move o evento no Google antes da leitura
 // 2) Agendamentos com status "Não Compareceu" e google_event_id → pinta o evento de Flamingo (colorId 4) no Google
 // Disparado pelo pg_cron a cada 5 minutos. Credencial: secret GOOGLE_SERVICE_ACCOUNT (JSON da conta de serviço).
 import { createClient } from 'npm:@supabase/supabase-js@2'
@@ -13,6 +14,7 @@ const CALENDARIOS: Record<string, string> = {
 }
 const TZ = 'America/Sao_Paulo'
 const COR_NAO_COMPARECEU = '4' // Flamingo
+const COR_IA = '7' // Pavão (cor padrão dos eventos da IA)
 
 const json = (b: unknown, status = 200) =>
   new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json' } })
@@ -111,6 +113,31 @@ Deno.serve(async (req: Request) => {
     return json(out)
   }
 
+  // ── 0) Sistema → Google: reagendamentos feitos no sistema movem o evento no Google ──
+  // (assim a IA vê o horário novo livre/ocupado corretamente e a leitura abaixo não desfaz a mudança)
+  const { data: pendentes, error: pErr } = await admin.from('agenda')
+    .select('id, google_event_id, unidade, data, hora')
+    .eq('google_sync_pendente', true).not('google_event_id', 'is', null).limit(100)
+  if (pErr) erros.push('busca reagendados: ' + pErr.message)
+  let reagendados = 0
+  for (const a of pendentes || []) {
+    const calId = CALENDARIOS[a.unidade as string] || CALENDARIOS['São Vicente']
+    try {
+      const ini = new Date(`${a.data}T${String(a.hora).slice(0, 5)}:00-03:00`)
+      const fim = new Date(ini.getTime() + 30 * 60000)
+      const fmt = (d: Date) => new Date(d.getTime() - 3 * 3600000).toISOString().slice(0, 19)
+      const r = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${encodeURIComponent(a.google_event_id)}`,
+        { method: 'PATCH', headers: { ...gHeaders, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ start: { dateTime: fmt(ini), timeZone: TZ }, end: { dateTime: fmt(fim), timeZone: TZ }, colorId: COR_IA }) },
+      )
+      if (r.ok || r.status === 404 || r.status === 410) {
+        await admin.from('agenda').update({ google_sync_pendente: false, calendar_updated: false }).eq('id', a.id)
+        if (r.ok) reagendados++
+      } else erros.push(`reagendar ${a.google_event_id}: ${r.status} ${await r.text()}`)
+    } catch (e) { erros.push(`reagendar ${a.google_event_id}: ${String(e)}`) }
+  }
+
   // ── 1) Google Calendar → Sistema ───────────────────────────
   const hoje = hojeSP()
   const timeMin = new Date(`${hoje}T00:00:00-03:00`).toISOString()
@@ -150,7 +177,7 @@ Deno.serve(async (req: Request) => {
       let falhou = false
       for (let i = 0; i < ids.length; i += 100) {
         const { data, error } = await admin.from('agenda')
-          .select('id, google_event_id, data, hora, status').in('google_event_id', ids.slice(i, i + 100))
+          .select('id, google_event_id, data, hora, status, google_sync_pendente').in('google_event_id', ids.slice(i, i + 100))
         if (error) { erros.push(`${unidade}: ${error.message}`); falhou = true; break }
         existentes.push(...(data || []))
       }
@@ -168,7 +195,7 @@ Deno.serve(async (req: Request) => {
       // Remarcados no Google (data/hora mudou) → atualiza, só se ainda estiver "Agendado"
       for (const e of ativos) {
         const row = porEvento.get(e.id)
-        if (!row || row.status !== 'Agendado') continue
+        if (!row || row.status !== 'Agendado' || row.google_sync_pendente) continue
         const l = montarLinha(e, unidade)
         if (row.data !== l.data || row.hora !== l.hora) {
           const { error: upErr } = await admin.from('agenda')
@@ -211,5 +238,5 @@ Deno.serve(async (req: Request) => {
     } catch (e) { erros.push(`cor ${f.google_event_id}: ${String(e)}`) }
   }
 
-  return json({ ok: erros.length === 0, eventos_no_google: eventosPorUnidade, inseridos, atualizados, cancelados: canceladosN, marcados_nao_compareceu: marcados, erros })
+  return json({ ok: erros.length === 0, eventos_no_google: eventosPorUnidade, reagendados_no_google: reagendados, inseridos, atualizados, cancelados: canceladosN, marcados_nao_compareceu: marcados, erros })
 })
