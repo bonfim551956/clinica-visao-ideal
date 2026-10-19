@@ -317,18 +317,38 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
 /* ══════════════════════════════════════════════════════
    DASHBOARD
 ══════════════════════════════════════════════════════ */
+// Período do painel: hoje, semana (seg–dom), mês ou personalizado → { de, ate } em YYYY-MM-DD
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const periodoDatas = (tipo, de, ate) => {
+  const h = new Date(); h.setHours(12,0,0,0);
+  if (tipo === 'semana') {
+    const ini = new Date(h); ini.setDate(h.getDate() - ((h.getDay() + 6) % 7));
+    const fim = new Date(ini); fim.setDate(ini.getDate() + 6);
+    return { de: ymd(ini), ate: ymd(fim) };
+  }
+  if (tipo === 'mes') return { de: ymd(new Date(h.getFullYear(), h.getMonth(), 1)), ate: ymd(new Date(h.getFullYear(), h.getMonth()+1, 0)) };
+  if (tipo === 'personalizado') return { de: de || today(), ate: ate || de || today() };
+  return { de: today(), ate: today() };
+};
+
 function Dashboard({ user, selectedUnidade='' }) {
   const [stats, setStats] = useState({ agendados:0, compareceu:0, naoComp:0, receitas:0, conversoes:0, valorTotal:0, noshow:0 });
   const [loading, setLoading] = useState(true);
   const [proximos, setProximos] = useState([]);
+  const [periodo, setPeriodo] = useState('hoje');
+  const [custom, setCustom] = useState({ de: today(), ate: today() });
+  const { de, ate } = periodoDatas(periodo, custom.de, custom.ate);
+  const textoPeriodo = de === ate ? fmtDate(de) : `${fmtDate(de)} a ${fmtDate(ate)}`;
 
   useEffect(() => {
     const load = async () => {
+      setLoading(true);
       const applyU = q => selectedUnidade ? q.eq('unidade', selectedUnidade) : q;
+      const noPeriodo = q => q.gte('data', de).lte('data', ate);
       const [ag, rec, conv, prox] = await Promise.all([
-        applyU(supabase.from('agenda').select('status').eq('data', today())),
-        applyU(supabase.from('receitas').select('id').eq('data', today())),
-        applyU(supabase.from('conversoes').select('converteu,valor_venda')),
+        applyU(noPeriodo(supabase.from('agenda').select('status'))),
+        applyU(noPeriodo(supabase.from('receitas').select('id'))),
+        applyU(noPeriodo(supabase.from('conversoes').select('converteu,valor_venda'))),
         applyU(supabase.from('agenda').select('*').eq('data', today()).eq('status','Agendado').order('hora').limit(8)),
       ]);
       const agenda = (ag.data || []).filter(a => a.status !== 'Cancelado');
@@ -351,7 +371,7 @@ function Dashboard({ user, selectedUnidade='' }) {
       setLoading(false);
     };
     load();
-  }, [selectedUnidade]);
+  }, [selectedUnidade, de, ate]);
 
   const KPI = ({label, value, sub, color=C.teal}) => (
     <Card style={{padding:'20px 18px'}}>
@@ -363,18 +383,35 @@ function Dashboard({ user, selectedUnidade='' }) {
 
   const verComercial = PERFIS_COMERCIAL.includes(user.perfil);
 
-  if (loading) return <Spinner/>;
+  const PERIODOS = [['hoje','Hoje'],['semana','Semana'],['mes','Mês'],['personalizado','Personalizado']];
   return (
     <div>
-      <div style={{marginBottom:20}}>
-        <h2 style={{fontSize:22,fontWeight:800,color:C.navy}}>Visão Geral</h2>
-        <p style={{color:C.gray,fontSize:13,marginTop:2}}>Resumo de hoje · {fmtDate(today())}</p>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',gap:16,flexWrap:'wrap',marginBottom:20}}>
+        <div>
+          <h2 style={{fontSize:22,fontWeight:800,color:C.navy}}>Visão Geral</h2>
+          <p style={{color:C.gray,fontSize:13,marginTop:2}}>{PERIODOS.find(p=>p[0]===periodo)[1]} · {textoPeriodo}</p>
+        </div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'flex-end'}}>
+          {periodo === 'personalizado' && <>
+            <Input label="De" type="date" value={custom.de} onChange={e=>setCustom(c=>({...c,de:e.target.value, ate: c.ate < e.target.value ? e.target.value : c.ate}))}/>
+            <Input label="Até" type="date" value={custom.ate} min={custom.de} onChange={e=>setCustom(c=>({...c,ate:e.target.value}))}/>
+          </>}
+          <div style={{display:'flex',gap:6}}>
+            {PERIODOS.map(([id,label])=>{
+              const ativo = periodo === id;
+              return <button key={id} onClick={()=>setPeriodo(id)}
+                style={{padding:'8px 14px',borderRadius:6,fontSize:13,fontWeight:600,cursor:'pointer',
+                  border:`1.5px solid ${ativo?C.teal:C.border}`,background:ativo?C.teal:C.white,color:ativo?C.white:C.textSm}}>{label}</button>;
+            })}
+          </div>
+        </div>
       </div>
+      {loading ? <Spinner/> : <>
       <div className="resp-grid-4" style={{marginBottom:24}}>
-        <KPI label="Agendados Hoje" value={stats.agendados} color={C.teal}/>
+        <KPI label="Agendados" value={stats.agendados} color={C.teal}/>
         <KPI label="Compareceram" value={stats.compareceu} color={C.success}/>
-        <KPI label="Não Compareceu" value={stats.naoComp} color={C.danger}/>
-        <KPI label="Receitas Hoje" value={stats.receitas} color='#6F42C1'/>
+        <KPI label="Não Compareceram" value={stats.naoComp} color={C.danger}/>
+        <KPI label="Receitas" value={stats.receitas} color='#6F42C1'/>
         {verComercial && <KPI label="Conversões" value={stats.conversoes} color={C.orange}/>}
         {verComercial && <KPI label="Faturamento" value={fmtMoney(stats.valorTotal)} color={C.teal}/>}
         {verComercial && <KPI label="Taxa No-Show" value={`${stats.noshow}%`} color={C.danger}/>}
@@ -409,6 +446,7 @@ function Dashboard({ user, selectedUnidade='' }) {
           </div>
         )}
       </Card>
+      </>}
     </div>
   );
 }
