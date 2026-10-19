@@ -155,7 +155,74 @@ const Btn = ({children,onClick,color=C.teal,outline=false,size='md',style:sx={},
 const Card = ({children,style:sx={}}) => <div style={{background:C.white,borderRadius:16,padding:20,boxShadow:'0 2px 8px rgba(0,0,0,.06)',...sx}}>{children}</div>;
 const Badge = ({children,color=C.teal}) => <span style={{background:color+'22',color,borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:600}}>{children}</span>;
 const Input = ({label,style:sx={},...p}) => <div style={{display:'flex',flexDirection:'column',gap:4,...sx}}>{label&&<label style={{fontSize:12,fontWeight:600,color:C.textSm}}>{label}</label>}<input style={{border:`1.5px solid ${sx['--borda']||C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,background:C.white}} {...p}/></div>;
-const Select = ({label,options=[],style:sx={},...p}) => <div style={{display:'flex',flexDirection:'column',gap:4,...sx}}><label style={{fontSize:12,fontWeight:600,color:C.textSm}}>{label}</label><select style={{border:`1.5px solid ${C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,background:C.white}} {...p}>{options.map(o=><option key={o.value??o} value={o.value??o}>{o.label??o}</option>)}</select></div>;
+// Seletor padrão do sistema: caixa com a lista de opções no estilo da marca (substitui o <select> nativo)
+const Select = ({label,options=[],style:sx={},value,onChange,disabled}) => {
+  const ops = options.map(o => typeof o === 'object' ? { value: String(o.value ?? ''), label: o.label ?? o.value } : { value: String(o), label: o });
+  const atual = ops.find(o => o.value === String(value ?? ''));
+  const [aberto, setAberto] = useState(false);
+  const [foco, setFoco] = useState(-1);
+  const [pos, setPos] = useState(null);
+  const btn = useRef(null), lista = useRef(null);
+  const abrir = () => {
+    if (disabled) return;
+    const r = btn.current.getBoundingClientRect();
+    const alturaMax = 264, abaixo = window.innerHeight - r.bottom - 8;
+    const paraCima = abaixo < Math.min(alturaMax, ops.length * 40 + 8) && r.top > abaixo;
+    setPos({ left: r.left, width: Math.max(r.width, 180), top: paraCima ? undefined : r.bottom + 4,
+      bottom: paraCima ? window.innerHeight - r.top + 4 : undefined, maxH: Math.min(alturaMax, paraCima ? r.top - 8 : abaixo) });
+    setFoco(Math.max(0, ops.findIndex(o => o.value === String(value ?? ''))));
+    setAberto(true);
+  };
+  const escolher = o => { setAberto(false); if (o && o.value !== String(value ?? '')) onChange?.({ target: { value: o.value } }); btn.current?.focus(); };
+  useEffect(() => {
+    if (!aberto) return;
+    const fora = e => { if (!btn.current?.contains(e.target) && !lista.current?.contains(e.target)) setAberto(false); };
+    const fechar = e => { if (!lista.current?.contains(e.target)) setAberto(false); };
+    document.addEventListener('mousedown', fora);
+    window.addEventListener('scroll', fechar, true);
+    window.addEventListener('resize', fechar);
+    return () => { document.removeEventListener('mousedown', fora); window.removeEventListener('scroll', fechar, true); window.removeEventListener('resize', fechar); };
+  }, [aberto]);
+  useEffect(() => { if (aberto) lista.current?.children[foco]?.scrollIntoView({ block: 'nearest' }); }, [aberto, foco]);
+  const tecla = e => {
+    if (!aberto) { if (['ArrowDown','ArrowUp','Enter',' '].includes(e.key)) { e.preventDefault(); abrir(); } return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setFoco(f => Math.min(ops.length - 1, f + 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setFoco(f => Math.max(0, f - 1)); }
+    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); escolher(ops[foco]); }
+    else if (e.key === 'Escape' || e.key === 'Tab') setAberto(false);
+  };
+  const vazio = !atual || atual.value === '';
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:4,...sx}}>
+      {label && <label style={{fontSize:12,fontWeight:600,color:C.textSm}}>{label}</label>}
+      <button type="button" ref={btn} className="seletor" onClick={() => aberto ? setAberto(false) : abrir()} onKeyDown={tecla} disabled={disabled}
+        aria-haspopup="listbox" aria-expanded={aberto}
+        style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,minWidth:140,textAlign:'left',
+          border:`1.5px solid ${aberto ? C.teal : C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,background:C.white,
+          color: vazio && atual?.label?.match?.(/^(Selecionar|Selecione)/) ? C.gray : C.text, cursor: disabled ? 'default' : 'pointer',
+          boxShadow: aberto ? `0 0 0 3px ${C.tealBg}` : 'none', opacity: disabled ? .6 : 1, transition:'border-color .15s, box-shadow .15s'}}>
+        <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{atual ? atual.label : 'Selecionar'}</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" style={{flexShrink:0,transform:aberto?'rotate(180deg)':'none',transition:'transform .15s'}}>
+          <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke={C.gray} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      </button>
+      {aberto && pos && (
+        <div ref={lista} role="listbox" className="seletor-lista"
+          style={{position:'fixed',left:pos.left,top:pos.top,bottom:pos.bottom,minWidth:pos.width,maxHeight:pos.maxH,overflowY:'auto',zIndex:2000,
+            background:C.white,border:`1px solid ${C.border}`,borderRadius:12,boxShadow:'0 8px 24px rgba(30,58,95,.14)',padding:4}}>
+          {ops.map((o, k) => {
+            const sel = o.value === String(value ?? '');
+            return <div key={o.value + k} role="option" aria-selected={sel} onMouseEnter={() => setFoco(k)} onMouseDown={e => e.preventDefault()} onClick={() => escolher(o)}
+              style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'8px 12px',borderRadius:8,fontSize:14,cursor:'pointer',
+                background: k === foco ? C.tealBg : 'transparent', color: sel ? C.teal : C.text, fontWeight: sel ? 700 : 400, whiteSpace:'nowrap'}}>
+              {o.label}
+              {sel && <svg width="14" height="14" viewBox="0 0 14 14"><path d="M3 7.5 5.8 10 11 4.5" fill="none" stroke={C.teal} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            </div>;
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 const Modal = ({title,onClose,children,width=500}) => <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.45)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}><div style={{background:C.white,borderRadius:20,width:'100%',maxWidth:width,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 8px 32px rgba(0,0,0,.2)'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'18px 24px',borderBottom:`1px solid ${C.border}`}}><h3 style={{fontSize:16,fontWeight:700,color:C.navy}}>{title}</h3><button onClick={onClose} style={{background:'none',fontSize:20,color:C.gray}}>×</button></div><div style={{padding:24}}>{children}</div></div></div>;
 const Spinner = () => <div style={{display:'flex',justifyContent:'center',padding:40}}><div style={{width:32,height:32,border:`3px solid ${C.tealL}`,borderTopColor:C.teal,borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>;
 const Toast = ({msg,type='success'}) => msg?<div style={{position:'fixed',bottom:24,right:24,background:type==='error'?C.danger:C.success,color:C.white,padding:'12px 20px',borderRadius:12,fontWeight:600,zIndex:9999,boxShadow:'0 4px 12px rgba(0,0,0,.2)'}}>{msg}</div>:null;
