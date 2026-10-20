@@ -929,7 +929,7 @@ function AgendaModal({ hora, existing, encaixe, pacientes, optos, pedirUnidade, 
                 )}
               </div>
               <button onClick={abrirCadastro}
-                style={{background:C.orange,color:C.white,border:'none',borderRadius:6,
+                style={{background:C.teal,color:C.white,border:'none',borderRadius:6,
                   padding:'8px 14px',fontSize:13,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>
                 + Cadastrar
               </button>
@@ -1336,7 +1336,12 @@ function Atendimento({ user, selectedUnidade='' }) {
     if (!conferirNasc()) return;
     const { erros, valores: rx } = validarRx(form);
     if (Object.keys(erros).length) { setErrosRx(erros); setTabAte('refracao'); alert('Confira os campos da refração marcados em vermelho.'); return; }
-    const opto = user;
+    // A receita sai no nome (e CRO) do optometrista. Se quem atende não é opto (ex.: gerente), usa o opto do agendamento.
+    let opto = user;
+    if (user.perfil !== 'opto' && sel.opto_id) {
+      const doAgendamento = (await listarUsuarios()).find(u => u.id === sel.opto_id);
+      if (doAgendamento) opto = doAgendamento;
+    }
     const agora = new Date();
     const dataHora = `${agora.getFullYear()}-${pad(agora.getMonth()+1)}-${pad(agora.getDate())} ${pad(agora.getHours())}:${pad(agora.getMinutes())}`;
     const row = {
@@ -1355,9 +1360,8 @@ function Atendimento({ user, selectedUnidade='' }) {
     const {data, error} = await supabase.from('receitas').insert(row).select().single();
     if (error) { alert('Erro ao gerar a receita: ' + error.message); return; }
     // guarda a data de nascimento no cadastro do paciente, se ainda não tiver
-    await salvarNascNoCadastro();
-    // gerou receita = compareceu (o banco também garante isso)
-    await supabase.from('agenda').update({ status: 'Compareceu' }).eq('id', sel.id);
+    // gerou receita = compareceu (o banco também garante isso); as duas gravações vão juntas
+    await Promise.all([salvarNascNoCadastro(), supabase.from('agenda').update({ status: 'Compareceu' }).eq('id', sel.id)]);
     setSel(x => x ? { ...x, status: 'Compareceu' } : x);
     setReceita(data);
     showToast('Receita gerada! A pré-venda já pode registrar a conversão.');
@@ -1544,9 +1548,9 @@ function Conversao({ user, selectedUnidade='' }) {
     if (selectedUnidade) q = q.eq('unidade', selectedUnidade);
     const {data: receitas} = await q;
     // buscar conversoes para cada receita
-    let qc = supabase.from('conversoes').select('*');
-    if (selectedUnidade) qc = qc.eq('unidade', selectedUnidade);
-    const {data: convs} = await qc;
+    // conversões ligadas às receitas da lista (pela receita, não pela unidade)
+    const ids = (receitas||[]).map(r=>r.id);
+    const {data: convs} = ids.length ? await supabase.from('conversoes').select('*').in('receita_id', ids) : { data: [] };
     const convMap = {};
     (convs||[]).forEach(c=>{ convMap[c.receita_id]=c; });
     setRows((receitas||[]).map(r=>({...r, conversao: convMap[r.id]||null})));
@@ -1562,6 +1566,7 @@ function Conversao({ user, selectedUnidade='' }) {
       opto_nome:optoNome, data:today(), converteu:dados.converteu,
       valor_venda:dados.valor||0, produto:dados.produto||'',
       prevenda_id:user.id, prevenda_nome:user.nome,
+      unidade: rows.find(r=>r.id===receitaId)?.unidade || existing?.unidade || null,
     };
     if (existing) await supabase.from('conversoes').update(row).eq('id',existing.id);
     else await supabase.from('conversoes').insert(row);
@@ -1873,7 +1878,7 @@ function Relatorios({ selectedUnidade='' }) {
       listarUsuarios(),
       applyU(entre(supabase.from('agenda').select('id,data,status,opto_id,agendado_por,unidade,procedimento,meio_contato'))),
       applyU(supabase.from('receitas').select('id,agenda_id,opto_id,data,unidade')),
-      applyU(supabase.from('conversoes').select('receita_id,converteu,valor_venda')),
+      supabase.from('conversoes').select('receita_id,converteu,valor_venda'),
     ]);
     try {
     const os = (oLista||[]).filter(u=>u.perfil==='opto'&&u.ativo);
