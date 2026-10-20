@@ -1533,7 +1533,7 @@ function Conversao({ user, selectedUnidade='' }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
-  const per = usePeriodo('semana');
+  const per = usePeriodo('hoje');
   const [filtros, setFiltros] = useState({ status:'', opto:'', busca:'' });
   const [toast, setToast] = useState('');
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(''),3000); };
@@ -1682,7 +1682,7 @@ function ConvModal({ receita, onSave, onClose }) {
 function NoShow({ user, selectedUnidade='' }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const per = usePeriodo('mes');
+  const per = usePeriodo('hoje');
   const [filtros, setFiltros] = useState({ motivo:'', opto:'', resp:'', busca:'' });
   const [reagendar, setReagendar] = useState(null);
   const [toast, setToast] = useState('');
@@ -1781,7 +1781,7 @@ function NoShow({ user, selectedUnidade='' }) {
    RELATÓRIOS
 ══════════════════════════════════════════════════════ */
 /* ── Filtro de período padrão (Hoje / Semana / Mês / Personalizado / Tudo) ── */
-function usePeriodo(inicial='mes') {
+function usePeriodo(inicial='hoje') {
   const [periodo, setPeriodo] = useState(inicial);
   const [custom, setCustom] = useState({ de: today(), ate: today() });
   const { de, ate } = periodo === 'tudo' ? { de:'', ate:'' } : periodoDatas(periodo, custom.de, custom.ate);
@@ -1863,7 +1863,7 @@ function Relatorios({ selectedUnidade='' }) {
   const [funil, setFunil] = useState(null);
   const [funilAnt, setFunilAnt] = useState(null);
   const [loading, setLoading] = useState(true);
-  const per = usePeriodo('mes');
+  const per = usePeriodo('hoje');
   const { periodo, de, ate } = per;
   const ant = periodoAnterior(periodo, de, ate);
   const [filtros, setFiltros] = useState({ opto:'', resp:'', proc:'', contato:'' });
@@ -2227,7 +2227,7 @@ function UsuarioModal({ user, onSave, onClose }) {
 function Receitas({ user, selectedUnidade='' }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const per = usePeriodo('mes');
+  const per = usePeriodo('hoje');
   const [filtros, setFiltros] = useState({ opto:'', busca:'' });
   const [detalhe, setDetalhe] = useState(null);
 
