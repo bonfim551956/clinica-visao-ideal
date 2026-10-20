@@ -432,6 +432,32 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
    DASHBOARD
 ══════════════════════════════════════════════════════ */
 // Período do painel: hoje, semana (seg–dom), mês ou personalizado → { de, ate } em YYYY-MM-DD
+/* ── Jornada do paciente: agendado → compareceu/não → comprou/não comprou ── */
+// Liga cada agendamento à receita e à conversão (a conversão vem do PDV ou da pré-venda)
+async function anexarCompras(rows) {
+  const ids = (rows||[]).filter(a=>a.status==='Compareceu').map(a=>a.id);
+  if (!ids.length) return rows||[];
+  const { data: recs } = await supabase.from('receitas').select('id,agenda_id').in('agenda_id', ids);
+  const recIds = (recs||[]).map(r=>r.id);
+  const { data: convs } = recIds.length ? await supabase.from('conversoes').select('receita_id,converteu,valor_venda').in('receita_id', recIds) : { data: [] };
+  const porReceita = {}; (convs||[]).forEach(c => { if (!porReceita[c.receita_id] || c.converteu) porReceita[c.receita_id] = c; });
+  const porAgenda = {}; (recs||[]).forEach(r => { const c = porReceita[r.id]; if (c && (!porAgenda[r.agenda_id] || c.converteu)) porAgenda[r.agenda_id] = c; });
+  return rows.map(a => a.status==='Compareceu' ? { ...a, _compra: porAgenda[a.id] || null } : a);
+}
+const jornada = a => {
+  if (a.status === 'Compareceu') return a._compra?.converteu ? { label:'Comprou', cor:C.success, valor:a._compra.valor_venda } : { label:'Não comprou', cor:C.orange };
+  if (a.status === 'Não Compareceu') return { label:'Não compareceu', cor:C.danger };
+  if (a.status === 'Cancelado') return { label:'Cancelado', cor:C.gray };
+  return { label:'Agendado', cor:C.teal };
+};
+const StatusJornada = ({ a }) => {
+  const j = jornada(a);
+  return <span style={{display:'inline-flex',flexDirection:'column',gap:2}}>
+    <Badge color={j.cor}>{j.label}</Badge>
+    {j.valor > 0 && <span style={{fontSize:11,color:C.gray,paddingLeft:10}}>{fmtMoney(j.valor)}</span>}
+  </span>;
+};
+
 const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const periodoDatas = (tipo, de, ate) => {
   const h = new Date(); h.setHours(12,0,0,0);
@@ -596,7 +622,7 @@ function Agenda({ user, selectedUnidade='' }) {
     let q = supabase.from('agenda').select('*').eq('data', data).neq('status', 'Cancelado');
     if (unidade) q = q.eq('unidade', unidade);
     const { data: res } = await q;
-    return (res||[]).sort((a,b) => a.hora.localeCompare(b.hora));
+    return anexarCompras((res||[]).sort((a,b) => a.hora.localeCompare(b.hora)));
   }, [user, selectedUnidade]);
 
   useEffect(() => {
@@ -741,7 +767,7 @@ function Agenda({ user, selectedUnidade='' }) {
                         </td>
                         <td style={celAg}>{slot.procedimento||''}</td>
                         <td style={celAg}>{slot.meio_contato||''}</td>
-                        <td style={celAg}><Badge color={slot.status==='Compareceu'?C.success:slot.status==='Não Compareceu'?C.danger:C.teal}>{slot.status}</Badge></td>
+                        <td style={celAg}><StatusJornada a={slot}/></td>
                         <td style={celAg}>
                           <div style={acoesAg}>
                             <Btn size="sm" color={C.teal} style={btnAcao} onClick={()=>setModal({hora,existing:slot})}>Editar</Btn>
@@ -1052,7 +1078,7 @@ function ListaAtendimentos({ user, onAtender, selectedUnidade='' }) {
     const unidadeFilter = user.unidade || selectedUnidade || filtros.unidade;
     if (unidadeFilter) q = q.eq('unidade', unidadeFilter);
     const {data} = await q;
-    setRows(data||[]);
+    setRows(await anexarCompras(data||[]));
     setLoading(false);
   }, [filtros, selectedUnidade]);
 
@@ -1061,7 +1087,8 @@ function ListaAtendimentos({ user, onAtender, selectedUnidade='' }) {
 
   const [reagendar, setReagendar] = useState(null);
   const conta = st => rows.filter(a=>a.status===st).length;
-  const resumo = `${rows.length} registro(s) · ${conta('Agendado')} aguardando · ${conta('Compareceu')} atendido(s) · ${conta('Não Compareceu')} não compareceu`;
+  const comprou = rows.filter(a=>a._compra?.converteu).length;
+  const resumo = `${rows.length} registro(s) · ${conta('Agendado')} aguardando · ${conta('Não Compareceu')} não compareceu · ${conta('Compareceu')} atendido(s), ${comprou} comprou`;
   const podeAtender = PERFIS[user.perfil]?.nav.includes('atendimento');
   const salvarReagendamento = async ({ data, hora }) => {
     const a = reagendar;
@@ -1133,7 +1160,7 @@ function ListaAtendimentos({ user, onAtender, selectedUnidade='' }) {
                         : <span style={{color:C.gray,fontSize:12}}>—</span>}
                     </td>
                     <td style={{padding:'8px 12px'}}>
-                      <Badge color={a.status==='Compareceu'?C.success:a.status==='Não Compareceu'?C.danger:a.status==='Cancelado'?C.gray:C.teal}>{a.status}</Badge>
+                      <StatusJornada a={a}/>
                     </td>
                     <td style={{padding:'8px 12px'}}>
                       <div style={{display:'flex',gap:6}}>
@@ -1329,6 +1356,9 @@ function Atendimento({ user, selectedUnidade='' }) {
     if (error) { alert('Erro ao gerar a receita: ' + error.message); return; }
     // guarda a data de nascimento no cadastro do paciente, se ainda não tiver
     await salvarNascNoCadastro();
+    // gerou receita = compareceu (o banco também garante isso)
+    await supabase.from('agenda').update({ status: 'Compareceu' }).eq('id', sel.id);
+    setSel(x => x ? { ...x, status: 'Compareceu' } : x);
     setReceita(data);
     showToast('Receita gerada! A pré-venda já pode registrar a conversão.');
     setTabAte('receita');
@@ -1719,31 +1749,73 @@ function NoShow({ user, selectedUnidade='' }) {
 /* ══════════════════════════════════════════════════════
    RELATÓRIOS
 ══════════════════════════════════════════════════════ */
+// Período anterior equivalente (mês → mês anterior; demais → mesmo nº de dias imediatamente antes)
+const periodoAnterior = (tipo, de, ate) => {
+  const d = x => new Date(x + 'T12:00:00');
+  if (tipo === 'mes') { const ini = d(de); return { de: ymd(new Date(ini.getFullYear(), ini.getMonth()-1, 1)), ate: ymd(new Date(ini.getFullYear(), ini.getMonth(), 0)) }; }
+  const dias = Math.round((d(ate) - d(de)) / 864e5) + 1;
+  const fim = d(de); fim.setDate(fim.getDate() - 1);
+  const ini = new Date(fim); ini.setDate(fim.getDate() - dias + 1);
+  return { de: ymd(ini), ate: ymd(fim) };
+};
+
+// Funil da Visão Ideal a partir dos agendamentos do período (cancelados ficam fora)
+const montarFunil = (ag, rec, conv) => {
+  const lista = ag.filter(a => a.status !== 'Cancelado');
+  const recPorAgenda = {}; rec.forEach(r => { if (r.agenda_id) recPorAgenda[r.agenda_id] = r.id; });
+  const convPorReceita = {}; conv.forEach(c => { if (!convPorReceita[c.receita_id] || c.converteu) convPorReceita[c.receita_id] = c; });
+  const compareceu = lista.filter(a => a.status === 'Compareceu');
+  const compras = compareceu.map(a => convPorReceita[recPorAgenda[a.id]]).filter(c => c?.converteu);
+  return {
+    agendados: lista.length,
+    aguardando: lista.filter(a => a.status === 'Agendado').length,
+    compareceu: compareceu.length,
+    naoCompareceu: lista.filter(a => a.status === 'Não Compareceu').length,
+    comprou: compras.length,
+    naoComprou: compareceu.length - compras.length,
+    faturamento: compras.reduce((s, c) => s + Number(c.valor_venda || 0), 0),
+  };
+};
+const pct = (a, b) => b ? Math.round((a / b) * 100) : 0;
+
 function Relatorios({ selectedUnidade='' }) {
   const [optos, setOptos] = useState([]);
   const [stats, setStats] = useState([]);
   const [statsPrev, setStatsPrev] = useState([]);
+  const [funil, setFunil] = useState(null);
+  const [funilAnt, setFunilAnt] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [filtro, setFiltro] = useState({ de:'', ate:'' });
+  const [periodo, setPeriodo] = useState('mes');
+  const [custom, setCustom] = useState({ de: today(), ate: today() });
+  const { de, ate } = periodoDatas(periodo, custom.de, custom.ate);
+  const ant = periodoAnterior(periodo, de, ate);
+  const filtro = { de, ate };
+  const texto = (x, y) => x === y ? fmtDate(x) : `${fmtDate(x)} a ${fmtDate(y)}`;
 
   const load = useCallback(async () => {
     setLoading(true);
     const applyU = q => selectedUnidade ? q.eq('unidade', selectedUnidade) : q;
+    const entre = q => q.gte('data', ant.de).lte('data', ate);
     const [oRes, agRes, recRes, convRes] = await Promise.all([
       gerirUsuario('listar', {}),
-      applyU(supabase.from('agenda').select('*')),
-      applyU(supabase.from('receitas').select('*')),
-      applyU(supabase.from('conversoes').select('*')),
+      applyU(entre(supabase.from('agenda').select('id,data,status,opto_id,agendado_por,unidade'))),
+      applyU(supabase.from('receitas').select('id,agenda_id,opto_id,data,unidade')),
+      applyU(supabase.from('conversoes').select('receita_id,converteu,valor_venda')),
     ]);
+    try {
     const os = (oRes?.usuarios||[]).filter(u=>u.perfil==='opto'&&u.ativo);
-    const ag = agRes.data||[];
+    const agTudo = agRes.data||[];
     const rec = recRes.data||[];
     const conv = convRes.data||[];
+    const ag = agTudo.filter(a=>a.data>=de && a.data<=ate);
+    setFunil(montarFunil(ag, rec, conv));
+    setFunilAnt(montarFunil(agTudo.filter(a=>a.data>=ant.de && a.data<=ant.ate), rec, conv));
 
     setOptos(os);
+    const mRecPer = rec.filter(r=>r.data>=de && r.data<=ate);
     setStats(os.map(o=>{
-      const mAg = ag.filter(a=>a.opto_id===o.id && (!filtro.de||a.data>=filtro.de) && (!filtro.ate||a.data<=filtro.ate));
-      const mRec = rec.filter(r=>r.opto_id===o.id && (!filtro.de||r.data>=filtro.de) && (!filtro.ate||r.data<=filtro.ate));
+      const mAg = ag.filter(a=>a.opto_id===o.id && a.status!=='Cancelado');
+      const mRec = mRecPer.filter(r=>r.opto_id===o.id);
       const recIds = new Set(mRec.map(r=>r.id));
       const mConv = conv.filter(c=>recIds.has(c.receita_id));
       const convertidas = mConv.filter(c=>c.converteu);
@@ -1753,62 +1825,117 @@ function Relatorios({ selectedUnidade='' }) {
       return {
         nome: o.nome, cro: o.cro,
         agendados: mAg.length, compareceu: comp, naoComp,
-        receitas: mRec.length, conversoes: convertidas.length, totalConv: mConv.length,
-        taxaShow: mAg.length ? Math.round((comp/mAg.length)*100) : 0,
-        taxaConv: mConv.length ? Math.round((convertidas.length/mConv.length)*100) : 0,
+        receitas: mRec.length, conversoes: convertidas.length, totalConv: mRec.length,
+        taxaShow: pct(comp, mAg.length),
+        taxaConv: pct(convertidas.length, mRec.length),
         valorTotal: valor,
       };
     }));
 
-    // Ranking por Pré-Venda (agendado_por)
-    const agFiltrado = ag.filter(a=>(!filtro.de||a.data>=filtro.de)&&(!filtro.ate||a.data<=filtro.ate));
+    // Ranking por responsável (agendado_por)
     const prevMap = {};
-    agFiltrado.forEach(a=>{
+    ag.filter(a=>a.status!=='Cancelado').forEach(a=>{
       const nome = a.agendado_por||'(sem responsável)';
       if (!prevMap[nome]) prevMap[nome] = {nome, agendados:0, compareceu:0, naoComp:0};
       prevMap[nome].agendados++;
       if (a.status==='Compareceu') prevMap[nome].compareceu++;
       if (a.status==='Não Compareceu') prevMap[nome].naoComp++;
     });
-    const rankPrev = Object.values(prevMap)
-      .sort((a,b)=>b.agendados-a.agendados);
-    setStatsPrev(rankPrev);
-
+    setStatsPrev(Object.values(prevMap).sort((a,b)=>b.agendados-a.agendados));
+    } catch (e) { console.error('relatorio', e); }
     setLoading(false);
-  }, [filtro, selectedUnidade]);
+  }, [de, ate, ant.de, ant.ate, selectedUnidade]);
 
   useEffect(()=>{ load(); },[load]);
 
-  const totais = stats.reduce((acc,s)=>({
-    agendados:acc.agendados+s.agendados,
-    compareceu:acc.compareceu+s.compareceu,
-    receitas:acc.receitas+s.receitas,
-    conversoes:acc.conversoes+s.conversoes,
-    valorTotal:acc.valorTotal+s.valorTotal,
-  }),{agendados:0,compareceu:0,receitas:0,conversoes:0,valorTotal:0});
+  const PERIODOS = [['hoje','Hoje'],['semana','Semana'],['mes','Mês'],['personalizado','Personalizado']];
+  const f = funil || {}, fa = funilAnt || {};
+
+  // Variação contra o período anterior
+  const Delta = ({ atual, anterior, dinheiro, inverso }) => {
+    if (!anterior && !atual) return <span style={{fontSize:12,color:C.gray}}>sem dados no período anterior</span>;
+    const dif = (atual||0) - (anterior||0);
+    const varPct = anterior ? Math.round((dif / anterior) * 100) : null;
+    const bom = inverso ? dif < 0 : dif > 0;
+    const cor = dif === 0 ? C.gray : bom ? C.success : C.danger;
+    return <span style={{fontSize:12,color:C.gray}}>
+      <span style={{color:cor,fontWeight:700}}>{dif > 0 ? '▲' : dif < 0 ? '▼' : '='} {varPct !== null ? `${Math.abs(varPct)}%` : (dif > 0 ? 'novo' : '')}</span>
+      {' '}vs {dinheiro ? fmtMoney(anterior) : (anterior||0)} antes
+    </span>;
+  };
+
+  // Etapa do funil
+  const Etapa = ({ titulo, valor, base, cor=C.teal, anterior, inverso, pendente, children }) => (
+    <div style={{flex:1,minWidth:150,background:C.white,borderRadius:16,padding:'16px 18px',border:`1px solid ${C.border}`,
+      borderTop:`4px solid ${pendente?C.grayL:cor}`,opacity:pendente?.75:1}}>
+      <div style={{fontSize:12,fontWeight:700,color:C.textSm,textTransform:'uppercase',letterSpacing:.4}}>{titulo}</div>
+      <div style={{display:'flex',alignItems:'baseline',gap:8,marginTop:6}}>
+        <span style={{fontSize:32,fontWeight:800,color:C.navy,lineHeight:1.1}}>{pendente ? '—' : valor}</span>
+        {base !== undefined && !pendente && <span style={{fontSize:13,fontWeight:700,color:cor}}>{pct(valor, base)}%</span>}
+      </div>
+      <div style={{marginTop:6}}>{pendente ? <span style={{fontSize:12,color:C.gray}}>{pendente}</span> : <Delta atual={valor} anterior={anterior} inverso={inverso}/>}</div>
+      {children}
+    </div>
+  );
+  const Seta = () => <div style={{display:'flex',justifyContent:'center',color:C.gray,fontSize:18,lineHeight:1,padding:'6px 0'}}>↓</div>;
 
   return (
     <div>
-      <Card style={{marginBottom:16}}>
-        <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end'}}>
-          <Input label="De" type="date" value={filtro.de} onChange={e=>setFiltro(f=>({...f,de:e.target.value}))}/>
-          <Input label="Até" type="date" value={filtro.ate} onChange={e=>setFiltro(f=>({...f,ate:e.target.value}))}/>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',gap:16,flexWrap:'wrap',marginBottom:20}}>
+        <div>
+          <h2 style={{fontSize:22,fontWeight:800,color:C.navy}}>Funil Visão Ideal</h2>
+          <p style={{color:C.gray,fontSize:13,marginTop:2}}>{texto(de, ate)} · comparado com {texto(ant.de, ant.ate)}</p>
         </div>
-      </Card>
-
-      <div className="resp-grid-4" style={{marginBottom:20}}>
-        {[
-          {label:'Agendamentos',value:totais.agendados,color:C.teal},
-          {label:'Comparecimentos',value:totais.compareceu,color:C.success},
-          {label:'Receitas Geradas',value:totais.receitas,color:C.tealL},
-          {label:'Conversões',value:totais.conversoes,color:C.orange},
-        ].map(k=>(
-          <Card key={k.label} style={{textAlign:'center'}}>
-            <div style={{fontSize:28,fontWeight:800,color:k.color}}>{k.value}</div>
-            <div style={{fontSize:12,color:C.navy,fontWeight:600,marginTop:4}}>{k.label}</div>
-          </Card>
-        ))}
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'flex-end'}}>
+          {periodo === 'personalizado' && <>
+            <Input label="De" type="date" value={custom.de} onChange={e=>setCustom(c=>({...c,de:e.target.value, ate: c.ate < e.target.value ? e.target.value : c.ate}))}/>
+            <Input label="Até" type="date" value={custom.ate} min={custom.de} onChange={e=>setCustom(c=>({...c,ate:e.target.value}))}/>
+          </>}
+          <div style={{display:'flex',gap:6}}>
+            {PERIODOS.map(([id,label])=>{
+              const ativo = periodo === id;
+              return <button key={id} onClick={()=>setPeriodo(id)}
+                style={{padding:'8px 14px',borderRadius:999,fontSize:13,fontWeight:600,cursor:'pointer',
+                  border:`1.5px solid ${ativo?C.teal:C.border}`,background:ativo?C.teal:C.white,color:ativo?C.white:C.textSm}}>{label}</button>;
+            })}
+          </div>
+        </div>
       </div>
+
+      {loading || !funil ? <Spinner/> : (
+        <Card style={{marginBottom:20,padding:24}}>
+          {/* 1. Leads */}
+          <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+            <Etapa titulo="Leads" pendente="Aguardando a integração com a fonte dos leads"/>
+          </div>
+          <Seta/>
+          {/* 2. Sem interesse x Agendados */}
+          <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+            <Etapa titulo="Sem interesse" pendente="Depende da fonte dos leads"/>
+            <Etapa titulo="Agendados" valor={f.agendados} anterior={fa.agendados} cor={C.teal}>
+              {f.aguardando > 0 && <div style={{fontSize:12,color:C.gray,marginTop:4}}>{f.aguardando} ainda por vir</div>}
+            </Etapa>
+          </div>
+          <Seta/>
+          {/* 3. Compareceu x Não compareceu */}
+          <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+            <Etapa titulo="Compareceu" valor={f.compareceu} base={f.agendados} anterior={fa.compareceu} cor={C.teal}/>
+            <Etapa titulo="Não compareceu" valor={f.naoCompareceu} base={f.agendados} anterior={fa.naoCompareceu} cor={C.danger} inverso/>
+          </div>
+          <Seta/>
+          {/* 4. Comprou x Não comprou */}
+          <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+            <Etapa titulo="Comprou" valor={f.comprou} base={f.compareceu} anterior={fa.comprou} cor={C.success}>
+              <div style={{fontSize:14,fontWeight:700,color:C.navy,marginTop:8}}>{fmtMoney(f.faturamento)}</div>
+              <Delta atual={f.faturamento} anterior={fa.faturamento} dinheiro/>
+            </Etapa>
+            <Etapa titulo="Não comprou" valor={f.naoComprou} base={f.compareceu} anterior={fa.naoComprou} cor={C.orange} inverso/>
+          </div>
+          <p style={{fontSize:12,color:C.gray,marginTop:16,lineHeight:1.5}}>
+            Os percentuais são sobre a etapa anterior. "Comprou" vem da venda no PDV ligada à receita do exame (ou do registro da pré-venda). Cancelados ficam fora do funil.
+          </p>
+        </Card>
+      )}
 
       {loading ? <Spinner/> : (<>
         {/* RANKING PRÉ-VENDAS */}
@@ -1817,7 +1944,7 @@ function Relatorios({ selectedUnidade='' }) {
           <p style={{fontSize:12,color:C.gray,marginBottom:14}}>Inclui pré-vendas, gerentes e IA</p>
           <div className="tbl-wrap">
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
-              <thead><tr style={{background:C.orange,color:C.white}}>
+              <thead><tr style={{background:C.teal,color:C.white}}>
                 {['#','Responsável','Agendamentos','Comparecimentos','No-Show','% Comparecimento'].map(h=>(
                   <th key={h} style={{padding:'9px 12px',textAlign:'left',whiteSpace:'nowrap'}}>{h}</th>
                 ))}
@@ -1828,7 +1955,7 @@ function Relatorios({ selectedUnidade='' }) {
                   const isIA = s.nome==='IA';
                   return (
                   <tr key={s.nome} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
-                    <td style={{padding:'8px 12px',fontWeight:800,color:i===0?C.orange:C.gray,fontSize:i===0?16:13}}>{i+1}°</td>
+                    <td style={{padding:'8px 12px',fontWeight:800,color:i===0?C.navy:C.gray,fontSize:i===0?16:13}}>{i+1}°</td>
                     <td style={{padding:'8px 12px'}}>
                       <span style={{
                         display:'inline-block',padding:'2px 10px',borderRadius:20,fontSize:12,fontWeight:700,
@@ -1837,12 +1964,12 @@ function Relatorios({ selectedUnidade='' }) {
                       }}>{s.nome}</span>
                     </td>
                     <td style={{padding:'8px 12px',fontWeight:700,color:C.navy}}>{s.agendados}</td>
-                    <td style={{padding:'8px 12px',color:C.success,fontWeight:600}}>{s.compareceu}</td>
-                    <td style={{padding:'8px 12px',color:C.danger}}>{s.naoComp}</td>
+                    <td style={{padding:'8px 12px'}}>{s.compareceu}</td>
+                    <td style={{padding:'8px 12px'}}>{s.naoComp}</td>
                     <td style={{padding:'8px 12px'}}>
                       <div style={{display:'flex',alignItems:'center',gap:8}}>
                         <div style={{flex:1,height:6,background:C.grayL,borderRadius:3,overflow:'hidden'}}>
-                          <div style={{height:'100%',width:`${taxaShow}%`,background:taxaShow>=70?C.success:taxaShow>=50?C.warn:C.danger,borderRadius:3,transition:'width .3s'}}/>
+                          <div style={{height:'100%',width:`${taxaShow}%`,background:C.teal,borderRadius:3,transition:'width .3s'}}/>
                         </div>
                         <span style={{fontSize:12,fontWeight:600,minWidth:32}}>{taxaShow}%</span>
                       </div>
@@ -1860,7 +1987,7 @@ function Relatorios({ selectedUnidade='' }) {
           <h3 style={{fontSize:15,fontWeight:700,marginBottom:14,color:C.navy}}>Por Optometrista</h3>
           <div className="tbl-wrap">
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
-              <thead><tr style={{background:C.navy,color:C.white}}>
+              <thead><tr style={{background:C.teal,color:C.white}}>
                 {['Optometrista','CRO','Agend.','Comp.','No-Show','Receitas','Conversões','% Conv','Faturamento'].map(h=>(
                   <th key={h} style={{padding:'9px 12px',textAlign:'left',whiteSpace:'nowrap'}}>{h}</th>
                 ))}
