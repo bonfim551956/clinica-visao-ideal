@@ -1260,7 +1260,9 @@ function imprimirReceita(r) {
       <tbody>
         <tr><td class="olho">OD</td><td>${esc(r.od_esf)||'—'}</td><td>${esc(r.od_cil)||'—'}</td><td>${eixo(r.od_eixo)}</td><td></td><td>${dnp(r.od_dnp)}</td></tr>
         <tr><td class="olho">OE</td><td>${esc(r.oe_esf)||'—'}</td><td>${esc(r.oe_cil)||'—'}</td><td>${eixo(r.oe_eixo)}</td><td></td><td>${dnp(r.oe_dnp)}</td></tr>
-        ${temAdicao ? `<tr class="adicao-row"><td class="olho" colspan="2">Adição</td><td colspan="4" style="text-align:left;padding-left:16px">OD: ${esc(r.od_adicao)||'—'} &nbsp;&nbsp; OE: ${esc(r.oe_adicao)||'—'}</td></tr>` : ''}
+        ${temAdicao ? (r.od_adicao === r.oe_adicao
+          ? `<tr class="adicao-row"><td class="olho" colspan="2">Adição</td><td colspan="4" style="text-align:left;padding-left:16px">AO (ambos os olhos): ${esc(r.od_adicao)}</td></tr>`
+          : `<tr class="adicao-row"><td class="olho" colspan="2">Adição</td><td colspan="4" style="text-align:left;padding-left:16px">OD: ${esc(r.od_adicao)||'—'} &nbsp;&nbsp; OE: ${esc(r.oe_adicao)||'—'}</td></tr>`) : ''}
       </tbody>
     </table>
     ${r.observacoes ? `<div class="section-title">Observações</div><div class="obs-box">${esc(r.observacoes)}</div>` : ''}
@@ -1498,11 +1500,13 @@ function Atendimento({ user, selectedUnidade='' }) {
     setErrosRx(e => { const n = {...e}; if (r.erro) n[fk] = r.erro; else delete n[fk];
       if (tipo === 'cil') delete n[`${olho}_eixo`]; // cilíndrico mudou: reavalia o aviso de eixo na validação final
       return n; });
-    if (!r.erro) setF(fk, r.valor === 'Plano' || r.valor === 'N/A' ? r.valor : r.valor);
+    if (!r.erro) { setF(fk, r.valor); if (fk === 'od_add') setF('oe_add', r.valor); }
   };
-  const rxCell = fk => (
-    <td key={fk} style={{padding:'6px 8px',verticalAlign:'top'}}>
-      <input value={form[fk]} onChange={e=>setF(fk,e.target.value)} onBlur={()=>formatarRx(fk)}
+  // Adição é uma só para os dois olhos (AO): um campo que grava em OD e OE
+  const rxCell = (fk, extra = {}) => (
+    <td key={fk} {...extra} style={{padding:'6px 8px',verticalAlign:extra.rowSpan?'middle':'top',...(extra.rowSpan?{background:C.tealBg}:{})}}>
+      {extra.rowSpan && <div style={{fontSize:11,fontWeight:700,color:C.teal,textAlign:'center',marginBottom:4}}>AO (ambos os olhos)</div>}
+      <input value={form[fk]} onChange={e=>{ const v=e.target.value; setF(fk,v); if (fk==='od_add') setF('oe_add',v); }} onBlur={()=>formatarRx(fk)}
         placeholder={PLACEHOLDER_RX[fk.slice(3)]} inputMode="decimal"
         style={{border:`1.5px solid ${errosRx[fk]?C.danger:C.border}`,borderRadius:6,padding:'7px 8px',fontSize:13,width:'100%',background:C.white,textAlign:'center'}}/>
       {errosRx[fk] && <div style={{color:C.danger,fontSize:11,marginTop:4,lineHeight:1.3}}>{errosRx[fk]}</div>}
@@ -1578,16 +1582,16 @@ function Atendimento({ user, selectedUnidade='' }) {
             <table style={{width:'100%',borderCollapse:'collapse'}}>
               <thead><tr style={{background:C.teal,color:C.white}}>
                 <th style={{padding:'8px 12px',textAlign:'left'}}>Olho</th>
-                {['Esférico','Cilíndrico (−)','Eixo (0–180)','Adição','DNP (mm)'].map(h=><th key={h} style={{padding:'8px 12px',textAlign:'center'}}>{h}</th>)}
+                {['Esférico','Cilíndrico (−)','Eixo (0–180)','Adição (AO)','DNP (mm)'].map(h=><th key={h} style={{padding:'8px 12px',textAlign:'center'}}>{h}</th>)}
               </tr></thead>
               <tbody>
                 <tr style={{background:C.bg}}>
                   <td style={{padding:'8px 12px',fontWeight:700,color:C.teal}}>OD</td>
-                  {CAMPOS_RX.map(c => rxCell(`od_${c}`))}
+                  {CAMPOS_RX.map(c => c === 'add' ? rxCell('od_add', { rowSpan: 2 }) : rxCell(`od_${c}`))}
                 </tr>
                 <tr>
                   <td style={{padding:'8px 12px',fontWeight:700,color:C.tealL}}>OE</td>
-                  {CAMPOS_RX.map(c => rxCell(`oe_${c}`))}
+                  {CAMPOS_RX.filter(c => c !== 'add').map(c => rxCell(`oe_${c}`))}
                 </tr>
               </tbody>
             </table>
@@ -1598,7 +1602,7 @@ function Atendimento({ user, selectedUnidade='' }) {
             {receita && <Badge color={C.success}>Receita gerada — disponível para conversão</Badge>}
           </div>
           <p style={{fontSize:12,color:C.gray,marginTop:12}}>
-            Digite os valores (vírgula ou ponto). O cilíndrico é sempre negativo, o eixo vai de 0 a 180 e é obrigatório quando há cilíndrico. Campos vazios saem como "Plano" ou "N/A".
+            Digite os valores (vírgula ou ponto). O cilíndrico é sempre negativo, o eixo vai de 0 a 180 e é obrigatório quando há cilíndrico. A adição é única para os dois olhos (AO). Campos vazios saem como "Plano" ou "N/A".
           </p>
         </Card>
       )}
@@ -1615,12 +1619,17 @@ function Atendimento({ user, selectedUnidade='' }) {
               </tr></thead>
               <tbody>
                 {[['OD','od_esf','od_cil','od_eixo','od_adicao','od_dnp'],
-                  ['OE','oe_esf','oe_cil','oe_eixo','oe_adicao','oe_dnp']].map(([lbl,...fields])=>(
+                  ['OE','oe_esf','oe_cil','oe_eixo','oe_adicao','oe_dnp']].map(([lbl,...fields],i)=>{
+                  const ao = receita.od_adicao === receita.oe_adicao;
+                  return (
                   <tr key={lbl} style={{textAlign:'center'}}>
                     <td style={{padding:'8px 12px',fontWeight:700,color:C.teal}}>{lbl}</td>
-                    {fields.map(f=><td key={f} style={{padding:'8px 12px'}}>{receita[f]||'—'}</td>)}
+                    {fields.map(f=>{
+                      if (f.endsWith('_adicao') && ao) return i===0 ? <td key={f} rowSpan={2} style={{padding:'8px 12px',background:C.tealBg}}><div style={{fontSize:11,fontWeight:700,color:C.teal}}>AO</div>{receita.od_adicao||'—'}</td> : null;
+                      return <td key={f} style={{padding:'8px 12px'}}>{receita[f]||'—'}</td>;
+                    })}
                   </tr>
-                ))}
+                );})}
               </tbody>
             </table>
           </div>
@@ -2434,7 +2443,9 @@ function Receitas({ user, selectedUnidade='' }) {
                       <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_esf']||'—'}</td>
                       <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_cil']||'—'}</td>
                       <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_eixo']||'—'}</td>
-                      <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_adicao']||'—'}</td>
+                      {detalhe.od_adicao === detalhe.oe_adicao
+                        ? (i===0 && <td rowSpan={2} style={{padding:'8px 12px',textAlign:'center',background:C.tealBg}}><div style={{fontSize:11,fontWeight:700,color:C.teal}}>AO</div>{detalhe.od_adicao||'—'}</td>)
+                        : <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_adicao']||'—'}</td>}
                       <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_dnp']||'—'}</td>
                     </tr>
                   ))}
