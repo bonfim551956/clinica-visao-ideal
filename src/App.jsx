@@ -1285,6 +1285,112 @@ function imprimirReceita(r) {
 }
 
 /* ══════════════════════════════════════════════════════
+   DECLARAÇÃO DE COMPARECIMENTO
+══════════════════════════════════════════════════════ */
+const soDigitos = v => String(v||'').replace(/\D/g,'');
+const fmtCPF = v => { const d = soDigitos(v).slice(0,11); return d.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})\.(\d{3})(\d)/,'$1.$2.$3').replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/,'$1.$2.$3-$4'); };
+const cpfValido = v => {
+  const d = soDigitos(v);
+  if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
+  const dv = n => { let s = 0; for (let i = 0; i < n; i++) s += Number(d[i]) * (n + 1 - i); const r = (s * 10) % 11; return r === 10 ? 0 : r; };
+  return dv(9) === Number(d[9]) && dv(10) === Number(d[10]);
+};
+const horaMais = (h, min) => { const [a,b] = String(h||'00:00').split(':').map(Number); const t = (a*60 + b + min + 1440) % 1440; return `${pad(Math.floor(t/60))}:${pad(t%60)}`; };
+
+function imprimirDeclaracao(r, { cpf, inicio, fim }) {
+  const logoUrl = window.location.origin + '/logo-visao-ideal.png';
+  const dAt = String(r.data_hora_atendimento || '').split(' ')[0] || r.data || today();
+  const unidade = r.unidade || r.opto_unidade || 'São Vicente';
+  const endereco = r.opto_endereco || ENDERECOS_UNIDADES[unidade] || ENDERECOS_UNIDADES['São Vicente'];
+  const dataEmissao = new Date(dAt + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+  const cro = fmtCro(r.opto_cro);
+  const w = window.open('', '_blank');
+  if (!w) { alert('Permita popups neste site para imprimir a declaração.'); return; }
+  w.document.write(`<!DOCTYPE html><html><head><title>Declaração de Comparecimento</title><meta charset="utf-8"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#1E3A5F;padding:22mm 24mm 16mm 24mm;width:210mm;min-height:297mm;display:flex;flex-direction:column}
+    .header{display:flex;align-items:center;gap:20px;padding-bottom:14px;border-bottom:3px solid #357F96;margin-bottom:48px}
+    .logo{height:58px;object-fit:contain}
+    .titulo{font-size:18px;font-weight:800;letter-spacing:.5px;text-transform:uppercase}
+    .subtitulo{font-size:12px;color:#357F96;font-weight:600;margin-top:3px}
+    h1{font-size:20px;font-weight:800;text-align:center;letter-spacing:1.5px;margin-bottom:40px}
+    .texto{font-size:15px;line-height:2;text-align:justify}
+    .texto b{font-weight:700}
+    .local{font-size:15px;margin-top:40px;text-align:right}
+    .assinatura{margin-top:80px;display:flex;flex-direction:column;align-items:center;gap:4px}
+    .linha{border-top:1.5px solid #1E3A5F;width:300px;margin-bottom:8px}
+    .nome{font-size:14px;font-weight:700}
+    .reg{font-size:12px;color:#555}
+    .carimbo{font-size:11px;color:#999;margin-top:10px}
+    .footer{margin-top:auto;border-top:1px solid #ddd;padding-top:10px;font-size:10px;color:#999;text-align:center}
+    @media print{html,body{width:210mm;height:297mm}body{padding:20mm 22mm 14mm 22mm}@page{size:A4 portrait;margin:0}}
+  </style></head><body>
+    <div class="header">
+      <img src="${logoUrl}" alt="Clínica Visão Ideal" class="logo" onerror="this.style.display='none'"/>
+      <div><div class="titulo">Clínica Visão Ideal</div><div class="subtitulo">Unidade ${esc(unidade)}</div></div>
+    </div>
+    <h1>DECLARAÇÃO DE COMPARECIMENTO</h1>
+    <p class="texto">Declaro, para os devidos fins, que o(a) Sr.(a) <b>${esc(r.paciente_nome)}</b>, portador(a) do CPF nº <b>${esc(fmtCPF(cpf))}</b>,
+    compareceu a este estabelecimento (<b>Clínica Visão Ideal – ${esc(unidade)}</b>), localizado em ${esc(endereco)},
+    no dia <b>${esc(fmtDate(dAt))}</b>, no período das <b>${esc(inicio)}</b> às <b>${esc(fim)}</b> horas,
+    para a realização de avaliação visual / atendimento optométrico.</p>
+    <p class="local">${esc(unidade)}/SP, ${esc(dataEmissao)}.</p>
+    <div class="assinatura">
+      <div class="linha"></div>
+      <div class="nome">${esc(r.opto_nome)}</div>
+      <div class="reg">Optometrista — CBO 3223${cro ? ' · ' + esc(cro) : ''}</div>
+      <div class="carimbo">Carimbo e assinatura</div>
+    </div>
+    <div class="footer">Clínica Visão Ideal &nbsp;·&nbsp; ${esc(endereco)}</div>
+    <script>window.onload=()=>{ setTimeout(()=>window.print(),200); };</script>
+  </body></html>`);
+  w.document.close();
+}
+
+// Pede o CPF (obrigatório) e o horário antes de gerar a declaração. O CPF não é gravado no sistema.
+function DeclaracaoModal({ receita, horaAgenda, onClose }) {
+  const fimPadrao = String(receita.data_hora_atendimento || '').split(' ')[1]?.slice(0,5) || `${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`;
+  const [cpf, setCpf] = useState('');
+  const [inicio, setInicio] = useState(horaAgenda && horaAgenda < fimPadrao ? horaAgenda.slice(0,5) : horaMais(fimPadrao, -30));
+  const [fim, setFim] = useState(fimPadrao);
+  const [erro, setErro] = useState('');
+  const gerar = () => {
+    if (!soDigitos(cpf)) return setErro('Informe o CPF do paciente.');
+    if (!cpfValido(cpf)) return setErro('CPF inválido. Confira os números.');
+    if (!inicio || !fim || inicio >= fim) return setErro('O horário de saída precisa ser depois da chegada.');
+    setErro('');
+    imprimirDeclaracao(receita, { cpf, inicio, fim });
+    onClose();
+  };
+  return (
+    <Modal title="Declaração de comparecimento" onClose={onClose} width={460}>
+      <div style={{display:'flex',flexDirection:'column',gap:14}}>
+        <div style={{background:C.tealBg,borderRadius:12,padding:'12px 16px'}}>
+          <div style={{fontWeight:700,color:C.navy}}>{receita.paciente_nome}</div>
+          <div style={{fontSize:12,color:C.gray,marginTop:2}}>{fmtDate(String(receita.data_hora_atendimento||'').split(' ')[0] || receita.data)} · {receita.unidade || 'Clínica Visão Ideal'} · {receita.opto_nome}</div>
+        </div>
+        <div>
+          <Input label={<>CPF do paciente <span style={{color:C.danger}}>*</span></>} value={cpf} inputMode="numeric" placeholder="000.000.000-00" autoFocus
+            onChange={e=>{ setCpf(fmtCPF(e.target.value)); setErro(''); }} onKeyDown={e=>e.key==='Enter'&&gerar()}
+            style={erro.startsWith('CPF') || erro.startsWith('Informe') ? {['--borda']:C.danger} : {}}/>
+          <div style={{fontSize:11,color:C.gray,marginTop:4}}>Usado só nesta declaração; não fica gravado no sistema.</div>
+        </div>
+        <div style={{display:'flex',gap:12}}>
+          <Input label="Chegada" type="time" value={inicio} onChange={e=>{ setInicio(e.target.value); setErro(''); }} style={{flex:1}}/>
+          <Input label="Saída" type="time" value={fim} onChange={e=>{ setFim(e.target.value); setErro(''); }} style={{flex:1}}/>
+        </div>
+        {erro && <div style={{fontSize:12,color:C.danger,fontWeight:600}}>{erro}</div>}
+        <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:4}}>
+          <Btn outline color={C.gray} onClick={onClose}>Cancelar</Btn>
+          <Btn color={C.teal} onClick={gerar}>Gerar declaração</Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ══════════════════════════════════════════════════════
    ATENDIMENTO
 ══════════════════════════════════════════════════════ */
 function Atendimento({ user, selectedUnidade='' }) {
@@ -1294,6 +1400,7 @@ function Atendimento({ user, selectedUnidade='' }) {
     od_esf:'',od_cil:'',od_eixo:'',od_add:'',od_dnp:'',
     oe_esf:'',oe_cil:'',oe_eixo:'',oe_add:'',oe_dnp:'' });
   const [receita, setReceita] = useState(null);
+  const [declaracao, setDeclaracao] = useState(false);
   const [toast, setToast] = useState('');
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(''),3000); };
   const setF = (k,v) => setForm(f=>({...f,[k]:v}));
@@ -1517,9 +1624,11 @@ function Atendimento({ user, selectedUnidade='' }) {
               </tbody>
             </table>
           </div>
-          <div style={{textAlign:'right',marginTop:16}}>
+          <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:16,flexWrap:'wrap'}}>
+            <Btn outline color={C.teal} onClick={()=>setDeclaracao(true)}>Declaração de comparecimento</Btn>
             <Btn color={C.teal} onClick={()=>imprimirReceita(receita)}>Imprimir Receita</Btn>
           </div>
+          {declaracao && <DeclaracaoModal receita={receita} horaAgenda={sel.hora} onClose={()=>setDeclaracao(false)}/>}
         </Card>
       )}
     </div>
@@ -2230,6 +2339,7 @@ function Receitas({ user, selectedUnidade='' }) {
   const per = usePeriodo('hoje');
   const [filtros, setFiltros] = useState({ opto:'', busca:'' });
   const [detalhe, setDetalhe] = useState(null);
+  const [declaracao, setDeclaracao] = useState(null);
 
   const load = useCallback(async () => {
     let q = supabase.from('receitas').select('*').order('data',{ascending:false});
@@ -2298,7 +2408,8 @@ function Receitas({ user, selectedUnidade='' }) {
           </div>
         </Card>
       )}
-      {detalhe && (
+      {declaracao && <DeclaracaoModal receita={declaracao.receita} horaAgenda={declaracao.hora} onClose={()=>setDeclaracao(null)}/>}
+      {detalhe && !declaracao && (
         <Modal title="Receita" onClose={()=>setDetalhe(null)} width={580}>
           <div style={{display:'flex',flexDirection:'column',gap:14}}>
             {/* Cabeçalho */}
@@ -2331,7 +2442,11 @@ function Receitas({ user, selectedUnidade='' }) {
               </table>
             </div>
             {detalhe.observacoes && <div style={{background:C.orangeBg,borderLeft:`3px solid ${C.orange}`,borderRadius:'0 8px 8px 0',padding:'10px 14px',fontSize:13}}><strong>Observações:</strong> {detalhe.observacoes}</div>}
-            <div style={{textAlign:'right',paddingTop:4}}>
+            <div style={{display:'flex',gap:10,justifyContent:'flex-end',paddingTop:4,flexWrap:'wrap'}}>
+              <Btn size="sm" outline color={C.teal} onClick={async ()=>{
+                const { data } = detalhe.agenda_id ? await supabase.from('agenda').select('hora').eq('id', detalhe.agenda_id).maybeSingle() : { data: null };
+                setDeclaracao({ receita: detalhe, hora: data?.hora || '' });
+              }}>Declaração de comparecimento</Btn>
               <Btn size="sm" color={C.teal} onClick={()=>imprimirReceita(detalhe)}>Imprimir Receita</Btn>
             </div>
           </div>
