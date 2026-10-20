@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase, entrar, usuarioDaSessao, gerirUsuario, sair } from './supabase';
+import { supabase, entrar, usuarioDaSessao, gerirUsuario, sair, listarUsuarios } from './supabase';
 
 /* ── helpers ── */
 const pad = n => String(n).padStart(2,'0');
@@ -441,11 +441,10 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
 async function anexarCompras(rows) {
   const ids = (rows||[]).filter(a=>a.status==='Compareceu').map(a=>a.id);
   if (!ids.length) return rows||[];
-  const { data: recs } = await supabase.from('receitas').select('id,agenda_id').in('agenda_id', ids);
-  const recIds = (recs||[]).map(r=>r.id);
-  const { data: convs } = recIds.length ? await supabase.from('conversoes').select('receita_id,converteu,valor_venda').in('receita_id', recIds) : { data: [] };
-  const porReceita = {}; (convs||[]).forEach(c => { if (!porReceita[c.receita_id] || c.converteu) porReceita[c.receita_id] = c; });
-  const porAgenda = {}; (recs||[]).forEach(r => { const c = porReceita[r.id]; if (c && (!porAgenda[r.agenda_id] || c.converteu)) porAgenda[r.agenda_id] = c; });
+  // receita + conversões numa única ida ao banco
+  const { data: recs } = await supabase.from('receitas').select('id,agenda_id,conversoes(converteu,valor_venda)').in('agenda_id', ids);
+  const porAgenda = {};
+  (recs||[]).forEach(r => (r.conversoes||[]).forEach(c => { if (!porAgenda[r.agenda_id] || c.converteu) porAgenda[r.agenda_id] = c; }));
   return rows.map(a => a.status==='Compareceu' ? { ...a, _compra: porAgenda[a.id] || null } : a);
 }
 const jornada = a => {
@@ -612,10 +611,7 @@ function Agenda({ user, selectedUnidade='' }) {
 
   useEffect(() => {
     // Optometristas ativos (cada loja tem o seu); usado para preencher o opto do agendamento
-    gerirUsuario('listar', {}).then(r => {
-      const todos = r?.usuarios || [];
-      setOptos(todos.filter(u => u.perfil === 'opto' && u.ativo));
-    });
+    listarUsuarios().then(todos => setOptos(todos.filter(u => u.perfil === 'opto' && u.ativo)));
     supabase.from('pacientes').select('*').order('nome').then(({data})=>setPacientes(data||[]));
   }, []);
 
@@ -1061,7 +1057,7 @@ function ListaAtendimentos({ user, onAtender, selectedUnidade='' }) {
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(''),3000); };
 
   useEffect(()=>{
-    gerirUsuario('listar', {}).then(r => setOptos((r?.usuarios||[]).filter(u=>u.perfil==='opto')));
+    listarUsuarios().then(todos => setOptos(todos.filter(u=>u.perfil==='opto')));
     // Carrega pré-vendas + IA para o filtro de responsável
     supabase.from('usuarios').select('nome').in('perfil',['prevenda','supervisor','diretor','gerente'])
       .then(({data})=>{
@@ -1873,14 +1869,14 @@ function Relatorios({ selectedUnidade='' }) {
     setLoading(true);
     const applyU = q => selectedUnidade ? q.eq('unidade', selectedUnidade) : q;
     const entre = q => q.gte('data', ant.de).lte('data', ate);
-    const [oRes, agRes, recRes, convRes] = await Promise.all([
-      gerirUsuario('listar', {}),
+    const [oLista, agRes, recRes, convRes] = await Promise.all([
+      listarUsuarios(),
       applyU(entre(supabase.from('agenda').select('id,data,status,opto_id,agendado_por,unidade,procedimento,meio_contato'))),
       applyU(supabase.from('receitas').select('id,agenda_id,opto_id,data,unidade')),
       applyU(supabase.from('conversoes').select('receita_id,converteu,valor_venda')),
     ]);
     try {
-    const os = (oRes?.usuarios||[]).filter(u=>u.perfil==='opto'&&u.ativo);
+    const os = (oLista||[]).filter(u=>u.perfil==='opto'&&u.ativo);
     const rec = recRes.data||[];
     const conv = convRes.data||[];
     const agBruto = agRes.data||[];
@@ -2104,8 +2100,8 @@ function Usuarios({ selectedUnidade='' }) {
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(''),3000); };
 
   const load = useCallback(async () => {
-    const r = await gerirUsuario('listar', { unidade: selectedUnidade || '' });
-    setRows(r?.usuarios || r?.data || []);
+    const todos = await listarUsuarios(true);
+    setRows(selectedUnidade ? todos.filter(u => u.unidade === selectedUnidade) : todos);
     setLoading(false);
   }, [selectedUnidade]);
   useEffect(()=>{ load(); },[load]);
@@ -2349,11 +2345,16 @@ function useRealtime(table, onchange) {
   const cbRef = useRef(onchange);
   useEffect(() => { cbRef.current = onchange; });
   useEffect(() => {
+    let espera = null;
     const ch = supabase
       .channel(`rt_${table}_${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table }, (...args) => cbRef.current(...args))
+      .on('postgres_changes', { event: '*', schema: 'public', table }, (...args) => {
+        // várias alterações em sequência (ex.: sincronização do Google) viram uma recarga só
+        clearTimeout(espera);
+        espera = setTimeout(() => cbRef.current(...args), 400);
+      })
       .subscribe();
-    return () => supabase.removeChannel(ch);
+    return () => { clearTimeout(espera); supabase.removeChannel(ch); };
   }, [table]);
 }
 

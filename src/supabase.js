@@ -39,7 +39,20 @@ export async function usuarioDaSessao() {
   return u || null;
 }
 
+// Lista de usuários direto da tabela (o RLS libera leitura para quem está logado; a senha não é exposta).
+// Fica em cache por 2 minutos para a troca de abas não refazer a busca toda vez.
+let cacheUsuarios = null;
+export async function listarUsuarios(forcar = false) {
+  if (!forcar && cacheUsuarios && Date.now() - cacheUsuarios.em < 120000) return cacheUsuarios.lista;
+  const { data, error } = await supabase.from('usuarios').select(CAMPOS_USUARIO).order('nome');
+  if (error) return cacheUsuarios?.lista || [];
+  cacheUsuarios = { em: Date.now(), lista: data || [] };
+  return cacheUsuarios.lista;
+}
+export const limparCacheUsuarios = () => { cacheUsuarios = null; };
+
 export async function sair() {
+  cacheUsuarios = null;
   try { await supabase.auth.signOut(); } catch {}
 }
 
@@ -48,6 +61,7 @@ export async function gerirUsuario(op, usuario) {
   const { data, error } = await supabase.functions.invoke('agenda-acesso', {
     body: { acao: 'gerir', op, usuario }
   });
+  if (op !== 'listar') cacheUsuarios = null;
   if (!error && data) return data;
   let msg = 'Não foi possível salvar.';
   try { msg = (await error?.context?.json())?.erro || msg; } catch {}
