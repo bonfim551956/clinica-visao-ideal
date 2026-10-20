@@ -2336,7 +2336,7 @@ function UsuarioModal({ user, onSave, onClose }) {
 function Receitas({ user, selectedUnidade='' }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const per = usePeriodo('hoje');
+  const per = usePeriodo('tudo');
   const [filtros, setFiltros] = useState({ opto:'', busca:'' });
   const [detalhe, setDetalhe] = useState(null);
   const [declaracao, setDeclaracao] = useState(null);
