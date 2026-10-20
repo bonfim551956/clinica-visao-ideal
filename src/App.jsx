@@ -1529,7 +1529,8 @@ function Conversao({ user, selectedUnidade='' }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
-  const [filtro, setFiltro] = useState({ de: today(), ate: today() });
+  const per = usePeriodo('semana');
+  const [filtros, setFiltros] = useState({ status:'', opto:'', busca:'' });
   const [toast, setToast] = useState('');
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(''),3000); };
 
@@ -1538,10 +1539,8 @@ function Conversao({ user, selectedUnidade='' }) {
   useRealtime('conversoes', () => load());
 
   const load = useCallback(async () => {
-    setLoading(true);
     let q = supabase.from('receitas').select('*,agenda(*)').order('data',{ascending:false});
-    if (filtro.de) q = q.gte('data', filtro.de);
-    if (filtro.ate) q = q.lte('data', filtro.ate);
+    if (per.de) q = q.gte('data', per.de).lte('data', per.ate);
     if (selectedUnidade) q = q.eq('unidade', selectedUnidade);
     const {data: receitas} = await q;
     // buscar conversoes para cada receita
@@ -1552,7 +1551,7 @@ function Conversao({ user, selectedUnidade='' }) {
     (convs||[]).forEach(c=>{ convMap[c.receita_id]=c; });
     setRows((receitas||[]).map(r=>({...r, conversao: convMap[r.id]||null})));
     setLoading(false);
-  }, [filtro, selectedUnidade]);
+  }, [per.de, per.ate, selectedUnidade]);
 
   useEffect(()=>{ load(); },[load]);
 
@@ -1571,23 +1570,31 @@ function Conversao({ user, selectedUnidade='' }) {
     load();
   };
 
-  const convTotal = rows.filter(r=>r.conversao?.converteu).length;
-  const valorTotal = rows.filter(r=>r.conversao?.converteu).reduce((s,r)=>s+Number(r.conversao?.valor_venda||0),0);
-  const pendentes = rows.filter(r=>!r.conversao).length;
+  const situacao = r => !r.conversao ? 'Pendente' : r.conversao.converteu ? 'Convertido' : 'Não convertido';
+  const optosC = [...new Set(rows.map(r=>r.opto_nome).filter(Boolean))].sort();
+  const lista = rows.filter(r => (!filtros.status || situacao(r) === filtros.status) && (!filtros.opto || r.opto_nome === filtros.opto) && casaNome(r.paciente_nome, filtros.busca));
+  const convTotal = lista.filter(r=>r.conversao?.converteu).length;
+  const valorTotal = lista.filter(r=>r.conversao?.converteu).reduce((s,r)=>s+Number(r.conversao?.valor_venda||0),0);
+  const pendentes = lista.filter(r=>!r.conversao).length;
 
   return (
     <div>
       <Toast msg={toast}/>
-      <div className="resp-grid-4" style={{marginBottom:20}}>
-        <Card style={{textAlign:'center'}}><div style={{fontSize:24,fontWeight:800,color:C.teal}}>{rows.length}</div><div style={{fontSize:12,color:C.navy,fontWeight:600}}>Receitas no período</div></Card>
-        <Card style={{textAlign:'center'}}><div style={{fontSize:24,fontWeight:800,color:C.success}}>{convTotal}</div><div style={{fontSize:12,color:C.navy,fontWeight:600}}>Convertidas</div></Card>
-        <Card style={{textAlign:'center'}}><div style={{fontSize:24,fontWeight:800,color:C.orange}}>{fmtMoney(valorTotal)}</div><div style={{fontSize:12,color:C.navy,fontWeight:600}}>Valor vendido</div></Card>
-        <Card style={{textAlign:'center'}}><div style={{fontSize:24,fontWeight:800,color:C.warn}}>{pendentes}</div><div style={{fontSize:12,color:C.navy,fontWeight:600}}>Pendentes</div></Card>
+      <TopoTela titulo="Conversão" subtitulo={textoPeriodo(per.de, per.ate)}>
+        <FiltroPeriodo p={per} comTudo/>
+      </TopoTela>
+      <div className="resp-grid-4" style={{marginBottom:16}}>
+        {[['Receitas no período', lista.length],['Convertidas', convTotal],['Valor vendido', fmtMoney(valorTotal)],['Pendentes', pendentes]].map(([l,v])=>(
+          <Card key={l} style={{padding:'20px 18px'}}><div style={{fontSize:28,fontWeight:800,color:C.navy,lineHeight:1}}>{v}</div><div style={{fontSize:12,color:C.navy,fontWeight:600,marginTop:4}}>{l}</div></Card>
+        ))}
       </div>
       <Card style={{marginBottom:16}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end'}}>
-          <Input label="De" type="date" value={filtro.de} onChange={e=>setFiltro(f=>({...f,de:e.target.value}))}/>
-          <Input label="Até" type="date" value={filtro.ate} onChange={e=>setFiltro(f=>({...f,ate:e.target.value}))}/>
+          <Busca value={filtros.busca} onChange={v=>setFiltros(f=>({...f,busca:v}))}/>
+          <Select label="Situação" value={filtros.status} onChange={e=>setFiltros(f=>({...f,status:e.target.value}))}
+            options={[{value:'',label:'Todas'},{value:'Pendente',label:'Pendente'},{value:'Convertido',label:'Convertido'},{value:'Não convertido',label:'Não convertido'}]}/>
+          <Select label="Optometrista" value={filtros.opto} onChange={e=>setFiltros(f=>({...f,opto:e.target.value}))}
+            options={[{value:'',label:'Todos'},...optosC.map(n=>({value:n,label:n}))]}/>
         </div>
       </Card>
       {loading ? <Spinner/> : (
@@ -1600,7 +1607,8 @@ function Conversao({ user, selectedUnidade='' }) {
                 ))}
               </tr></thead>
               <tbody>
-                {rows.map((r,i)=>(
+                {lista.length===0 && <tr><td colSpan={8} style={{padding:24,textAlign:'center',color:C.gray}}>Nenhuma receita no período</td></tr>}
+                {lista.map((r,i)=>(
                   <tr key={r.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
                     <td style={{padding:'8px 12px'}}>{fmtDate(r.data)}</td>
                     <td style={{padding:'8px 12px',fontWeight:500}}>{r.paciente_nome}</td>
@@ -1609,8 +1617,8 @@ function Conversao({ user, selectedUnidade='' }) {
                     <td style={{padding:'8px 12px'}}>{r.oe_esf}</td>
                     <td style={{padding:'8px 12px'}}>
                       {r.conversao
-                        ? <Badge color={r.conversao.converteu?C.success:C.danger}>{r.conversao.converteu?'Convertido':'Não Convertido'}</Badge>
-                        : <Badge color={C.warn}>Pendente</Badge>}
+                        ? <Badge color={r.conversao.converteu?C.success:C.orange}>{r.conversao.converteu?'Convertido':'Não convertido'}</Badge>
+                        : <Badge color={C.gray}>Pendente</Badge>}
                     </td>
                     <td style={{padding:'8px 12px'}}>{r.conversao?.converteu ? fmtMoney(r.conversao.valor_venda) : '—'}</td>
                     <td style={{padding:'8px 12px'}}>
@@ -1669,72 +1677,90 @@ function ConvModal({ receita, onSave, onClose }) {
 function NoShow({ user, selectedUnidade='' }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filtro, setFiltro] = useState({ de:'', ate:'' });
+  const per = usePeriodo('mes');
+  const [filtros, setFiltros] = useState({ motivo:'', opto:'', resp:'', busca:'' });
+  const [reagendar, setReagendar] = useState(null);
   const [toast, setToast] = useState('');
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(''),3000); };
 
+  const load = useCallback(async () => {
+    // Não compareceu + compareceu e não comprou (mesma regra da Agenda)
+    let q = supabase.from('agenda').select('*').in('status', ['Não Compareceu','Compareceu']).order('data',{ascending:false}).order('hora');
+    if (per.de) q = q.gte('data', per.de).lte('data', per.ate);
+    const unidade = user.unidade || selectedUnidade;
+    if (unidade) q = q.eq('unidade', unidade);
+    const { data } = await q;
+    const comCompra = await anexarCompras(data||[]);
+    setRows(comCompra.filter(a => a.status === 'Não Compareceu' || (a.status === 'Compareceu' && !a._compra?.converteu)));
+    setLoading(false);
+  }, [per.de, per.ate, selectedUnidade, user]);
+
+  useEffect(()=>{ load(); },[load]);
   useRealtime('agenda', () => load());
   useRealtime('conversoes', () => load());
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    // 1. Agendamentos não compareceram
-    let q1 = supabase.from('agenda').select('*').eq('status','Não Compareceu');
-    if (filtro.de) q1 = q1.gte('data', filtro.de);
-    if (filtro.ate) q1 = q1.lte('data', filtro.ate);
-    if (selectedUnidade) q1 = q1.eq('unidade', selectedUnidade);
-    const {data: agNComp} = await q1;
-
-    // 2. Conversões não convertidas
-    let q2 = supabase.from('conversoes').select('*').eq('converteu',false);
-    if (filtro.de) q2 = q2.gte('data', filtro.de);
-    if (filtro.ate) q2 = q2.lte('data', filtro.ate);
-    if (selectedUnidade) q2 = q2.eq('unidade', selectedUnidade);
-    const {data: convNao} = await q2;
-
-    const r1 = (agNComp||[]).map(a=>({...a, tipo:'Não Compareceu', paciente:a.paciente_nome, opto:a.opto_nome, dtRef:a.data}));
-    const r2 = (convNao||[]).map(c=>({...c, tipo:'Não Converteu', paciente:c.paciente_nome, opto:c.opto_nome, dtRef:c.data}));
-    setRows([...r1,...r2].sort((a,b)=>b.dtRef.localeCompare(a.dtRef)));
-    setLoading(false);
-  }, [filtro, selectedUnidade]);
-
-  useEffect(()=>{ load(); },[load]);
-
-  const reagendar = async (row) => {
-    showToast(`${row.paciente} adicionado para reagendamento!`);
+  const salvarReagendamento = async ({ data, hora }) => {
+    const a = reagendar;
+    const { error } = await supabase.from('agenda').update({
+      data, hora, status: 'Agendado', calendar_updated: false,
+      ...(a.google_event_id ? { google_sync_pendente: true } : {}),
+    }).eq('id', a.id);
+    if (error) { alert('Erro ao reagendar: ' + error.message); return; }
+    setReagendar(null);
+    showToast(`${a.paciente_nome} reagendado para ${fmtDate(data)} às ${hora}`);
+    load();
   };
+
+  const optos = [...new Set(rows.map(r=>r.opto_nome).filter(Boolean))].sort();
+  const resps = [...new Set(rows.map(r=>r.agendado_por||'(sem responsável)'))].sort();
+  const lista = rows.filter(r =>
+    (!filtros.motivo || jornada(r).label === filtros.motivo) &&
+    (!filtros.opto || r.opto_nome === filtros.opto) &&
+    (!filtros.resp || (r.agendado_por||'(sem responsável)') === filtros.resp) &&
+    casaNome(r.paciente_nome, filtros.busca));
+  const nNao = lista.filter(r=>r.status==='Não Compareceu').length;
 
   return (
     <div>
       <Toast msg={toast}/>
-      <div style={{background:C.danger+'11',border:`1.5px solid ${C.danger}33`,borderRadius:12,padding:'12px 16px',marginBottom:20,fontSize:13,color:C.danger}}>
-        Lista unificada: pacientes que não compareceram + pacientes que não converteram a compra após a consulta.
-      </div>
+      {reagendar && <ReagendarModal item={reagendar} onSave={salvarReagendamento} onClose={()=>setReagendar(null)}/>}
+      <TopoTela titulo="No-Show" subtitulo={`${textoPeriodo(per.de, per.ate)} · ${nNao} não compareceu · ${lista.length - nNao} compareceu e não comprou`}>
+        <FiltroPeriodo p={per} comTudo/>
+      </TopoTela>
       <Card style={{marginBottom:16}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end'}}>
-          <Input label="De" type="date" value={filtro.de} onChange={e=>setFiltro(f=>({...f,de:e.target.value}))}/>
-          <Input label="Até" type="date" value={filtro.ate} onChange={e=>setFiltro(f=>({...f,ate:e.target.value}))}/>
+          <Busca value={filtros.busca} onChange={v=>setFiltros(f=>({...f,busca:v}))}/>
+          <Select label="Motivo" value={filtros.motivo} onChange={e=>setFiltros(f=>({...f,motivo:e.target.value}))}
+            options={[{value:'',label:'Todos'},{value:'Não compareceu',label:'Não compareceu'},{value:'Não comprou',label:'Compareceu e não comprou'}]}/>
+          <Select label="Optometrista" value={filtros.opto} onChange={e=>setFiltros(f=>({...f,opto:e.target.value}))}
+            options={[{value:'',label:'Todos'},...optos.map(n=>({value:n,label:n}))]}/>
+          <Select label="Agendado por" value={filtros.resp} onChange={e=>setFiltros(f=>({...f,resp:e.target.value}))}
+            options={[{value:'',label:'Todos'},...resps.map(n=>({value:n,label:n}))]}/>
         </div>
       </Card>
       {loading ? <Spinner/> : (
         <Card>
-          <p style={{fontSize:13,color:C.gray,marginBottom:12}}>{rows.length} paciente(s) para reagendar</p>
           <div className="tbl-wrap">
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
-              <thead><tr style={{background:C.danger,color:C.white}}>
-                {['Data','Paciente','Optometrista','Motivo',''].map(h=>(
-                  <th key={h} style={{padding:'9px 12px',textAlign:'left'}}>{h}</th>
+              <thead><tr style={{background:C.teal,color:C.white}}>
+                {['Data','Hora','Paciente','Telefone','Optometrista','Agendado por','Situação',''].map(h=>(
+                  <th key={h} style={{padding:'9px 12px',textAlign:'left',whiteSpace:'nowrap'}}>{h}</th>
                 ))}
               </tr></thead>
               <tbody>
-                {rows.length===0 && <tr><td colSpan={5} style={{padding:24,textAlign:'center',color:C.gray}}>Nenhum no-show no período</td></tr>}
-                {rows.map((r,i)=>(
-                  <tr key={r.id+r.tipo} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
-                    <td style={{padding:'8px 12px'}}>{fmtDate(r.dtRef)}</td>
-                    <td style={{padding:'8px 12px',fontWeight:500}}>{r.paciente}</td>
-                    <td style={{padding:'8px 12px'}}>{r.opto}</td>
-                    <td style={{padding:'8px 12px'}}><Badge color={r.tipo==='Não Compareceu'?C.danger:C.orange}>{r.tipo}</Badge></td>
-                    <td style={{padding:'8px 12px'}}><Btn size="sm" color={C.teal} onClick={()=>reagendar(r)}>Reagendar</Btn></td>
+                {lista.length===0 && <tr><td colSpan={8} style={{padding:24,textAlign:'center',color:C.gray}}>Nenhum paciente no período</td></tr>}
+                {lista.map((r,i)=>(
+                  <tr key={r.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
+                    <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{fmtDate(r.data)}</td>
+                    <td style={{padding:'8px 12px',fontWeight:600,color:C.teal}}>{r.hora}</td>
+                    <td style={{padding:'8px 12px',fontWeight:500}}>{r.paciente_nome}</td>
+                    <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{r.paciente_telefone||'—'}</td>
+                    <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{r.opto_nome||'—'}</td>
+                    <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{r.agendado_por||'—'}</td>
+                    <td style={{padding:'8px 12px'}}><StatusJornada a={r}/></td>
+                    <td style={{padding:'8px 12px'}}>
+                      {r.status==='Não Compareceu' && <Btn size="sm" color={C.orange} style={{width:112,padding:'7px 0'}} onClick={()=>setReagendar(r)}>Reagendar</Btn>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1749,6 +1775,53 @@ function NoShow({ user, selectedUnidade='' }) {
 /* ══════════════════════════════════════════════════════
    RELATÓRIOS
 ══════════════════════════════════════════════════════ */
+/* ── Filtro de período padrão (Hoje / Semana / Mês / Personalizado / Tudo) ── */
+function usePeriodo(inicial='mes') {
+  const [periodo, setPeriodo] = useState(inicial);
+  const [custom, setCustom] = useState({ de: today(), ate: today() });
+  const { de, ate } = periodo === 'tudo' ? { de:'', ate:'' } : periodoDatas(periodo, custom.de, custom.ate);
+  return { periodo, setPeriodo, custom, setCustom, de, ate };
+}
+const textoPeriodo = (de, ate) => !de ? 'Todo o período' : de === ate ? fmtDate(de) : `${fmtDate(de)} a ${fmtDate(ate)}`;
+const FiltroPeriodo = ({ p, comTudo }) => {
+  const ops = [['hoje','Hoje'],['semana','Semana'],['mes','Mês'],['personalizado','Personalizado'], ...(comTudo ? [['tudo','Tudo']] : [])];
+  return (
+    <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'flex-end'}}>
+      {p.periodo === 'personalizado' && <>
+        <Input label="De" type="date" value={p.custom.de} onChange={e=>{ const v=e.target.value; p.setCustom(c=>({...c,de:v, ate: c.ate < v ? v : c.ate})); }}/>
+        <Input label="Até" type="date" value={p.custom.ate} min={p.custom.de} onChange={e=>{ const v=e.target.value; p.setCustom(c=>({...c,ate:v})); }}/>
+      </>}
+      <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+        {ops.map(([id,label])=>{
+          const ativo = p.periodo === id;
+          return <button key={id} onClick={()=>p.setPeriodo(id)}
+            style={{padding:'8px 14px',borderRadius:999,fontSize:13,fontWeight:600,cursor:'pointer',
+              border:`1.5px solid ${ativo?C.teal:C.border}`,background:ativo?C.teal:C.white,color:ativo?C.white:C.textSm}}>{label}</button>;
+        })}
+      </div>
+    </div>
+  );
+};
+// Cabeçalho padrão das telas com filtro de período
+const TopoTela = ({ titulo, subtitulo, children }) => (
+  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',gap:16,flexWrap:'wrap',marginBottom:16}}>
+    <div>
+      <h2 style={{fontSize:22,fontWeight:800,color:C.navy}}>{titulo}</h2>
+      {subtitulo && <p style={{color:C.gray,fontSize:13,marginTop:2}}>{subtitulo}</p>}
+    </div>
+    {children}
+  </div>
+);
+const Busca = ({ value, onChange }) => <Input label="Paciente" placeholder="Buscar pelo nome" value={value} onChange={e=>onChange(e.target.value)} style={{minWidth:200}}/>;
+const casaNome = (nome, busca) => !busca || String(nome||'').toLowerCase().includes(busca.trim().toLowerCase());
+// Variação compacta (para tabelas)
+const Mini = ({ atual, anterior, inverso }) => {
+  const dif = (atual||0) - (anterior||0);
+  if (!dif) return <span style={{fontSize:11,color:C.gray,marginLeft:6}}>=</span>;
+  const bom = inverso ? dif < 0 : dif > 0;
+  return <span title={`Período anterior: ${anterior||0}`} style={{fontSize:11,fontWeight:700,marginLeft:6,color:bom?C.success:C.danger}}>{dif>0?'▲':'▼'}{Math.abs(dif)}</span>;
+};
+
 // Período anterior equivalente (mês → mês anterior; demais → mesmo nº de dias imediatamente antes)
 const periodoAnterior = (tipo, de, ate) => {
   const d = x => new Date(x + 'T12:00:00');
@@ -1785,11 +1858,11 @@ function Relatorios({ selectedUnidade='' }) {
   const [funil, setFunil] = useState(null);
   const [funilAnt, setFunilAnt] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [periodo, setPeriodo] = useState('mes');
-  const [custom, setCustom] = useState({ de: today(), ate: today() });
-  const { de, ate } = periodoDatas(periodo, custom.de, custom.ate);
+  const per = usePeriodo('mes');
+  const { periodo, de, ate } = per;
   const ant = periodoAnterior(periodo, de, ate);
-  const filtro = { de, ate };
+  const [filtros, setFiltros] = useState({ opto:'', resp:'', proc:'', contato:'' });
+  const [opcoes, setOpcoes] = useState({ resp:[], proc:[], contato:[] });
   const texto = (x, y) => x === y ? fmtDate(x) : `${fmtDate(x)} a ${fmtDate(y)}`;
 
   const load = useCallback(async () => {
@@ -1798,57 +1871,68 @@ function Relatorios({ selectedUnidade='' }) {
     const entre = q => q.gte('data', ant.de).lte('data', ate);
     const [oRes, agRes, recRes, convRes] = await Promise.all([
       gerirUsuario('listar', {}),
-      applyU(entre(supabase.from('agenda').select('id,data,status,opto_id,agendado_por,unidade'))),
+      applyU(entre(supabase.from('agenda').select('id,data,status,opto_id,agendado_por,unidade,procedimento,meio_contato'))),
       applyU(supabase.from('receitas').select('id,agenda_id,opto_id,data,unidade')),
       applyU(supabase.from('conversoes').select('receita_id,converteu,valor_venda')),
     ]);
     try {
     const os = (oRes?.usuarios||[]).filter(u=>u.perfil==='opto'&&u.ativo);
-    const agTudo = agRes.data||[];
     const rec = recRes.data||[];
     const conv = convRes.data||[];
-    const ag = agTudo.filter(a=>a.data>=de && a.data<=ate);
+    const agBruto = agRes.data||[];
+    const uniq = k => [...new Set(agBruto.map(a=>a[k]||'').filter(Boolean))].sort();
+    setOpcoes({ resp: [...new Set(agBruto.map(a=>a.agendado_por||'(sem responsável)'))].sort(), proc: uniq('procedimento'), contato: uniq('meio_contato') });
+    const agTudo = agBruto.filter(a =>
+      (!filtros.opto || a.opto_id === filtros.opto) &&
+      (!filtros.resp || (a.agendado_por||'(sem responsável)') === filtros.resp) &&
+      (!filtros.proc || a.procedimento === filtros.proc) &&
+      (!filtros.contato || a.meio_contato === filtros.contato));
+    const noPer = (x, y) => agTudo.filter(a=>a.data>=x && a.data<=y);
+    const ag = noPer(de, ate), agAnt = noPer(ant.de, ant.ate);
     setFunil(montarFunil(ag, rec, conv));
-    setFunilAnt(montarFunil(agTudo.filter(a=>a.data>=ant.de && a.data<=ant.ate), rec, conv));
-
+    setFunilAnt(montarFunil(agAnt, rec, conv));
     setOptos(os);
-    const mRecPer = rec.filter(r=>r.data>=de && r.data<=ate);
-    setStats(os.map(o=>{
-      const mAg = ag.filter(a=>a.opto_id===o.id && a.status!=='Cancelado');
-      const mRec = mRecPer.filter(r=>r.opto_id===o.id);
-      const recIds = new Set(mRec.map(r=>r.id));
-      const mConv = conv.filter(c=>recIds.has(c.receita_id));
-      const convertidas = mConv.filter(c=>c.converteu);
-      const valor = convertidas.reduce((s,c)=>s+Number(c.valor_venda||0),0);
-      const comp = mAg.filter(a=>a.status==='Compareceu').length;
-      const naoComp = mAg.filter(a=>a.status==='Não Compareceu').length;
-      return {
-        nome: o.nome, cro: o.cro,
-        agendados: mAg.length, compareceu: comp, naoComp,
-        receitas: mRec.length, conversoes: convertidas.length, totalConv: mRec.length,
-        taxaShow: pct(comp, mAg.length),
-        taxaConv: pct(convertidas.length, mRec.length),
-        valorTotal: valor,
-      };
-    }));
 
-    // Ranking por responsável (agendado_por)
-    const prevMap = {};
-    ag.filter(a=>a.status!=='Cancelado').forEach(a=>{
-      const nome = a.agendado_por||'(sem responsável)';
-      if (!prevMap[nome]) prevMap[nome] = {nome, agendados:0, compareceu:0, naoComp:0};
-      prevMap[nome].agendados++;
-      if (a.status==='Compareceu') prevMap[nome].compareceu++;
-      if (a.status==='Não Compareceu') prevMap[nome].naoComp++;
-    });
-    setStatsPrev(Object.values(prevMap).sort((a,b)=>b.agendados-a.agendados));
+    // Por optometrista (período atual e anterior)
+    const porOpto = (agP, x, y) => {
+      const recP = rec.filter(r=>r.data>=x && r.data<=y);
+      const m = {};
+      os.forEach(o=>{
+        const mAg = agP.filter(a=>a.opto_id===o.id && a.status!=='Cancelado');
+        const mRec = recP.filter(r=>r.opto_id===o.id);
+        const recIds = new Set(mRec.map(r=>r.id));
+        const conv1 = conv.filter(c=>recIds.has(c.receita_id) && c.converteu);
+        const comp = mAg.filter(a=>a.status==='Compareceu').length;
+        m[o.id] = { nome:o.nome, cro:o.cro, agendados:mAg.length, compareceu:comp,
+          naoComp:mAg.filter(a=>a.status==='Não Compareceu').length, receitas:mRec.length,
+          conversoes:conv1.length, taxaConv:pct(conv1.length, mRec.length),
+          valorTotal:conv1.reduce((t,c)=>t+Number(c.valor_venda||0),0) };
+      });
+      return m;
+    };
+    const oAt = porOpto(ag, de, ate), oAn = porOpto(agAnt, ant.de, ant.ate);
+    setStats(os.filter(o=>!filtros.opto || o.id===filtros.opto).map(o=>({ ...oAt[o.id], ant: oAn[o.id] })));
+
+    // Ranking por responsável (período atual e anterior)
+    const porResp = agP => {
+      const m = {};
+      agP.filter(a=>a.status!=='Cancelado').forEach(a=>{
+        const nome = a.agendado_por||'(sem responsável)';
+        if (!m[nome]) m[nome] = {nome, agendados:0, compareceu:0, naoComp:0};
+        m[nome].agendados++;
+        if (a.status==='Compareceu') m[nome].compareceu++;
+        if (a.status==='Não Compareceu') m[nome].naoComp++;
+      });
+      return m;
+    };
+    const rAt = porResp(ag), rAn = porResp(agAnt);
+    setStatsPrev(Object.values(rAt).map(r=>({ ...r, ant: rAn[r.nome] || {agendados:0,compareceu:0,naoComp:0} })).sort((a,b)=>b.agendados-a.agendados));
     } catch (e) { console.error('relatorio', e); }
     setLoading(false);
-  }, [de, ate, ant.de, ant.ate, selectedUnidade]);
+  }, [de, ate, ant.de, ant.ate, selectedUnidade, filtros]);
 
   useEffect(()=>{ load(); },[load]);
 
-  const PERIODOS = [['hoje','Hoje'],['semana','Semana'],['mes','Mês'],['personalizado','Personalizado']];
   const f = funil || {}, fa = funilAnt || {};
 
   // Variação contra o período anterior
@@ -1881,26 +1965,22 @@ function Relatorios({ selectedUnidade='' }) {
 
   return (
     <div>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',gap:16,flexWrap:'wrap',marginBottom:20}}>
-        <div>
-          <h2 style={{fontSize:22,fontWeight:800,color:C.navy}}>Funil Visão Ideal</h2>
-          <p style={{color:C.gray,fontSize:13,marginTop:2}}>{texto(de, ate)} · comparado com {texto(ant.de, ant.ate)}</p>
+      <TopoTela titulo="Funil Visão Ideal" subtitulo={`${texto(de, ate)} · comparado com ${texto(ant.de, ant.ate)}`}>
+        <FiltroPeriodo p={per}/>
+      </TopoTela>
+      <Card style={{marginBottom:16}}>
+        <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end'}}>
+          <Select label="Optometrista" value={filtros.opto} onChange={e=>setFiltros(f=>({...f,opto:e.target.value}))}
+            options={[{value:'',label:'Todos'},...optos.map(o=>({value:o.id,label:o.nome}))]}/>
+          <Select label="Agendado por" value={filtros.resp} onChange={e=>setFiltros(f=>({...f,resp:e.target.value}))}
+            options={[{value:'',label:'Todos'},...opcoes.resp.map(n=>({value:n,label:n}))]}/>
+          <Select label="Procedimento" value={filtros.proc} onChange={e=>setFiltros(f=>({...f,proc:e.target.value}))}
+            options={[{value:'',label:'Todos'},...opcoes.proc.map(n=>({value:n,label:n}))]}/>
+          <Select label="Meio de contato" value={filtros.contato} onChange={e=>setFiltros(f=>({...f,contato:e.target.value}))}
+            options={[{value:'',label:'Todos'},...opcoes.contato.map(n=>({value:n,label:n}))]}/>
+          {Object.values(filtros).some(Boolean) && <Btn size="sm" color={C.gray} onClick={()=>setFiltros({ opto:'', resp:'', proc:'', contato:'' })}>Limpar filtros</Btn>}
         </div>
-        <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'flex-end'}}>
-          {periodo === 'personalizado' && <>
-            <Input label="De" type="date" value={custom.de} onChange={e=>setCustom(c=>({...c,de:e.target.value, ate: c.ate < e.target.value ? e.target.value : c.ate}))}/>
-            <Input label="Até" type="date" value={custom.ate} min={custom.de} onChange={e=>setCustom(c=>({...c,ate:e.target.value}))}/>
-          </>}
-          <div style={{display:'flex',gap:6}}>
-            {PERIODOS.map(([id,label])=>{
-              const ativo = periodo === id;
-              return <button key={id} onClick={()=>setPeriodo(id)}
-                style={{padding:'8px 14px',borderRadius:999,fontSize:13,fontWeight:600,cursor:'pointer',
-                  border:`1.5px solid ${ativo?C.teal:C.border}`,background:ativo?C.teal:C.white,color:ativo?C.white:C.textSm}}>{label}</button>;
-            })}
-          </div>
-        </div>
-      </div>
+      </Card>
 
       {loading || !funil ? <Spinner/> : (
         <Card style={{marginBottom:20,padding:24}}>
@@ -1935,7 +2015,7 @@ function Relatorios({ selectedUnidade='' }) {
         {/* RANKING PRÉ-VENDAS */}
         <Card style={{marginBottom:20}}>
           <h3 style={{fontSize:15,fontWeight:700,marginBottom:4,color:C.navy}}>Ranking por Responsável pelo Agendamento</h3>
-          <p style={{fontSize:12,color:C.gray,marginBottom:14}}>Inclui pré-vendas, gerentes e IA</p>
+          <p style={{fontSize:12,color:C.gray,marginBottom:14}}>Inclui pré-vendas, gerentes e IA · ▲▼ = diferença para o período anterior</p>
           <div className="tbl-wrap">
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
               <thead><tr style={{background:C.teal,color:C.white}}>
@@ -1957,9 +2037,9 @@ function Relatorios({ selectedUnidade='' }) {
                         color: isIA?C.orange:C.teal
                       }}>{s.nome}</span>
                     </td>
-                    <td style={{padding:'8px 12px',fontWeight:700,color:C.navy}}>{s.agendados}</td>
-                    <td style={{padding:'8px 12px'}}>{s.compareceu}</td>
-                    <td style={{padding:'8px 12px'}}>{s.naoComp}</td>
+                    <td style={{padding:'8px 12px',fontWeight:700,color:C.navy,whiteSpace:'nowrap'}}>{s.agendados}<Mini atual={s.agendados} anterior={s.ant.agendados}/></td>
+                    <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{s.compareceu}<Mini atual={s.compareceu} anterior={s.ant.compareceu}/></td>
+                    <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{s.naoComp}<Mini atual={s.naoComp} anterior={s.ant.naoComp} inverso/></td>
                     <td style={{padding:'8px 12px'}}>
                       <div style={{display:'flex',alignItems:'center',gap:8}}>
                         <div style={{flex:1,height:6,background:C.grayL,borderRadius:3,overflow:'hidden'}}>
@@ -1991,13 +2071,13 @@ function Relatorios({ selectedUnidade='' }) {
                   <tr key={s.nome} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
                     <td style={{padding:'8px 12px',fontWeight:600}}>{s.nome}</td>
                     <td style={{padding:'8px 12px',fontSize:11,color:C.gray}}>{s.cro||'—'}</td>
-                    <td style={{padding:'8px 12px'}}>{s.agendados}</td>
-                    <td style={{padding:'8px 12px',color:C.success,fontWeight:600}}>{s.compareceu}</td>
-                    <td style={{padding:'8px 12px',color:C.danger}}>{s.naoComp}</td>
-                    <td style={{padding:'8px 12px'}}>{s.receitas}</td>
-                    <td style={{padding:'8px 12px'}}>{s.conversoes}</td>
-                    <td style={{padding:'8px 12px'}}><Badge color={s.taxaConv>=60?C.success:s.taxaConv>=40?C.warn:C.danger}>{s.taxaConv}%</Badge></td>
-                    <td style={{padding:'8px 12px',fontWeight:700,color:C.teal}}>{fmtMoney(s.valorTotal)}</td>
+                    <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{s.agendados}<Mini atual={s.agendados} anterior={s.ant?.agendados}/></td>
+                    <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{s.compareceu}<Mini atual={s.compareceu} anterior={s.ant?.compareceu}/></td>
+                    <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{s.naoComp}<Mini atual={s.naoComp} anterior={s.ant?.naoComp} inverso/></td>
+                    <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{s.receitas}<Mini atual={s.receitas} anterior={s.ant?.receitas}/></td>
+                    <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{s.conversoes}<Mini atual={s.conversoes} anterior={s.ant?.conversoes}/></td>
+                    <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{s.taxaConv}%<Mini atual={s.taxaConv} anterior={s.ant?.taxaConv}/></td>
+                    <td style={{padding:'8px 12px',fontWeight:700,color:C.navy,whiteSpace:'nowrap'}}>{fmtMoney(s.valorTotal)}<div style={{fontSize:11,color:C.gray,fontWeight:400}}>antes {fmtMoney(s.ant?.valorTotal)}</div></td>
                   </tr>
                 ))}
               </tbody>
@@ -2142,20 +2222,22 @@ function UsuarioModal({ user, onSave, onClose }) {
 function Receitas({ user, selectedUnidade='' }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filtro, setFiltro] = useState({ de:'', ate:'' });
+  const per = usePeriodo('mes');
+  const [filtros, setFiltros] = useState({ opto:'', busca:'' });
   const [detalhe, setDetalhe] = useState(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
     let q = supabase.from('receitas').select('*').order('data',{ascending:false});
-    if (filtro.de) q = q.gte('data', filtro.de);
-    if (filtro.ate) q = q.lte('data', filtro.ate);
+    if (per.de) q = q.gte('data', per.de).lte('data', per.ate);
     if (user.perfil === 'opto') q = q.eq('opto_id', user.id);
-    if (selectedUnidade) q = q.eq('unidade', selectedUnidade);
+    const unidade = user.unidade || selectedUnidade;
+    if (unidade) q = q.eq('unidade', unidade);
     const { data } = await q;
     setRows(data || []);
     setLoading(false);
-  }, [filtro, user, selectedUnidade]);
+  }, [per.de, per.ate, user, selectedUnidade]);
+  const optosR = [...new Set(rows.map(r=>r.opto_nome).filter(Boolean))].sort();
+  const lista = rows.filter(r => (!filtros.opto || r.opto_nome === filtros.opto) && casaNome(r.paciente_nome, filtros.busca));
 
   useEffect(() => { load(); }, [load]);
   useRealtime('receitas', () => load());
@@ -2173,15 +2255,18 @@ function Receitas({ user, selectedUnidade='' }) {
 
   return (
     <div>
+      <TopoTela titulo="Receitas" subtitulo={`${textoPeriodo(per.de, per.ate)} · ${lista.length} receita(s)`}>
+        <FiltroPeriodo p={per} comTudo/>
+      </TopoTela>
       <Card style={{marginBottom:16}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end'}}>
-          <Input label="De" type="date" value={filtro.de} onChange={e=>setFiltro(f=>({...f,de:e.target.value}))}/>
-          <Input label="Até" type="date" value={filtro.ate} onChange={e=>setFiltro(f=>({...f,ate:e.target.value}))}/>
+          <Busca value={filtros.busca} onChange={v=>setFiltros(f=>({...f,busca:v}))}/>
+          {user.perfil !== 'opto' && <Select label="Optometrista" value={filtros.opto} onChange={e=>setFiltros(f=>({...f,opto:e.target.value}))}
+            options={[{value:'',label:'Todos'},...optosR.map(n=>({value:n,label:n}))]}/>}
         </div>
       </Card>
       {loading ? <Spinner/> : (
         <Card>
-          <p style={{fontSize:13,color:C.gray,marginBottom:12}}>{rows.length} receita(s) encontrada(s)</p>
           <div className="tbl-wrap">
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
               <thead><tr style={{background:C.teal,color:C.white}}>
@@ -2190,8 +2275,8 @@ function Receitas({ user, selectedUnidade='' }) {
                 ))}
               </tr></thead>
               <tbody>
-                {rows.length===0 && <tr><td colSpan={6} style={{padding:24,textAlign:'center',color:C.gray}}>Nenhuma receita no período</td></tr>}
-                {rows.map((r,i)=>(
+                {lista.length===0 && <tr><td colSpan={6} style={{padding:24,textAlign:'center',color:C.gray}}>Nenhuma receita no período</td></tr>}
+                {lista.map((r,i)=>(
                   <tr key={r.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
                     <td style={{padding:'8px 12px'}}>{fmtDate(r.data)}</td>
                     <td style={{padding:'8px 12px',fontWeight:600}}>{r.paciente_nome}</td>
