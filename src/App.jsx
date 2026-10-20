@@ -1904,26 +1904,20 @@ function Relatorios({ selectedUnidade='' }) {
 
       {loading || !funil ? <Spinner/> : (
         <Card style={{marginBottom:20,padding:24}}>
-          {/* 1. Leads */}
+          {/* 1. Agendados */}
           <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-            <Etapa titulo="Leads" pendente="Aguardando a integração com a fonte dos leads"/>
-          </div>
-          <Seta/>
-          {/* 2. Sem interesse x Agendados */}
-          <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-            <Etapa titulo="Sem interesse" pendente="Depende da fonte dos leads"/>
             <Etapa titulo="Agendados" valor={f.agendados} anterior={fa.agendados} cor={C.teal}>
               {f.aguardando > 0 && <div style={{fontSize:12,color:C.gray,marginTop:4}}>{f.aguardando} ainda por vir</div>}
             </Etapa>
           </div>
           <Seta/>
-          {/* 3. Compareceu x Não compareceu */}
+          {/* 2. Compareceu x Não compareceu */}
           <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
             <Etapa titulo="Compareceu" valor={f.compareceu} base={f.agendados} anterior={fa.compareceu} cor={C.teal}/>
             <Etapa titulo="Não compareceu" valor={f.naoCompareceu} base={f.agendados} anterior={fa.naoCompareceu} cor={C.danger} inverso/>
           </div>
           <Seta/>
-          {/* 4. Comprou x Não comprou */}
+          {/* 3. Comprou x Não comprou */}
           <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
             <Etapa titulo="Comprou" valor={f.comprou} base={f.compareceu} anterior={fa.comprou} cor={C.success}>
               <div style={{fontSize:14,fontWeight:700,color:C.navy,marginTop:8}}>{fmtMoney(f.faturamento)}</div>
