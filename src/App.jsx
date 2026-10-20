@@ -118,9 +118,8 @@ const NAV_ITEMS = [
 
 /* ── CSS global ── */
 const GLOBAL_CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',sans-serif;background:${C.bg};color:${C.text};font-size:14px}
+body{font-family:'Plus Jakarta Sans','Inter',sans-serif;-webkit-font-smoothing:antialiased;background:${C.bg};color:${C.text};font-size:14px}
 button{cursor:pointer;border:none;outline:none;font-family:inherit}
 input,select,textarea{font-family:inherit;outline:none}
 ::-webkit-scrollbar{width:6px;height:6px}
@@ -131,6 +130,9 @@ input,select,textarea{font-family:inherit;outline:none}
 .resp-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
 .resp-grid-main{display:grid;grid-template-columns:1fr 300px;gap:16px}
 .nav-item{transition:all .15s;border-radius:12px}
+.btn:not(:disabled):hover{filter:brightness(.92);box-shadow:0 2px 6px rgba(30,58,95,.18)}
+.btn:disabled{cursor:default}
+.btn-sec:not(:disabled):hover{filter:none;background:${C.tealBg} !important;border-color:${C.tealL} !important;box-shadow:none}
 .nav-item:not(.ativo):hover{background:${C.teal}11 !important}
 @media(max-width:767px){
   .resp-grid-4{grid-template-columns:1fr 1fr;gap:10px}
@@ -148,8 +150,10 @@ function useIsMobile(){ const [m,setM]=useState(window.innerWidth<768); useEffec
 const Btn = ({children,onClick,color=C.teal,outline=false,size='md',style:sx={},...p}) => {
   const pad = size==='sm'?'6px 14px':size==='lg'?'12px 28px':'9px 20px';
   const fs = size==='sm'?'13px':'14px';
-  // Botões sempre preenchidos com texto branco (o "outline" ficou só por compatibilidade)
-  return <button onClick={onClick} style={{background:color,color:C.white,border:`2px solid ${color}`,borderRadius:999,padding:pad,fontSize:fs,fontWeight:600,transition:'all .15s',opacity:p.disabled?.6:1,...sx}} {...p}>{children}</button>;
+  // Principal: fundo cheio (turquesa) com texto branco. Secundário (outline): fundo branco, borda suave
+  const sec = outline;
+  const corTexto = sec ? ([C.teal, C.gray, C.orange].includes(color) ? C.navy : color) : C.white;
+  return <button className={sec ? 'btn btn-sec' : 'btn'} onClick={onClick} style={{background:sec?C.white:color,color:corTexto,border:`1px solid ${sec?C.border:color}`,borderRadius:6,padding:pad,fontSize:fs,fontWeight:600,display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8,transition:'filter .15s, box-shadow .15s, background .15s',opacity:p.disabled?.6:1,...sx}} {...p}>{children}</button>;
 };
 const Card = ({children,style:sx={}}) => <div style={{background:C.white,borderRadius:16,padding:20,boxShadow:'0 2px 8px rgba(0,0,0,.06)',...sx}}>{children}</div>;
 const Badge = ({children,color=C.teal}) => <span style={{whiteSpace:'nowrap',background:color+'22',color,borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:600}}>{children}</span>;
@@ -719,7 +723,7 @@ function Agenda({ user, selectedUnidade='' }) {
       <Toast msg={toast}/>
       <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end',marginBottom:20}}>
         <Input label="Data" type="date" value={selData} onChange={e=>setSelData(e.target.value)}/>
-        <Btn onClick={()=>setModal({hora:HORARIOS[0]})} color={C.orange}>+ Novo Agendamento</Btn>
+        <Btn onClick={()=>setModal({hora:HORARIOS[0]})} color={C.teal}>+ Novo Agendamento</Btn>
         <Btn onClick={()=>{ const n=new Date(); const h=`${pad(n.getHours())}:${pad(n.getMinutes())}`; setModal({hora:h, encaixe:true}); }} color={C.teal} outline>+ Encaixe</Btn>
       </div>
       {loading ? <Spinner/> : (
@@ -747,7 +751,7 @@ function Agenda({ user, selectedUnidade='' }) {
                         <td style={celAg}>
                           <div style={acoesAg}>
                             <span style={{width:btnAcao.width}}/>
-                            <Btn size="sm" color={C.orange} style={btnAcao} onClick={()=>setModal({hora})}>+ Agendar</Btn>
+                            <Btn outline size="sm" color={C.teal} style={btnAcao} onClick={()=>setModal({hora})}>+ Agendar</Btn>
                           </div>
                         </td>
                       </tr>
@@ -770,8 +774,8 @@ function Agenda({ user, selectedUnidade='' }) {
                         <td style={celAg}><StatusJornada a={slot}/></td>
                         <td style={celAg}>
                           <div style={acoesAg}>
-                            <Btn size="sm" color={C.teal} style={btnAcao} onClick={()=>setModal({hora,existing:slot})}>Editar</Btn>
-                            <Btn size="sm" color={C.orange} style={btnAcao} onClick={()=>setModal({hora})}>+ Agendar</Btn>
+                            <Btn outline size="sm" color={C.teal} style={btnAcao} onClick={()=>setModal({hora,existing:slot})}>Editar</Btn>
+                            <Btn outline size="sm" color={C.teal} style={btnAcao} onClick={()=>setModal({hora})}>+ Agendar</Btn>
                           </div>
                         </td>
                       </tr>
@@ -929,7 +933,7 @@ function AgendaModal({ hora, existing, encaixe, pacientes, optos, pedirUnidade, 
                 )}
               </div>
               <button onClick={abrirCadastro}
-                style={{background:C.orange,color:C.white,border:'none',borderRadius:999,
+                style={{background:C.orange,color:C.white,border:'none',borderRadius:6,
                   padding:'8px 14px',fontSize:13,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>
                 + Cadastrar
               </button>
@@ -1035,8 +1039,8 @@ function ReagendarModal({ item, onSave, onClose }) {
           <Select label="Novo horário" value={hora} onChange={e=>setHora(e.target.value)} options={HORARIOS}/>
         </div>
         <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-          <Btn color={C.gray} onClick={onClose}>Cancelar</Btn>
-          <Btn color={C.orange} onClick={salvar} disabled={salvando}>{salvando ? 'Salvando...' : 'Confirmar'}</Btn>
+          <Btn outline color={C.gray} onClick={onClose}>Cancelar</Btn>
+          <Btn color={C.teal} onClick={salvar} disabled={salvando}>{salvando ? 'Salvando...' : 'Confirmar'}</Btn>
         </div>
       </div>
     </Modal>
@@ -1111,7 +1115,7 @@ function ListaAtendimentos({ user, onAtender, selectedUnidade='' }) {
           <h2 style={{fontSize:22,fontWeight:800,color:C.navy}}>Atendimentos</h2>
           <p style={{color:C.gray,fontSize:13,marginTop:2}}>{filtros.data ? (filtros.data===today() ? 'Hoje · ' : '') + fmtDate(filtros.data) : 'Todas as datas'} · {resumo}</p>
         </div>
-        {filtros.data !== today() && <Btn size="sm" color={C.teal} onClick={()=>setFiltros(f=>({...f,data:today()}))}>Voltar para hoje</Btn>}
+        {filtros.data !== today() && <Btn outline size="sm" color={C.teal} onClick={()=>setFiltros(f=>({...f,data:today()}))}>Voltar para hoje</Btn>}
       </div>
       <Card style={{marginBottom:16}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end'}}>
@@ -1168,7 +1172,7 @@ function ListaAtendimentos({ user, onAtender, selectedUnidade='' }) {
                         {podeAtender && (a.status==='Compareceu' || (a.data===today() && a.status!=='Cancelado')) &&
                           <Btn size="sm" color={C.teal} style={{width:112,padding:'7px 0'}} onClick={()=>onAtender(a)}>{a.status==='Compareceu'?'Ver ficha':'Atender'}</Btn>}
                         {a.status!=='Compareceu' &&
-                          <Btn size="sm" color={C.orange} style={{width:112,padding:'7px 0'}} onClick={()=>setReagendar(a)}>Reagendar</Btn>}
+                          <Btn outline size="sm" color={C.teal} style={{width:112,padding:'7px 0'}} onClick={()=>setReagendar(a)}>Reagendar</Btn>}
                       </div>
                     </td>
                   </tr>
@@ -1415,14 +1419,14 @@ function Atendimento({ user, selectedUnidade='' }) {
     <div>
       <Toast msg={toast}/>
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:20,flexWrap:'wrap'}}>
-        <Btn size="sm" color={C.gray} onClick={()=>{setSel(null);setReceita(null);setTabAte('anamnese');}}>Voltar</Btn>
+        <Btn outline size="sm" color={C.gray} onClick={()=>{setSel(null);setReceita(null);setTabAte('anamnese');}}>Voltar</Btn>
         <div style={{flex:1,minWidth:180}}>
           <h3 style={{fontSize:16,fontWeight:700,color:C.navy}}>{sel.paciente_nome}</h3>
           <p style={{fontSize:12,color:C.gray}}>{sel.procedimento} · {sel.hora} · {fmtDate(sel.data)}</p>
         </div>
         {sel.status === 'Compareceu'
           ? <Badge color={C.success}>Atendimento finalizado</Badge>
-          : <Btn color={C.orange} onClick={finalizarAtendimento} disabled={finalizando}>{finalizando ? 'Finalizando...' : 'Finalizar atendimento'}</Btn>}
+          : <Btn color={C.teal} onClick={finalizarAtendimento} disabled={finalizando}>{finalizando ? 'Finalizando...' : 'Finalizar atendimento'}</Btn>}
       </div>
       {/* Tabs */}
       <div style={{display:'flex',gap:4,marginBottom:16,borderBottom:`2px solid ${C.border}`,paddingBottom:0}}>
@@ -1483,7 +1487,7 @@ function Atendimento({ user, selectedUnidade='' }) {
           </div>
           <div style={{display:'flex',justifyContent:'space-between',marginTop:16,flexWrap:'wrap',gap:8}}>
             <Btn color={C.gray} outline onClick={()=>setTabAte('anamnese')}>Anamnese</Btn>
-            {!receita && <Btn color={C.orange} onClick={gerarReceita}>Gerar Receita</Btn>}
+            {!receita && <Btn color={C.teal} onClick={gerarReceita}>Gerar Receita</Btn>}
             {receita && <Badge color={C.success}>Receita gerada — disponível para conversão</Badge>}
           </div>
           <p style={{fontSize:12,color:C.gray,marginTop:12}}>
@@ -1759,7 +1763,7 @@ function NoShow({ user, selectedUnidade='' }) {
                     <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{r.agendado_por||'—'}</td>
                     <td style={{padding:'8px 12px'}}><StatusJornada a={r}/></td>
                     <td style={{padding:'8px 12px'}}>
-                      {r.status==='Não Compareceu' && <Btn size="sm" color={C.orange} style={{width:112,padding:'7px 0'}} onClick={()=>setReagendar(r)}>Reagendar</Btn>}
+                      {r.status==='Não Compareceu' && <Btn outline size="sm" color={C.teal} style={{width:112,padding:'7px 0'}} onClick={()=>setReagendar(r)}>Reagendar</Btn>}
                     </td>
                   </tr>
                 ))}
@@ -1978,7 +1982,7 @@ function Relatorios({ selectedUnidade='' }) {
             options={[{value:'',label:'Todos'},...opcoes.proc.map(n=>({value:n,label:n}))]}/>
           <Select label="Meio de contato" value={filtros.contato} onChange={e=>setFiltros(f=>({...f,contato:e.target.value}))}
             options={[{value:'',label:'Todos'},...opcoes.contato.map(n=>({value:n,label:n}))]}/>
-          {Object.values(filtros).some(Boolean) && <Btn size="sm" color={C.gray} onClick={()=>setFiltros({ opto:'', resp:'', proc:'', contato:'' })}>Limpar filtros</Btn>}
+          {Object.values(filtros).some(Boolean) && <Btn outline size="sm" color={C.gray} onClick={()=>setFiltros({ opto:'', resp:'', proc:'', contato:'' })}>Limpar filtros</Btn>}
         </div>
       </Card>
 
@@ -2125,7 +2129,7 @@ function Usuarios({ selectedUnidade='' }) {
     <div>
       <Toast msg={toast}/>
       <div style={{display:'flex',justifyContent:'flex-end',marginBottom:16}}>
-        <Btn color={C.orange} onClick={()=>setModal({perfil:'opto',ativo:true,cro:''})}>+ Novo Usuário</Btn>
+        <Btn color={C.teal} onClick={()=>setModal({perfil:'opto',ativo:true,cro:''})}>+ Novo Usuário</Btn>
       </div>
       {loading ? <Spinner/> : (
         <Card>
