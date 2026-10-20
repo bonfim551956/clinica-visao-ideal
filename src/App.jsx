@@ -62,6 +62,14 @@ const REGRAS_RX = {
     return { valor: String(n).replace('.', ',') }; },
 };
 const CAMPOS_RX = ['esf','cil','eixo','add','dnp'];
+// Tratamentos sugeridos na receita (antirreflexo já vem marcado)
+const TRATAMENTOS = [
+  { id:'AR', label:'Antirreflexo (AR)', desc:'Reduz reflexos e melhora a nitidez' },
+  { id:'Blue', label:'Filtro de luz azul (Blue)', desc:'Para quem usa telas por muitas horas' },
+  { id:'Fotocromático', label:'Fotocromático', desc:'Escurece no sol e clareia em ambientes internos' },
+];
+const TRAT_PADRAO = ['AR'];
+const nomeTrat = id => TRATAMENTOS.find(t=>t.id===id)?.label || id;
 const validarRx = form => {
   const erros = {}, valores = {};
   for (const olho of ['od','oe']) {
@@ -1233,6 +1241,8 @@ function imprimirReceita(r) {
     table tbody tr:nth-child(even){background:#F4F9F9}
     .olho{font-weight:800;font-size:14px;background:#EAF4F4!important}
     .adicao-row td{background:#E9EEF6!important;color:#2A5790;font-weight:700}
+    .trat{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px}
+    .trat-item{font-size:13px;font-weight:700;color:#357F96;background:#EAF4F4;border:1px solid #cfe5e5;border-radius:6px;padding:6px 12px}
     .obs-box{font-size:13px;line-height:1.6;color:#333;background:#fafaf8;border:1px solid #e0e0e0;border-radius:6px;padding:10px 14px;margin-bottom:22px}
     .assinatura-area{display:flex;align-items:flex-end;justify-content:space-between;margin:28px 0 20px;gap:24px}
     .assinatura-col{display:flex;flex-direction:column;align-items:center;gap:4px}
@@ -1265,6 +1275,8 @@ function imprimirReceita(r) {
           : `<tr class="adicao-row"><td class="olho" colspan="2">Adição</td><td colspan="4" style="text-align:left;padding-left:16px">OD: ${esc(r.od_adicao)||'—'} &nbsp;&nbsp; OE: ${esc(r.oe_adicao)||'—'}</td></tr>`) : ''}
       </tbody>
     </table>
+    ${(r.tratamentos_sugeridos||[]).length ? `<div class="section-title">Tratamentos recomendados para as lentes</div>
+      <div class="trat">${r.tratamentos_sugeridos.map(t=>`<span class="trat-item">✓ ${esc(nomeTrat(t))}</span>`).join('')}</div>` : ''}
     ${r.observacoes ? `<div class="section-title">Observações</div><div class="obs-box">${esc(r.observacoes)}</div>` : ''}
     <div class="assinatura-area">
       <div class="assinatura-col">
@@ -1398,7 +1410,7 @@ function DeclaracaoModal({ receita, horaAgenda, onClose }) {
 function Atendimento({ user, selectedUnidade='' }) {
   const [sel, setSel] = useState(null);
   const [tabAte, setTabAte] = useState('anamnese');
-  const [form, setForm] = useState({ anamnese:'', queixa:'', medicamentos:'', nasc:'',
+  const [form, setForm] = useState({ anamnese:'', queixa:'', medicamentos:'', nasc:'', trat:TRAT_PADRAO,
     od_esf:'',od_cil:'',od_eixo:'',od_add:'',od_dnp:'',
     oe_esf:'',oe_cil:'',oe_eixo:'',oe_add:'',oe_dnp:'' });
   const [receita, setReceita] = useState(null);
@@ -1420,7 +1432,7 @@ function Atendimento({ user, selectedUnidade='' }) {
   const iniciarAtendimento = (a) => {
     setSel(a); setErroNasc('');
     setTabAte('anamnese');
-    setForm({ anamnese:'', queixa:'', medicamentos:'', nasc:'',
+    setForm({ anamnese:'', queixa:'', medicamentos:'', nasc:'', trat:TRAT_PADRAO,
       od_esf:'',od_cil:'',od_eixo:'',od_add:'',od_dnp:'',
       oe_esf:'',oe_cil:'',oe_eixo:'',oe_add:'',oe_dnp:'' });
     setReceita(null);
@@ -1465,6 +1477,7 @@ function Atendimento({ user, selectedUnidade='' }) {
       od_esf:rx.od_esf, od_cil:rx.od_cil, od_eixo:rx.od_eixo, od_adicao:rx.od_add, od_dnp:rx.od_dnp,
       oe_esf:rx.oe_esf, oe_cil:rx.oe_cil, oe_eixo:rx.oe_eixo, oe_adicao:rx.oe_add, oe_dnp:rx.oe_dnp,
       observacoes:form.anamnese,
+      tratamentos_sugeridos: TRATAMENTOS.map(t=>t.id).filter(id=>(form.trat||[]).includes(id)),
     };
     const {data, error} = await supabase.from('receitas').insert(row).select().single();
     if (error) { alert('Erro ao gerar a receita: ' + error.message); return; }
@@ -1570,6 +1583,30 @@ function Atendimento({ user, selectedUnidade='' }) {
             <div><label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:4}}>Observações adicionais</label>
               <textarea value={form.anamnese} onChange={e=>setF('anamnese',e.target.value)} rows={3}
                 style={{width:'100%',border:`1.5px solid ${C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,resize:'vertical'}}/></div>
+            <div>
+              <label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:8}}>Tratamentos sugeridos para as lentes</label>
+              <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+                {TRATAMENTOS.map(t=>{
+                  const on = (form.trat||[]).includes(t.id);
+                  return (
+                    <button key={t.id} type="button" role="checkbox" aria-checked={on}
+                      onClick={()=>setF('trat', on ? form.trat.filter(x=>x!==t.id) : [...(form.trat||[]), t.id])}
+                      style={{flex:'1 1 200px',display:'flex',alignItems:'flex-start',gap:12,textAlign:'left',padding:'14px 16px',borderRadius:12,cursor:'pointer',
+                        border:`1.5px solid ${on?C.teal:C.border}`,background:on?C.tealBg:C.white,transition:'all .15s'}}>
+                      <span style={{flexShrink:0,width:20,height:20,borderRadius:6,marginTop:1,display:'flex',alignItems:'center',justifyContent:'center',
+                        border:`1.5px solid ${on?C.teal:C.border}`,background:on?C.teal:C.white}}>
+                        {on && <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 6.2 5 8.5l4.5-5" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                      </span>
+                      <span>
+                        <span style={{display:'block',fontSize:14,fontWeight:700,color:C.navy}}>{t.label}</span>
+                        <span style={{display:'block',fontSize:12,color:C.gray,marginTop:2}}>{t.desc}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{fontSize:11,color:C.gray,marginTop:6}}>Os marcados saem na receita como recomendação.</div>
+            </div>
             <div style={{textAlign:'right'}}><Btn color={C.teal} onClick={()=>{ if (conferirNasc()) setTabAte('refracao'); }}>Próximo: Refração</Btn></div>
           </div>
         </Card>
@@ -1633,6 +1670,12 @@ function Atendimento({ user, selectedUnidade='' }) {
               </tbody>
             </table>
           </div>
+          {(receita.tratamentos_sugeridos||[]).length > 0 && (
+            <div style={{marginTop:14,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+              <span style={{fontSize:12,fontWeight:700,color:C.textSm}}>Tratamentos recomendados:</span>
+              {receita.tratamentos_sugeridos.map(t=><Badge key={t} color={C.teal}>{nomeTrat(t)}</Badge>)}
+            </div>
+          )}
           <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:16,flexWrap:'wrap'}}>
             <Btn outline color={C.teal} onClick={()=>setDeclaracao(true)}>Declaração de comparecimento</Btn>
             <Btn color={C.teal} onClick={()=>imprimirReceita(receita)}>Imprimir Receita</Btn>
@@ -2452,6 +2495,12 @@ function Receitas({ user, selectedUnidade='' }) {
                 </tbody>
               </table>
             </div>
+            {(detalhe.tratamentos_sugeridos||[]).length > 0 && (
+              <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                <span style={{fontSize:12,fontWeight:700,color:C.textSm}}>Tratamentos recomendados:</span>
+                {detalhe.tratamentos_sugeridos.map(t=><Badge key={t} color={C.teal}>{nomeTrat(t)}</Badge>)}
+              </div>
+            )}
             {detalhe.observacoes && <div style={{background:C.orangeBg,borderLeft:`3px solid ${C.orange}`,borderRadius:'0 8px 8px 0',padding:'10px 14px',fontSize:13}}><strong>Observações:</strong> {detalhe.observacoes}</div>}
             <div style={{display:'flex',gap:10,justifyContent:'flex-end',paddingTop:4,flexWrap:'wrap'}}>
               <Btn size="sm" outline color={C.teal} onClick={async ()=>{
