@@ -16,11 +16,11 @@ const fmtMoney = v => Number(v||0).toLocaleString('pt-BR',{style:'currency',curr
 const C = {
   teal:'#357F96', tealD:'#2B6A7E', tealL:'#4DA6A4', tealBg:'#EAF4F4',
   orange:'#2A5790', orangeD:'#22477A', orangeBg:'#E9EEF6',
-  navy:'#1E3A5F', bg:'#F5F7F8', white:'#fff',
+  navy:'#1F1F1F', bg:'#F5F7F8', white:'#fff',
   gradiente:'linear-gradient(135deg,#4DA6A4 0%,#2A5790 100%)',
   success:'#28A745', danger:'#DC3545', warn:'#FFC107',
   gray:'#6c757d', grayL:'#f0f0ee', border:'#dee2e6',
-  text:'#1E3A5F', textSm:'#555'
+  text:'#1F1F1F', textSm:'#5A5A5A'
 };
 
 const HORARIOS = (() => {
@@ -404,7 +404,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
             </div>
             <div style={{minWidth:0}}>
               <div style={{fontWeight:700,color:C.navy,fontSize:12,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{user.nome}</div>
-              <div style={{fontSize:10,color:C.teal,fontWeight:600,marginTop:1}}>{perfil?.label}</div>
+              <div style={{fontSize:10,color:C.gray,fontWeight:600,marginTop:1}}>{perfil?.label}</div>
               {user.unidade && <div style={{color:C.gray,fontSize:10,marginTop:1}}>{user.unidade}</div>}
             </div>
           </div>
@@ -415,11 +415,11 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
         <div style={{background:C.white,borderBottom:`1px solid ${C.border}`,position:'sticky',top:0,zIndex:100,boxShadow:'0 2px 8px rgba(0,0,0,.04)'}}>
           <div style={{height:TOPO_H,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 28px'}}>
             <div>
-              <div style={{fontSize:11,color:C.teal,fontWeight:600,letterSpacing:'0.5px',textTransform:'uppercase',marginBottom:1}}>
+              <div style={{fontSize:11,color:C.gray,fontWeight:600,letterSpacing:'0.5px',textTransform:'uppercase',marginBottom:1}}>
                 {currentNav?.label}
               </div>
               <div style={{fontSize:13,fontWeight:600,color:C.navy}}>
-                Bem-vindo, <span style={{color:C.teal}}>{user.nome.split(' ')[0]}</span>! Hoje {fmtDate(today())}
+                Bem-vindo, <span style={{fontWeight:700}}>{user.nome.split(' ')[0]}</span>! Hoje {fmtDate(today())}
               </div>
             </div>
             <div style={{display:'flex',alignItems:'center',gap:12}}>
@@ -585,7 +585,7 @@ function Dashboard({ user, selectedUnidade='' }) {
               <tbody>
                 {proximos.map((a,i)=>(
                   <tr key={a.id} style={{background:i%2===0?C.white:C.bg}}>
-                    <td style={{padding:'8px 12px',fontWeight:600,color:C.teal}}>{a.hora}</td>
+                    <td style={{padding:'8px 12px',fontWeight:700,color:C.text}}>{a.hora}</td>
                     <td style={{padding:'8px 12px'}}>{a.paciente_nome}</td>
                     <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{a.opto_nome}</td>
                     <td style={{padding:'8px 12px'}}>{a.procedimento}</td>
@@ -752,7 +752,7 @@ function Agenda({ user, selectedUnidade='' }) {
                     </td></tr>,
                     ...doDia.map((slot,i)=>(
                       <tr key={slot.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
-                        <td style={{...celAg,fontWeight:600,color:C.teal,whiteSpace:'nowrap'}}>{slot.hora}</td>
+                        <td style={{...celAg,fontWeight:700,color:C.text,whiteSpace:'nowrap'}}>{slot.hora}</td>
                         <td style={celAg}>
                           <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                             <span>{slot.paciente_nome}</span>
@@ -794,7 +794,7 @@ function Agenda({ user, selectedUnidade='' }) {
                   if (horaSlots.length === 0) {
                     return (
                       <tr key={hora} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
-                        <td style={{...celAg,fontWeight:600,color:C.teal,whiteSpace:'nowrap'}}>{hora}</td>
+                        <td style={{...celAg,fontWeight:700,color:C.text,whiteSpace:'nowrap'}}>{hora}</td>
                         <td style={celAg}><span style={{color:C.border}}>—</span></td>
                         <td style={celAg}></td>
                         <td style={celAg}></td>
@@ -812,7 +812,7 @@ function Agenda({ user, selectedUnidade='' }) {
                     ...horaSlots.map((slot, si) => {
                       return (
                       <tr key={slot.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
-                        <td style={{...celAg,fontWeight:600,color:C.teal,whiteSpace:'nowrap'}}>{si===0?hora:''}</td>
+                        <td style={{...celAg,fontWeight:700,color:C.text,whiteSpace:'nowrap'}}>{si===0?hora:''}</td>
                         <td style={celAg}>
                           <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                             <span>{slot.paciente_nome}</span>
@@ -999,7 +999,7 @@ function AgendaModal({ hora, data: dataInicial, existing, encaixe, pacientes, op
             <div style={{background:C.tealBg,borderRadius:8,padding:'10px 14px',display:'flex',
               justifyContent:'space-between',alignItems:'center',fontSize:13}}>
               <div>
-                <div style={{fontWeight:700,color:C.tealD}}>{form.pacienteNome}</div>
+                <div style={{fontWeight:700,color:C.text}}>{form.pacienteNome}</div>
                 {form.telefone && <div style={{fontSize:12,color:C.gray,marginTop:2}}>{form.telefone}</div>}
               </div>
               <span style={{color:C.gray,cursor:'pointer',fontSize:12,textDecoration:'underline'}} onClick={()=>{
@@ -1232,7 +1232,7 @@ function ListaAtendimentos({ user, onAtender, selectedUnidade='' }) {
                 {rows.map((a,i)=>(
                   <tr key={a.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
                     {!filtros.data && <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{fmtDate(a.data)}</td>}
-                    <td style={{padding:'8px 12px',fontWeight:600,color:C.teal}}>{a.hora}</td>
+                    <td style={{padding:'8px 12px',fontWeight:700,color:C.text}}>{a.hora}</td>
                     <td style={{padding:'8px 12px'}}>{a.paciente_nome}</td>
                     <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{a.opto_nome}</td>
                     <td style={{padding:'8px 12px'}}>{a.procedimento}</td>
@@ -1615,7 +1615,7 @@ function Atendimento({ user, selectedUnidade='' }) {
   // Adição é uma só para os dois olhos (AO): um campo que grava em OD e OE
   const rxCell = (fk, extra = {}) => (
     <td key={fk} {...extra} style={{padding:'6px 8px',verticalAlign:extra.rowSpan?'middle':'top',...(extra.rowSpan?{background:C.tealBg}:{})}}>
-      {extra.rowSpan && <div style={{fontSize:11,fontWeight:700,color:C.teal,textAlign:'center',marginBottom:4}}>AO (ambos os olhos)</div>}
+      {extra.rowSpan && <div style={{fontSize:11,fontWeight:700,color:C.text,textAlign:'center',marginBottom:4}}>AO (ambos os olhos)</div>}
       <input disabled={!podeReceita || !!receita} value={form[fk]} onChange={e=>{ const v=e.target.value; setF(fk,v); if (fk==='od_add') setF('oe_add',v); }} onBlur={()=>formatarRx(fk)}
         placeholder={PLACEHOLDER_RX[fk.slice(3)]} inputMode="decimal"
         style={{border:`1.5px solid ${errosRx[fk]?C.danger:C.border}`,borderRadius:6,padding:'7px 8px',fontSize:13,width:'100%',background:C.white,textAlign:'center'}}/>
@@ -1654,7 +1654,7 @@ function Atendimento({ user, selectedUnidade='' }) {
         {tabs.map(t=>(
           <button key={t.id} onClick={()=>!t.disabled&&setTabAte(t.id)} disabled={t.disabled}
             style={{padding:'10px 20px',border:'none',background:'none',fontWeight:tabAte===t.id?700:400,
-              color:t.disabled?C.border:tabAte===t.id?C.teal:C.text,borderBottom:tabAte===t.id?`3px solid ${C.teal}`:'3px solid transparent',cursor:t.disabled?'default':'pointer',fontSize:14}}>
+              color:t.disabled?C.border:tabAte===t.id?C.text:C.gray,borderBottom:tabAte===t.id?`3px solid ${C.teal}`:'3px solid transparent',cursor:t.disabled?'default':'pointer',fontSize:14}}>
             {t.label}
           </button>
         ))}
@@ -1720,11 +1720,11 @@ function Atendimento({ user, selectedUnidade='' }) {
               </tr></thead>
               <tbody>
                 <tr style={{background:C.bg}}>
-                  <td style={{padding:'8px 12px',fontWeight:700,color:C.teal}}>OD</td>
+                  <td style={{padding:'8px 12px',fontWeight:700,color:C.text}}>OD</td>
                   {CAMPOS_RX.map(c => c === 'add' ? rxCell('od_add', { rowSpan: 2 }) : rxCell(`od_${c}`))}
                 </tr>
                 <tr>
-                  <td style={{padding:'8px 12px',fontWeight:700,color:C.tealL}}>OE</td>
+                  <td style={{padding:'8px 12px',fontWeight:700,color:C.text}}>OE</td>
                   {CAMPOS_RX.filter(c => c !== 'add').map(c => rxCell(`oe_${c}`))}
                 </tr>
               </tbody>
@@ -1758,9 +1758,9 @@ function Atendimento({ user, selectedUnidade='' }) {
                   const ao = receita.od_adicao === receita.oe_adicao;
                   return (
                   <tr key={lbl} style={{textAlign:'center'}}>
-                    <td style={{padding:'8px 12px',fontWeight:700,color:C.teal}}>{lbl}</td>
+                    <td style={{padding:'8px 12px',fontWeight:700,color:C.text}}>{lbl}</td>
                     {fields.map(f=>{
-                      if (f.endsWith('_adicao') && ao) return i===0 ? <td key={f} rowSpan={2} style={{padding:'8px 12px',background:C.tealBg}}><div style={{fontSize:11,fontWeight:700,color:C.teal}}>AO</div>{receita.od_adicao||'—'}</td> : null;
+                      if (f.endsWith('_adicao') && ao) return i===0 ? <td key={f} rowSpan={2} style={{padding:'8px 12px',background:C.tealBg}}><div style={{fontSize:11,fontWeight:700,color:C.text}}>AO</div>{receita.od_adicao||'—'}</td> : null;
                       return <td key={f} style={{padding:'8px 12px'}}>{receita[f]||'—'}</td>;
                     })}
                   </tr>
@@ -2016,7 +2016,7 @@ function NoShow({ user, selectedUnidade='' }) {
                 {lista.map((r,i)=>(
                   <tr key={r.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
                     <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{fmtDate(r.data)}</td>
-                    <td style={{padding:'8px 12px',fontWeight:600,color:C.teal}}>{r.hora}</td>
+                    <td style={{padding:'8px 12px',fontWeight:700,color:C.text}}>{r.hora}</td>
                     <td style={{padding:'8px 12px',fontWeight:500}}>{r.paciente_nome}</td>
                     <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{r.paciente_telefone||'—'}</td>
                     <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{r.opto_nome||'—'}</td>
@@ -2415,7 +2415,7 @@ function Usuarios({ selectedUnidade='' }) {
                   <tr key={u.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`,opacity:u.ativo?1:.5}}>
                     <td style={{padding:'8px 12px',fontWeight:600}}>{u.nome}</td>
                     <td style={{padding:'8px 12px'}}><Badge color={PERFIS[u.perfil]?.cor||C.gray}>{PERFIS[u.perfil]?.label||u.perfil}</Badge></td>
-                    <td style={{padding:'8px 12px',fontSize:12,color:C.teal,fontWeight:600}}>{u.unidade||'—'}</td>
+                    <td style={{padding:'8px 12px',fontSize:12,color:C.textSm,fontWeight:600}}>{u.unidade||'—'}</td>
                     <td style={{padding:'8px 12px',fontSize:11,color:C.gray}}>{u.cro||'—'}</td>
                     <td style={{padding:'8px 12px',color:C.gray}}>••••••</td>
                     <td style={{padding:'8px 12px'}}><Badge color={u.ativo?C.success:C.danger}>{u.ativo?'Ativo':'Inativo'}</Badge></td>
@@ -2590,12 +2590,12 @@ function Receitas({ user, selectedUnidade='' }) {
                 <tbody>
                   {[['OD','od'],['OE','oe']].map(([lbl,p],i)=>(
                     <tr key={lbl} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
-                      <td style={{padding:'8px 12px',fontWeight:700,color:C.teal}}>{lbl}</td>
+                      <td style={{padding:'8px 12px',fontWeight:700,color:C.text}}>{lbl}</td>
                       <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_esf']||'—'}</td>
                       <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_cil']||'—'}</td>
                       <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_eixo']||'—'}</td>
                       {detalhe.od_adicao === detalhe.oe_adicao
-                        ? (i===0 && <td rowSpan={2} style={{padding:'8px 12px',textAlign:'center',background:C.tealBg}}><div style={{fontSize:11,fontWeight:700,color:C.teal}}>AO</div>{detalhe.od_adicao||'—'}</td>)
+                        ? (i===0 && <td rowSpan={2} style={{padding:'8px 12px',textAlign:'center',background:C.tealBg}}><div style={{fontSize:11,fontWeight:700,color:C.text}}>AO</div>{detalhe.od_adicao||'—'}</td>)
                         : <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_adicao']||'—'}</td>}
                       <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_dnp']||'—'}</td>
                     </tr>
