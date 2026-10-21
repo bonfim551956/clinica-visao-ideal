@@ -609,7 +609,10 @@ function Agenda({ user, selectedUnidade='' }) {
   const [slots, setSlots] = useState([]);
   const [optos, setOptos] = useState([]);
   const [selOpto, setSelOpto] = useState('');
-  const [selData, setSelData] = useState(today());
+  const per = usePeriodo('hoje');
+  const { de: dataDe, ate: dataAte } = per;
+  const umDia = dataDe === dataAte;
+  const selData = dataDe;
   const [modal, setModal] = useState(null); // null | { hora, existing }
   const [pacientes, setPacientes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -623,27 +626,22 @@ function Agenda({ user, selectedUnidade='' }) {
     supabase.from('pacientes').select('*').order('nome').then(({data})=>setPacientes(data||[]));
   }, []);
 
-  const loadSlots = useCallback(async (opto, data) => {
-    if (!data) return;
+  const loadSlots = useCallback(async () => {
     // Todos os perfis: busca agendamentos por unidade (inclui IA e todos os optos da loja)
     const unidade = user.unidade || selectedUnidade;
-    let q = supabase.from('agenda').select('*').eq('data', data).neq('status', 'Cancelado');
+    let q = supabase.from('agenda').select('*').gte('data', dataDe).lte('data', dataAte).neq('status', 'Cancelado');
     if (unidade) q = q.eq('unidade', unidade);
     const { data: res } = await q;
-    return anexarCompras((res||[]).sort((a,b) => a.hora.localeCompare(b.hora)));
-  }, [user, selectedUnidade]);
+    return anexarCompras((res||[]).sort((a,b) => (a.data + a.hora).localeCompare(b.data + b.hora)));
+  }, [user, selectedUnidade, dataDe, dataAte]);
 
   useEffect(() => {
-    if (!selData) return;
     setLoading(true);
-    loadSlots(selOpto, selData).then(data => { setSlots(data||[]); setLoading(false); });
-  }, [selOpto, selData, selectedUnidade, loadSlots]);
+    loadSlots().then(data => { setSlots(data||[]); setLoading(false); });
+  }, [loadSlots]);
 
   // Realtime: atualiza slots automaticamente
-  useRealtime('agenda', () => {
-    if (!selData) return;
-    loadSlots(selOpto, selData).then(data => setSlots(data||[]));
-  });
+  useRealtime('agenda', () => { loadSlots().then(data => setSlots(data||[])); });
 
   // "Não Compareceu" automático roda no servidor (pg_cron, a cada 5 min)
 
@@ -657,7 +655,7 @@ function Agenda({ user, selectedUnidade='' }) {
     // Opto do agendamento: quem está logado (se for opto) ou o opto ativo da loja
     const opto = user.perfil === 'opto' ? user : optos.find(o => o.unidade === unidadeAlvo);
     const horaFinal = form.hora || modal?.hora;
-    const dataFinal = form.data || selData;
+    const dataFinal = form.data || modal?.data || selData;
     const rowData = {
       paciente_id: form.pacienteId||null,
       paciente_nome: pac?.nome||form.pacienteNome,
@@ -685,7 +683,7 @@ function Agenda({ user, selectedUnidade='' }) {
     } else {
       // Novo agendamento manual: verifica se existe slot da IA *vazio* (sem paciente) nesse horário
       const slotIAVazio = slots.find(s =>
-        s.hora === horaFinal &&
+        s.data === dataFinal && s.hora === horaFinal &&
         (s.agendado_por === 'IA' || !s.opto_id) &&
         !s.paciente_id && !s.paciente_nome
       );
@@ -700,7 +698,7 @@ function Agenda({ user, selectedUnidade='' }) {
       }
     }
     if (err) { alert('Erro ao salvar agendamento: ' + err.message); return; }
-    loadSlots(selOpto, selData).then(data => setSlots(data||[]));
+    loadSlots().then(data => setSlots(data||[]));
     setModal(null);
     showToast('Agendamento salvo!');
   };
@@ -725,12 +723,62 @@ function Agenda({ user, selectedUnidade='' }) {
   return (
     <div>
       <Toast msg={toast}/>
+      <TopoTela titulo="Agenda" subtitulo={`${textoPeriodo(dataDe, dataAte)} · ${slots.length} agendamento(s)`}>
+        <FiltroPeriodo p={per}/>
+      </TopoTela>
       <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end',marginBottom:20}}>
-        <Input label="Data" type="date" value={selData} onChange={e=>setSelData(e.target.value)}/>
-        <Btn onClick={()=>setModal({hora:HORARIOS[0]})} color={C.teal}>+ Novo Agendamento</Btn>
-        <Btn onClick={()=>{ const n=new Date(); const h=`${pad(n.getHours())}:${pad(n.getMinutes())}`; setModal({hora:h, encaixe:true}); }} color={C.teal} outline>+ Encaixe</Btn>
+        <Btn onClick={()=>setModal({hora:HORARIOS[0], data: dataDe < today() ? today() : dataDe})} color={C.teal}>+ Novo Agendamento</Btn>
+        <Btn onClick={()=>{ const n=new Date(); const h=`${pad(n.getHours())}:${pad(n.getMinutes())}`; setModal({hora:h, encaixe:true, data: today()}); }} color={C.teal} outline>+ Encaixe</Btn>
+        {!umDia && <span style={{fontSize:12,color:C.gray}}>Para ver a grade de horários livres, escolha "Hoje" ou um único dia em "Personalizado".</span>}
       </div>
-      {loading ? <Spinner/> : (
+      {loading ? <Spinner/> : !umDia ? (
+        <Card>
+          {slots.length === 0 && <p style={{textAlign:'center',color:C.gray,padding:20}}>Nenhum agendamento no período</p>}
+          {slots.length > 0 && <div className="tbl-wrap">
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+              <thead>
+                <tr style={{background:C.teal,color:C.white}}>
+                  {[['Horário',90],['Paciente',null],['Procedimento',150],['Contato',130],['Status',170],['',264]].map(([h,w])=>(
+                    <th key={h} style={{padding:'10px 16px',textAlign:'left',width:w||undefined}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[...new Set(slots.map(x=>x.data))].map(dia => {
+                  const doDia = slots.filter(x=>x.data===dia);
+                  const rotulo = new Date(dia+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'});
+                  return [
+                    <tr key={'h'+dia}><td colSpan={6} style={{padding:'14px 16px 8px',background:C.tealBg,fontWeight:700,color:C.navy,textTransform:'capitalize'}}>
+                      {rotulo} <span style={{fontWeight:500,color:C.gray,textTransform:'none'}}>· {doDia.length} agendamento(s)</span>
+                    </td></tr>,
+                    ...doDia.map((slot,i)=>(
+                      <tr key={slot.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
+                        <td style={{...celAg,fontWeight:600,color:C.teal,whiteSpace:'nowrap'}}>{slot.hora}</td>
+                        <td style={celAg}>
+                          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                            <span>{slot.paciente_nome}</span>
+                            {slot.agendado_por==='IA' && <span style={{fontSize:10,fontWeight:700,background:C.orangeBg,color:C.orange,borderRadius:4,padding:'2px 6px'}}>IA</span>}
+                            {!unidadeFixa && slot.unidade && <span style={{fontSize:11,color:C.gray}}>{slot.unidade}</span>}
+                          </div>
+                        </td>
+                        <td style={celAg}>{slot.procedimento||''}</td>
+                        <td style={celAg}>{slot.meio_contato||''}</td>
+                        <td style={celAg}><StatusJornada a={slot}/></td>
+                        <td style={celAg}>
+                          <div style={acoesAg}>
+                            <Btn outline size="sm" color={C.teal} style={btnAcao} onClick={()=>setModal({hora:slot.hora,existing:slot})}>Editar</Btn>
+                            <Btn outline size="sm" color={C.teal} style={btnAcao} onClick={()=>setModal({hora:slot.hora, data:dia})}>+ Agendar</Btn>
+                          </div>
+                        </td>
+                      </tr>
+                    )),
+                  ];
+                })}
+              </tbody>
+            </table>
+          </div>}
+        </Card>
+      ) : (
         <Card>
           <div className="tbl-wrap">
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
@@ -755,7 +803,7 @@ function Agenda({ user, selectedUnidade='' }) {
                         <td style={celAg}>
                           <div style={acoesAg}>
                             <span style={{width:btnAcao.width}}/>
-                            <Btn outline size="sm" color={C.teal} style={btnAcao} onClick={()=>setModal({hora})}>+ Agendar</Btn>
+                            <Btn outline size="sm" color={C.teal} style={btnAcao} onClick={()=>setModal({hora, data:dataDe})}>+ Agendar</Btn>
                           </div>
                         </td>
                       </tr>
@@ -779,7 +827,7 @@ function Agenda({ user, selectedUnidade='' }) {
                         <td style={celAg}>
                           <div style={acoesAg}>
                             <Btn outline size="sm" color={C.teal} style={btnAcao} onClick={()=>setModal({hora,existing:slot})}>Editar</Btn>
-                            <Btn outline size="sm" color={C.teal} style={btnAcao} onClick={()=>setModal({hora})}>+ Agendar</Btn>
+                            <Btn outline size="sm" color={C.teal} style={btnAcao} onClick={()=>setModal({hora, data:dataDe})}>+ Agendar</Btn>
                           </div>
                         </td>
                       </tr>
@@ -792,17 +840,17 @@ function Agenda({ user, selectedUnidade='' }) {
           </div>
         </Card>
       )}
-      {modal && <AgendaModal hora={modal.hora} existing={modal.existing} encaixe={modal.encaixe} pacientes={pacientes} optos={optos}
+      {modal && <AgendaModal hora={modal.hora} data={modal.data} existing={modal.existing} encaixe={modal.encaixe} pacientes={pacientes} optos={optos}
         pedirUnidade={!(user.unidade || selectedUnidade)}
         onSave={handleSave} onDelete={handleDelete} onClose={()=>setModal(null)}/>}
     </div>
   );
 }
 
-function AgendaModal({ hora, existing, encaixe, pacientes, optos, pedirUnidade, onSave, onDelete, onClose }) {
+function AgendaModal({ hora, data: dataInicial, existing, encaixe, pacientes, optos, pedirUnidade, onSave, onDelete, onClose }) {
   const [form, setForm] = useState({
     hora: existing?.hora||hora,
-    data: existing?.data||today(),
+    data: existing?.data||dataInicial||today(),
     pacienteId: existing?.paciente_id||'',
     pacienteNome: existing?.paciente_nome||'',
     telefone: existing?.paciente_telefone||'',
@@ -1173,10 +1221,16 @@ function ListaAtendimentos({ user, onAtender, selectedUnidade='' }) {
                     <td style={{padding:'8px 12px'}}>
                       <div style={{display:'flex',gap:6}}>
                         {/* Atender: pacientes do dia (inclusive quem chegou atrasado). Atendidos: abre a ficha/receita em qualquer data */}
-                        {podeAtender && (a.status==='Compareceu' || (a.data===today() && a.status!=='Cancelado')) &&
-                          <Btn size="sm" color={C.teal} style={{width:112,padding:'7px 0'}} onClick={()=>onAtender(a)}>{a.status==='Compareceu'?'Ver ficha':'Atender'}</Btn>}
-                        {a.status!=='Compareceu' &&
-                          <Btn outline size="sm" color={C.teal} style={{width:112,padding:'7px 0'}} onClick={()=>setReagendar(a)}>Reagendar</Btn>}
+                        {/* Os dois botões ficam sempre no lugar; quando não se aplicam, aparecem desabilitados */}
+                        {podeAtender && (() => {
+                          const pode = a.status==='Compareceu' || (a.data===today() && a.status!=='Cancelado');
+                          const motivo = a.status==='Cancelado' ? 'Agendamento cancelado' : 'Só é possível atender no dia do agendamento';
+                          return <Btn size="sm" color={C.teal} disabled={!pode} title={pode ? '' : motivo}
+                            style={{width:112,padding:'7px 0',...(pode?{}:{background:C.grayL,borderColor:C.grayL,color:C.gray,opacity:1})}}
+                            onClick={()=>pode && onAtender(a)}>{a.status==='Compareceu'?'Ver ficha':'Atender'}</Btn>;
+                        })()}
+                        <Btn outline size="sm" color={C.teal} disabled={a.status==='Compareceu'} title={a.status==='Compareceu' ? 'Paciente já atendido' : ''}
+                          style={{width:112,padding:'7px 0'}} onClick={()=>a.status!=='Compareceu' && setReagendar(a)}>Reagendar</Btn>
                       </div>
                     </td>
                   </tr>
