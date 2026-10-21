@@ -1,0 +1,9 @@
+-- 046 — Regra: todo texto registrado fica em MAIÚSCULAS (aplicada via MCP em 21/10/2026).
+-- Trigger genérica public.fn_maiusculas(colunas...) em agenda, pacientes, receitas, conversoes, usuarios e unidades.
+-- Códigos internos (status, perfil, ids, e-mail, ID da agenda do Google) ficam como estão.
+-- agenda:     paciente_nome, opto_nome, procedimento, meio_contato, observacoes, agendado_por, unidade
+-- pacientes:  nome
+-- receitas:   paciente_nome, opto_nome, observacoes, meio_contato, agendado_por, opto_cro, opto_unidade, opto_endereco, unidade
+-- conversoes: paciente_nome, opto_nome, produto, prevenda_nome, unidade
+-- usuarios:   nome, cro, unidade, endereco
+-- unidades:   nome, endereco

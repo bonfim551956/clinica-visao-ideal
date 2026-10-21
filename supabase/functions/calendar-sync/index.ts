@@ -9,10 +9,10 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 // As lojas e suas agendas vêm da tabela public.unidades (tela "Lojas" do sistema).
 // Esta lista só é usada se a tabela não puder ser lida.
 const CALENDARIOS_RESERVA: Record<string, string> = {
-  'São Vicente': 'gerencia.callcenter.idealize@gmail.com',
-  'Campinas': '2ab789af72d8528a3b3b6edc4688a6f776b93ec5c664ad396e19fb6f82c13094@group.calendar.google.com',
-  'Sorocaba': 'b199cc51bf81eb66eb2220d57ee3f16f9d8f7459793506f5f894ec03025c24c8@group.calendar.google.com',
-  'Piracicaba': 'aa156e0a3aa3bb86fc2cc386b4b6af0c6921fe60cd978bfdd9bc30a99d6066c3@group.calendar.google.com',
+  'SÃO VICENTE': 'gerencia.callcenter.idealize@gmail.com',
+  'CAMPINAS': '2ab789af72d8528a3b3b6edc4688a6f776b93ec5c664ad396e19fb6f82c13094@group.calendar.google.com',
+  'SOROCABA': 'b199cc51bf81eb66eb2220d57ee3f16f9d8f7459793506f5f894ec03025c24c8@group.calendar.google.com',
+  'PIRACICABA': 'aa156e0a3aa3bb86fc2cc386b4b6af0c6921fe60cd978bfdd9bc30a99d6066c3@group.calendar.google.com',
 }
 const TZ = 'America/Sao_Paulo'
 const COR_NAO_COMPARECEU = '4' // Flamingo
@@ -63,7 +63,7 @@ function montarLinha(ev: any, unidade: string) {
   const m = startRaw.match(/(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/)
   if (m) { data = m[1]; hora = m[2] } else { const d = startRaw.match(/\d{4}-\d{2}-\d{2}/); if (d) data = d[0] }
   const summary = String(ev.summary || '').trim()
-  const nome = summary.replace(/^IAW\s*[-–]?\s*/i, '').trim() || summary || 'Sem nome'
+  const nome = (summary.replace(/^IAW\s*[-–]?\s*/i, '').trim() || summary || 'Sem nome').toUpperCase()
   const desc = String(ev.description || '')
   const tel = desc.match(/wa\.me\/(\d{10,13})/)?.[1] || ''
   return {
@@ -74,8 +74,8 @@ function montarLinha(ev: any, unidade: string) {
     opto_id: null,
     opto_nome: '',
     data, hora,
-    procedimento: 'Consulta',
-    meio_contato: 'WhatsApp',
+    procedimento: 'CONSULTA',
+    meio_contato: 'WHATSAPP',
     agendado_por: 'IA',
     status: 'Agendado',
     observacoes: desc,
@@ -88,7 +88,7 @@ async function carregarCalendarios(admin: any): Promise<Record<string, string>> 
   const { data, error } = await admin.from('unidades').select('nome, calendario_google').eq('ativa', true)
   if (error || !data) return CALENDARIOS_RESERVA
   const m: Record<string, string> = {}
-  for (const u of data) { const c = String(u.calendario_google || '').trim(); if (c) m[u.nome] = c }
+  for (const u of data) { const c = String(u.calendario_google || '').trim(); if (c) m[String(u.nome).toUpperCase()] = c }
   return m
 }
 
@@ -154,7 +154,7 @@ Deno.serve(async (req: Request) => {
   if (pErr) erros.push('busca reagendados: ' + pErr.message)
   let reagendados = 0
   for (const a of pendentes || []) {
-    const calId = CALENDARIOS[a.unidade as string]
+    const calId = CALENDARIOS[String(a.unidade || '').toUpperCase()]
     if (!calId) { erros.push(`reagendar ${a.google_event_id}: loja "${a.unidade}" sem agenda cadastrada`); continue }
     try {
       const ini = new Date(`${a.data}T${String(a.hora).slice(0, 5)}:00-03:00`)
@@ -258,7 +258,7 @@ Deno.serve(async (req: Request) => {
   if (fErr) erros.push('busca faltas: ' + fErr.message)
 
   for (const f of faltas || []) {
-    const calId = CALENDARIOS[f.unidade as string]
+    const calId = CALENDARIOS[String(f.unidade || '').toUpperCase()]
     if (!calId) continue
     try {
       const r = await fetch(

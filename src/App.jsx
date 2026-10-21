@@ -31,8 +31,8 @@ const HORARIOS = (() => {
   return h;
 })();
 
-const PROCEDIMENTOS = ['Consulta','Retorno'];
-const MEIOS_CONTATO = ['Loja','Visão Ideal'];
+const PROCEDIMENTOS = ['CONSULTA','RETORNO'];
+const MEIOS_CONTATO = ['LOJA','VISÃO IDEAL'];
 /* ── Refração digitada: regras e formatação ──
    Esférico: -30 a +30, de 0,25 em 0,25 (0 = "Plano")
    Cilíndrico: sempre negativo (positivo é convertido), 0 a -10, de 0,25 em 0,25
@@ -101,14 +101,14 @@ const PERFIS = {
 };
 
 // Lojas ativas — carregadas da tabela public.unidades ao entrar (tela "Lojas"); os valores abaixo são só o ponto de partida
-const UNIDADES = ['São Vicente','Piracicaba','Sorocaba','Campinas'];
+const UNIDADES = ['SÃO VICENTE','PIRACICABA','SOROCABA','CAMPINAS'];
 
 // Endereços por unidade — para cabeçalho da receita e rodapé
 const ENDERECOS_UNIDADES = {
-  'São Vicente': 'Av. Antônio Emerich, 477 - Vila Melo – São Vicente – SP',
-  'Piracicaba':  'Rua Benjamin Constant, 1379 - Centro – Piracicaba – SP',
-  'Sorocaba':    'R. Comendador Hermelino Matarazzo, 468 - Vila Santana – Sorocaba – SP',
-  'Campinas':    'Rua Conceição, 233, Sala 604 - Centro – Campinas – SP',
+  'SÃO VICENTE': 'AV. ANTÔNIO EMERICH, 477 - VILA MELO – SÃO VICENTE – SP',
+  'PIRACICABA':  'RUA BENJAMIN CONSTANT, 1379 - CENTRO – PIRACICABA – SP',
+  'SOROCABA':    'R. COMENDADOR HERMELINO MATARAZZO, 468 - VILA SANTANA – SOROCABA – SP',
+  'CAMPINAS':    'RUA CONCEIÇÃO, 233, SALA 604 - CENTRO – CAMPINAS – SP',
 };
 
 // Atualiza as listas de lojas usadas pelo sistema todo a partir do banco
@@ -177,7 +177,17 @@ const Btn = ({children,onClick,color=C.teal,outline=false,size='md',style:sx={},
 };
 const Card = ({children,style:sx={}}) => <div style={{background:C.white,borderRadius:16,padding:20,boxShadow:'0 2px 8px rgba(0,0,0,.06)',...sx}}>{children}</div>;
 const Badge = ({children,color=C.teal}) => <span style={{whiteSpace:'nowrap',background:color+'22',color,borderRadius:20,padding:'2px 10px',fontSize:12,fontWeight:600}}>{children}</span>;
-const Input = ({label,style:sx={},...p}) => <div style={{display:'flex',flexDirection:'column',gap:4,...sx}}>{label&&<label style={{fontSize:12,fontWeight:600,color:C.textSm}}>{label}</label>}<input style={{border:`1.5px solid ${sx['--borda']||C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,background:C.white}} {...p}/></div>;
+// Regra da casa: tudo que é digitado vira MAIÚSCULO (o banco também garante). Cursor fica onde estava.
+const maiusc = e => {
+  const el = e.target; const up = String(el.value).toUpperCase();
+  if (up !== el.value) { const a = el.selectionStart, b = el.selectionEnd; el.value = up; try { el.setSelectionRange(a, b); } catch {} }
+  return e;
+};
+const TIPOS_TEXTO = [undefined, 'text', 'search', 'tel'];
+const Input = ({label,style:sx={},livre,...p}) => {
+  if (!livre && p.onChange && TIPOS_TEXTO.includes(p.type)) { const fn = p.onChange; p = { ...p, onChange: e => fn(maiusc(e)) }; }
+  return <div style={{display:'flex',flexDirection:'column',gap:4,...sx}}>{label&&<label style={{fontSize:12,fontWeight:600,color:C.textSm}}>{label}</label>}<input style={{border:`1.5px solid ${sx['--borda']||C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,background:C.white}} {...p}/></div>;
+};
 // Seletor padrão do sistema: caixa com a lista de opções no estilo da marca (substitui o <select> nativo)
 const Select = ({label,options=[],style:sx={},value,onChange,disabled}) => {
   const ops = options.map(o => typeof o === 'object' ? { value: String(o.value ?? ''), label: o.label ?? o.value } : { value: String(o), label: o });
@@ -1031,7 +1041,7 @@ function AgendaModal({ hora, data: dataInicial, existing, encaixe, pacientes, op
                 <label style={{display:'block',fontSize:12,fontWeight:600,color:C.navy,marginBottom:4}}>
                   Nome completo <span style={{color:C.danger}}>*</span>
                 </label>
-                <input value={form.pacienteNome} onChange={e=>set('pacienteNome',e.target.value)}
+                <input value={form.pacienteNome} onChange={e=>set('pacienteNome',maiusc(e).target.value)}
                   placeholder="Nome completo do paciente" style={inputStyle(form.pacienteNome, true)}/>
               </div>
               <div>
@@ -1302,11 +1312,11 @@ function imprimirReceita(r) {
   const logoUrl = window.location.origin + '/logo-visao-ideal.png';
   const [dAt, tAt] = String(r.data_hora_atendimento || '').split(' ');
   const dtAtend = dAt ? fmtDate(dAt) + (tAt ? ' às ' + tAt : '') : fmtDate(r.data);
-  const unidade = r.unidade || r.opto_unidade || 'São Vicente';
+  const unidade = r.unidade || r.opto_unidade || 'SÃO VICENTE';
   const dtExtenso = unidade + ', ' + new Date((r.data || today()) + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
   const idade = idadeEm(r.paciente_data_nascimento, dAt || r.data);
   const cro = fmtCro(r.opto_cro);
-  const endereco = r.opto_endereco || ENDERECOS_UNIDADES[unidade] || ENDERECOS_UNIDADES['São Vicente'];
+  const endereco = r.opto_endereco || ENDERECOS_UNIDADES[unidade] || ENDERECOS_UNIDADES['SÃO VICENTE'];
   const eixo = v => v && v !== '—' ? esc(v) + '°' : '—';
   const dnp = v => v && v !== 'N/A' ? esc(v) : '—';
   const temAdicao = (r.od_adicao && r.od_adicao !== 'N/A') || (r.oe_adicao && r.oe_adicao !== 'N/A');
@@ -1413,8 +1423,8 @@ const horaMais = (h, min) => { const [a,b] = String(h||'00:00').split(':').map(N
 function imprimirDeclaracao(r, { cpf, inicio, fim }) {
   const logoUrl = window.location.origin + '/logo-visao-ideal.png';
   const dAt = String(r.data_hora_atendimento || '').split(' ')[0] || r.data || today();
-  const unidade = r.unidade || r.opto_unidade || 'São Vicente';
-  const endereco = r.opto_endereco || ENDERECOS_UNIDADES[unidade] || ENDERECOS_UNIDADES['São Vicente'];
+  const unidade = r.unidade || r.opto_unidade || 'SÃO VICENTE';
+  const endereco = r.opto_endereco || ENDERECOS_UNIDADES[unidade] || ENDERECOS_UNIDADES['SÃO VICENTE'];
   const dataEmissao = new Date(dAt + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
   const cro = fmtCro(r.opto_cro);
   const w = window.open('', '_blank');
@@ -1681,13 +1691,13 @@ function Atendimento({ user, selectedUnidade='' }) {
                 : <div style={{fontSize:11,color:C.gray,marginTop:4}}>Obrigatória · sai a idade na receita</div>}
             </div>
             <div><label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:4}}>Queixa principal</label>
-              <textarea disabled={soLeitura} value={form.queixa} onChange={e=>setF('queixa',e.target.value)} rows={3}
+              <textarea disabled={soLeitura} value={form.queixa} onChange={e=>setF('queixa',maiusc(e).target.value)} rows={3}
                 style={{width:'100%',border:`1.5px solid ${C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,resize:'vertical'}}/></div>
             <div><label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:4}}>Medicamentos em uso</label>
-              <textarea disabled={soLeitura} value={form.medicamentos} onChange={e=>setF('medicamentos',e.target.value)} rows={2}
+              <textarea disabled={soLeitura} value={form.medicamentos} onChange={e=>setF('medicamentos',maiusc(e).target.value)} rows={2}
                 style={{width:'100%',border:`1.5px solid ${C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,resize:'vertical'}}/></div>
             <div><label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:4}}>Observações adicionais</label>
-              <textarea disabled={soLeitura} value={form.anamnese} onChange={e=>setF('anamnese',e.target.value)} rows={3}
+              <textarea disabled={soLeitura} value={form.anamnese} onChange={e=>setF('anamnese',maiusc(e).target.value)} rows={3}
                 style={{width:'100%',border:`1.5px solid ${C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,resize:'vertical'}}/></div>
             <div>
               <label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:8}}>Tratamentos sugeridos para as lentes</label>
@@ -2492,7 +2502,7 @@ function LojaModal({ loja, onSave, onClose }) {
         </div>
         <Input label="Endereço (sai na receita e na declaração)" value={form.endereco} onChange={e=>set('endereco',e.target.value)} placeholder="Rua, número - Bairro – Cidade – UF"/>
         <div>
-          <Input label="ID da agenda do Google" value={form.calendario_google} onChange={e=>set('calendario_google',e.target.value)} placeholder="…@group.calendar.google.com"/>
+          <Input livre label="ID da agenda do Google" value={form.calendario_google} onChange={e=>set('calendario_google',e.target.value)} placeholder="…@group.calendar.google.com"/>
           <div style={{display:'flex',alignItems:'center',gap:10,marginTop:8,flexWrap:'wrap'}}>
             <Btn outline size="sm" color={C.teal} disabled={!form.calendario_google.trim() || teste?.carregando} onClick={testar}>{teste?.carregando ? 'Testando…' : 'Testar agenda'}</Btn>
             {teste && !teste.carregando && (teste.ok
