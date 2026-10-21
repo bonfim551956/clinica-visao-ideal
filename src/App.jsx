@@ -1547,7 +1547,10 @@ function Atendimento({ user, selectedUnidade='' }) {
     if (form.nasc && sel?.paciente_id) await supabase.from('pacientes').update({ data_nascimento: form.nasc }).eq('id', sel.paciente_id).is('data_nascimento', null);
   };
 
+  // Regra: só usuário com perfil de optometrista gera (ou altera) receita — o banco também bloqueia
+  const podeReceita = user.perfil === 'opto';
   const gerarReceita = async () => {
+    if (!podeReceita) { alert('Somente optometristas podem gerar receitas.'); return; }
     if (!conferirNasc()) return;
     const { erros, valores: rx } = validarRx(form);
     if (Object.keys(erros).length) { setErrosRx(erros); setTabAte('refracao'); alert('Confira os campos da refração marcados em vermelho.'); return; }
@@ -1613,7 +1616,7 @@ function Atendimento({ user, selectedUnidade='' }) {
   const rxCell = (fk, extra = {}) => (
     <td key={fk} {...extra} style={{padding:'6px 8px',verticalAlign:extra.rowSpan?'middle':'top',...(extra.rowSpan?{background:C.tealBg}:{})}}>
       {extra.rowSpan && <div style={{fontSize:11,fontWeight:700,color:C.teal,textAlign:'center',marginBottom:4}}>AO (ambos os olhos)</div>}
-      <input value={form[fk]} onChange={e=>{ const v=e.target.value; setF(fk,v); if (fk==='od_add') setF('oe_add',v); }} onBlur={()=>formatarRx(fk)}
+      <input disabled={!podeReceita || !!receita} value={form[fk]} onChange={e=>{ const v=e.target.value; setF(fk,v); if (fk==='od_add') setF('oe_add',v); }} onBlur={()=>formatarRx(fk)}
         placeholder={PLACEHOLDER_RX[fk.slice(3)]} inputMode="decimal"
         style={{border:`1.5px solid ${errosRx[fk]?C.danger:C.border}`,borderRadius:6,padding:'7px 8px',fontSize:13,width:'100%',background:C.white,textAlign:'center'}}/>
       {errosRx[fk] && <div style={{color:C.danger,fontSize:11,marginTop:4,lineHeight:1.3}}>{errosRx[fk]}</div>}
@@ -1729,7 +1732,8 @@ function Atendimento({ user, selectedUnidade='' }) {
           </div>
           <div style={{display:'flex',justifyContent:'space-between',marginTop:16,flexWrap:'wrap',gap:8}}>
             <Btn color={C.gray} outline onClick={()=>setTabAte('anamnese')}>Anamnese</Btn>
-            {!receita && <Btn color={C.teal} onClick={gerarReceita}>Gerar Receita</Btn>}
+            {!receita && podeReceita && <Btn color={C.teal} onClick={gerarReceita}>Gerar Receita</Btn>}
+            {!receita && !podeReceita && <span style={{fontSize:13,color:C.gray,fontWeight:600,alignSelf:'center'}}>Somente o optometrista pode preencher e gerar a receita.</span>}
             {receita && <Badge color={C.success}>Receita gerada — disponível para conversão</Badge>}
           </div>
           <p style={{fontSize:12,color:C.gray,marginTop:12}}>
