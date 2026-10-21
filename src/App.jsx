@@ -728,7 +728,6 @@ function Agenda({ user, selectedUnidade='' }) {
       </TopoTela>
       <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end',marginBottom:20}}>
         <Btn onClick={()=>setModal({hora:HORARIOS[0], data: dataDe < today() ? today() : dataDe})} color={C.teal}>+ Novo Agendamento</Btn>
-        <Btn onClick={()=>{ const n=new Date(); const h=`${pad(n.getHours())}:${pad(n.getMinutes())}`; setModal({hora:h, encaixe:true, data: today()}); }} color={C.teal} outline>+ Encaixe</Btn>
         {!umDia && <span style={{fontSize:12,color:C.gray}}>Para ver a grade de horários livres, escolha "Hoje" ou um único dia em "Personalizado".</span>}
       </div>
       {loading ? <Spinner/> : !umDia ? (
@@ -1142,6 +1141,33 @@ function ListaAtendimentos({ user, onAtender, selectedUnidade='' }) {
   useRealtime('agenda', load);
 
   const [reagendar, setReagendar] = useState(null);
+  // Encaixe: agenda o paciente agora e já abre o atendimento
+  const [encaixe, setEncaixe] = useState(null);
+  const [pacientes, setPacientes] = useState([]);
+  const abrirEncaixe = async () => {
+    const n = new Date();
+    setEncaixe({ hora: `${pad(n.getHours())}:${pad(n.getMinutes())}` });
+    const { data } = await supabase.from('pacientes').select('*').order('nome');
+    setPacientes(data || []);
+  };
+  const salvarEncaixe = async (form) => {
+    const unidadeAlvo = user.unidade || selectedUnidade || form.unidade || '';
+    if (!unidadeAlvo) { alert('Selecione a unidade do agendamento.'); return; }
+    const ativos = (await listarUsuarios()).filter(u => u.perfil === 'opto' && u.ativo);
+    const opto = user.perfil === 'opto' ? user : ativos.find(o => o.unidade === unidadeAlvo);
+    const pac = pacientes.find(p => p.id === form.pacienteId);
+    const row = {
+      id: uid(), paciente_id: form.pacienteId || null, paciente_nome: pac?.nome || form.pacienteNome,
+      paciente_telefone: form.telefone || '', opto_id: opto?.id || null, opto_nome: opto?.nome || '',
+      data: today(), hora: form.hora || encaixe.hora, procedimento: form.procedimento, meio_contato: form.meioContato,
+      status: 'Agendado', observacoes: form.obs || '', agendado_por: user.nome || '', unidade: unidadeAlvo,
+    };
+    const { error } = await supabase.from('agenda').insert(row);
+    if (error) { alert('Erro ao salvar o encaixe: ' + error.message); return; }
+    setEncaixe(null);
+    showToast('Encaixe criado. Abrindo o atendimento…');
+    onAtender(row);
+  };
   const conta = st => rows.filter(a=>a.status===st).length;
   const comprou = rows.filter(a=>a._compra?.converteu).length;
   const resumo = `${rows.length} registro(s) · ${conta('Agendado')} aguardando · ${conta('Não Compareceu')} não compareceu · ${conta('Compareceu')} atendido(s), ${comprou} comprou`;
@@ -1167,8 +1193,13 @@ function ListaAtendimentos({ user, onAtender, selectedUnidade='' }) {
           <h2 style={{fontSize:22,fontWeight:800,color:C.navy}}>Atendimentos</h2>
           <p style={{color:C.gray,fontSize:13,marginTop:2}}>{filtros.data ? (filtros.data===today() ? 'Hoje · ' : '') + fmtDate(filtros.data) : 'Todas as datas'} · {resumo}</p>
         </div>
-        {filtros.data !== today() && <Btn outline size="sm" color={C.teal} onClick={()=>setFiltros(f=>({...f,data:today()}))}>Voltar para hoje</Btn>}
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          {filtros.data !== today() && <Btn outline size="sm" color={C.teal} onClick={()=>setFiltros(f=>({...f,data:today()}))}>Voltar para hoje</Btn>}
+          {podeAtender && <Btn color={C.teal} onClick={abrirEncaixe}>+ Encaixe</Btn>}
+        </div>
       </div>
+      {encaixe && <AgendaModal hora={encaixe.hora} data={today()} encaixe pacientes={pacientes} optos={[]}
+        pedirUnidade={!(user.unidade || selectedUnidade)} onSave={salvarEncaixe} onDelete={()=>{}} onClose={()=>setEncaixe(null)}/>}
       <Card style={{marginBottom:16}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end'}}>
           <Input label="Data" type="date" value={filtros.data} onChange={e=>setFiltros(f=>({...f,data:e.target.value}))}/>
