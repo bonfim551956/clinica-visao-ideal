@@ -394,8 +394,9 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
 
   const sideW = 220;
   // Altura do cabeçalho (linha principal + barra de unidade) — o bloco da logo acompanha a mesma linha
-  const TOPO_H = 64, UNIDADE_H = 48;
-  const alturaTopo = TOPO_H + (podeVerTodasUnidades ? UNIDADE_H : 0) + 1;
+  const TOPO_H = 64;
+  // Cabeçalho único para todos os perfis (o seletor de loja fica na mesma linha, à direita)
+  const alturaTopo = TOPO_H + 1;
   const currentNav = NAV_ITEMS.find(n=>n.id===tab);
 
   return (
@@ -404,7 +405,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
       {/* Sidebar */}
       <div style={{width:sideW,background:C.white,borderRight:`1px solid ${C.border}`,position:'fixed',top:0,left:0,bottom:0,overflowY:'auto',display:'flex',flexDirection:'column',boxShadow:'2px 0 8px rgba(0,0,0,.04)'}}>
         <div style={{height:alturaTopo,boxSizing:'border-box',flexShrink:0,background:C.white,borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'center',padding:'8px 16px'}}>
-          <img src="/logo-visao-ideal.png" alt="Visão Ideal" style={{height:'100%',maxHeight:podeVerTodasUnidades?88:48,width:'auto',objectFit:'contain'}}/>
+          <img src="/logo-visao-ideal.png" alt="Visão Ideal" style={{height:'100%',maxHeight:48,width:'auto',objectFit:'contain'}}/>
         </div>
         <div style={{flex:1,overflowY:'auto',paddingTop:6}}><SideNav/></div>
         <div style={{padding:'14px 16px',borderTop:`1px solid ${C.border}`,background:C.bg}}>
@@ -429,20 +430,14 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
                 {currentNav?.label}
               </div>
               <div style={{fontSize:13,fontWeight:600,color:C.navy}}>
-                Bem-vindo, <span style={{fontWeight:700}}>{user.nome.split(' ')[0]}</span>! Hoje {fmtDate(today())}
+                {(() => { const d = new Date(today()+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long'}); return d.charAt(0).toUpperCase()+d.slice(1); })()}, {fmtDate(today())}
               </div>
             </div>
             <div style={{display:'flex',alignItems:'center',gap:12}}>
               <Badge color={perfil?.cor||C.teal}>{perfil?.label}</Badge>
-              {user.unidade && <span style={{fontSize:12,color:C.gray}}>{user.unidade}</span>}
+              {podeVerTodasUnidades ? unidadeFilter() : user.unidade && <span style={{fontSize:12,color:C.gray}}>{user.unidade}</span>}
             </div>
           </div>
-          {podeVerTodasUnidades && (
-          <div style={{height:UNIDADE_H,boxSizing:'border-box',padding:'0 28px',background:C.bg+'cc',display:'flex',alignItems:'center',gap:10,borderTop:`1px solid ${C.border}`}}>
-            <span style={{fontSize:11,fontWeight:700,color:C.textSm,whiteSpace:'nowrap',textTransform:'uppercase',letterSpacing:'0.5px'}}>Unidade:</span>
-            {unidadeFilter()}
-          </div>
-          )}
         </div>
         <div style={{flex:1,padding:28,maxWidth:1300,minWidth:0}}>{children}</div>
       </div>
