@@ -975,7 +975,7 @@ function AgendaModal({ hora, data: dataInicial, existing, encaixe, pacientes, op
               <div style={{position:'relative',flex:1}}>
                 <input
                   value={busca}
-                  onChange={e=>handleBusca(e.target.value)}
+                  onChange={e=>handleBusca(maiusc(e).target.value)}
                   onFocus={()=>busca.length>=2&&setShowSug(true)}
                   onBlur={()=>setTimeout(()=>setShowSug(false),180)}
                   placeholder="Buscar paciente cadastrado..."
