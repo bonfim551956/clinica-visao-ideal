@@ -498,7 +498,9 @@ function Dashboard({ user, selectedUnidade='' }) {
         applyU(noPeriodo(supabase.from('agenda').select('status'))),
         applyU(noPeriodo(supabase.from('receitas').select('id'))),
         applyU(noPeriodo(supabase.from('conversoes').select('converteu,valor_venda'))),
-        applyU(supabase.from('agenda').select('*').eq('data', today()).eq('status','Agendado').order('hora').limit(8)),
+        // Próximas: sempre a partir de agora (independe do período), mais cedo primeiro
+        applyU(supabase.from('agenda').select('*').eq('status','Agendado')
+          .gte('data', today()).order('data').order('hora').limit(40)),
       ]);
       const agenda = (ag.data || []).filter(a => a.status !== 'Cancelado');
       const cvs = conv.data || [];
@@ -516,7 +518,8 @@ function Dashboard({ user, selectedUnidade='' }) {
         noshow: Math.round((naoComp/total)*100),
         taxaConv: cvs.length ? Math.round((totalConv/cvs.length)*100) : 0,
       });
-      setProximos(prox.data||[]);
+      const agora = new Date(); const hhmm = `${String(agora.getHours()).padStart(2,'0')}:${String(agora.getMinutes()).padStart(2,'0')}`;
+      setProximos((prox.data||[]).filter(a => a.data > today() || String(a.hora||'').slice(0,5) >= hhmm).slice(0,10));
       setLoading(false);
     };
     load();
@@ -568,14 +571,14 @@ function Dashboard({ user, selectedUnidade='' }) {
       </div>
       <Card style={{padding:24}}>
         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
-          <h3 style={{fontSize:15,fontWeight:700,color:C.navy}}>Próximas Consultas Hoje</h3>
+          <h3 style={{fontSize:15,fontWeight:700,color:C.navy}}>Próximas Consultas</h3>
         </div>
         {proximos.length === 0 ? <p style={{color:C.gray,textAlign:'center',padding:20}}>Nenhum agendamento encontrado</p> : (
           <div className="tbl-wrap">
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
               <thead>
                 <tr style={{background:C.teal,color:C.white}}>
-                  {['Hora','Paciente','Optometrista','Procedimento','Status'].map(h=>(
+                  {['Data','Hora','Paciente','Unidade','Optometrista','Procedimento'].map(h=>(
                     <th key={h} style={{padding:'8px 12px',textAlign:'left'}}>{h}</th>
                   ))}
                 </tr>
@@ -583,11 +586,12 @@ function Dashboard({ user, selectedUnidade='' }) {
               <tbody>
                 {proximos.map((a,i)=>(
                   <tr key={a.id} style={{background:i%2===0?C.white:C.bg}}>
-                    <td style={{padding:'8px 12px',fontWeight:700,color:C.text}}>{a.hora}</td>
+                    <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{a.data === today() ? 'Hoje' : fmtDate(a.data)}</td>
+                    <td style={{padding:'8px 12px',fontWeight:700,color:C.text}}>{String(a.hora||'').slice(0,5)}</td>
                     <td style={{padding:'8px 12px'}}>{a.paciente_nome}</td>
+                    <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{a.unidade}</td>
                     <td style={{padding:'8px 12px',whiteSpace:'nowrap'}}>{a.opto_nome}</td>
                     <td style={{padding:'8px 12px'}}>{a.procedimento}</td>
-                    <td style={{padding:'8px 12px'}}><Badge color={C.success}>{a.status}</Badge></td>
                   </tr>
                 ))}
               </tbody>
@@ -2887,6 +2891,9 @@ export default function App() {
   if (!lojasProntas) return <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:C.bg}}><style>{GLOBAL_CSS}</style><Spinner/></div>;
 
   const navPerm = PERFIS[usuario.perfil]?.nav || [];
+  // Quem não vê todas as lojas (opto, comercial, gerente) fica sempre preso à própria loja
+  const veTodas = ['diretor','supervisor','prevenda'].includes(usuario.perfil);
+  const lojaEfetiva = veTodas ? selectedUnidade : (usuario.unidade || '__sem_loja__');
   if (!navPerm.includes(tab)) return (
     <Layout user={usuario} tab={tab} setTab={setTab} onLogout={handleLogout} selectedUnidade={selectedUnidade} setSelectedUnidade={setSelectedUnidade}>
       <Card><p style={{textAlign:'center',padding:40,color:C.gray}}>Sem permissão para acessar esta seção.</p></Card>
@@ -2894,14 +2901,14 @@ export default function App() {
   );
 
   const pages = {
-    inicio:       <Dashboard user={usuario} selectedUnidade={selectedUnidade}/>,
-    agenda:       <Agenda user={usuario} selectedUnidade={selectedUnidade}/>,
-    atendimento:  <Atendimento user={usuario} selectedUnidade={selectedUnidade}/>,
-    receitas:     <Receitas user={usuario} selectedUnidade={selectedUnidade}/>,
-    conversao:    <Conversao user={usuario} selectedUnidade={selectedUnidade}/>,
-    noshow:       <NoShow user={usuario} selectedUnidade={selectedUnidade}/>,
-    relatorios:   <Relatorios selectedUnidade={selectedUnidade}/>,
-    usuarios:     <Usuarios selectedUnidade={selectedUnidade}/>,
+    inicio:       <Dashboard user={usuario} selectedUnidade={lojaEfetiva}/>,
+    agenda:       <Agenda user={usuario} selectedUnidade={lojaEfetiva}/>,
+    atendimento:  <Atendimento user={usuario} selectedUnidade={lojaEfetiva}/>,
+    receitas:     <Receitas user={usuario} selectedUnidade={lojaEfetiva}/>,
+    conversao:    <Conversao user={usuario} selectedUnidade={lojaEfetiva}/>,
+    noshow:       <NoShow user={usuario} selectedUnidade={lojaEfetiva}/>,
+    relatorios:   <Relatorios selectedUnidade={lojaEfetiva}/>,
+    usuarios:     <Usuarios selectedUnidade={lojaEfetiva}/>,
     lojas:        <Lojas onAlterar={recarregarLojas}/>,
   };
 
