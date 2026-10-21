@@ -34,19 +34,19 @@ const HORARIOS = (() => {
 const PROCEDIMENTOS = ['CONSULTA','RETORNO'];
 const MEIOS_CONTATO = ['LOJA','VISÃO IDEAL'];
 /* ── Refração digitada: regras e formatação ──
-   Esférico: -30 a +30, de 0,25 em 0,25 (0 = "Plano")
+   Esférico: -30 a +30, de 0,25 em 0,25 (0 = "PLANO")
    Cilíndrico: sempre negativo (positivo é convertido), 0 a -10, de 0,25 em 0,25
    Eixo: inteiro de 0 a 180 — obrigatório quando há cilíndrico
    Adição: +0,25 a +4,00, de 0,25 em 0,25 (vazio = "N/A")
    DNP: 20 a 40 mm (aceita meio milímetro; vazio = "N/A") */
 const numRx = v => { const t = String(v ?? '').trim().replace(',', '.').replace(/^\+/, ''); if (t === '' ) return null; if (/^plano$/i.test(t)) return 0; return /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : NaN; };
 const quarto = n => Math.abs(n * 4 - Math.round(n * 4)) < 1e-9;
-const fmtDiop = n => n === 0 ? 'Plano' : (n > 0 ? '+' : '-') + Math.abs(n).toFixed(2).replace('.', ',');
+const fmtDiop = n => n === 0 ? 'PLANO' : (n > 0 ? '+' : '-') + Math.abs(n).toFixed(2).replace('.', ',');
 const REGRAS_RX = {
-  esf: v => { const n = numRx(v); if (n === null) return { valor: 'Plano' };
+  esf: v => { const n = numRx(v); if (n === null) return { valor: 'PLANO' };
     if (isNaN(n) || !quarto(n) || n < -30 || n > 30) return { erro: 'Esférico: de -30 a +30, em passos de 0,25' };
     return { valor: fmtDiop(n) }; },
-  cil: v => { let n = numRx(v); if (n === null) return { valor: 'Plano' };
+  cil: v => { let n = numRx(v); if (n === null) return { valor: 'PLANO' };
     if (isNaN(n)) return { erro: 'Cilíndrico inválido' };
     n = -Math.abs(n); // cilíndrico sempre negativo
     if (!quarto(n) || n < -10) return { erro: 'Cilíndrico: de 0 a -10, em passos de 0,25' };
@@ -64,29 +64,29 @@ const REGRAS_RX = {
 const CAMPOS_RX = ['esf','cil','eixo','add','dnp'];
 // Tratamentos sugeridos na receita (antirreflexo já vem marcado)
 const TRATAMENTOS = [
-  { id:'AR', label:'Antirreflexo (AR)', desc:'Reduz reflexos e melhora a nitidez' },
-  { id:'Blue', label:'Filtro de luz azul (Blue)', desc:'Para quem usa telas por muitas horas' },
-  { id:'Fotocromático', label:'Fotocromático', desc:'Escurece no sol e clareia em ambientes internos' },
+  { id:'AR', label:'ANTIRREFLEXO (AR)', desc:'Reduz reflexos e melhora a nitidez' },
+  { id:'BLUE', label:'FILTRO DE LUZ AZUL (BLUE)', desc:'Para quem usa telas por muitas horas' },
+  { id:'FOTOCROMÁTICO', label:'FOTOCROMÁTICO', desc:'Escurece no sol e clareia em ambientes internos' },
 ];
 const TRAT_PADRAO = ['AR'];
-const nomeTrat = id => TRATAMENTOS.find(t=>t.id===id)?.label || id;
+const nomeTrat = id => TRATAMENTOS.find(t=>t.id===String(id).toUpperCase())?.label || String(id).toUpperCase();
 const validarRx = form => {
   const erros = {}, valores = {};
   for (const olho of ['od','oe']) {
     for (const c of CAMPOS_RX) { const r = REGRAS_RX[c](form[`${olho}_${c}`]); if (r.erro) erros[`${olho}_${c}`] = r.erro; else valores[`${olho}_${c}`] = r.valor; }
     const cil = valores[`${olho}_cil`];
-    if (cil && cil !== 'Plano' && !valores[`${olho}_eixo`] && !erros[`${olho}_eixo`]) erros[`${olho}_eixo`] = 'Informe o eixo (há cilíndrico)';
+    if (cil && cil.toUpperCase() !== 'PLANO' && !valores[`${olho}_eixo`] && !erros[`${olho}_eixo`]) erros[`${olho}_eixo`] = 'Informe o eixo (há cilíndrico)';
     // sem cilíndrico o eixo não vale: não sai na receita nem trava a geração
-    if (cil === 'Plano') { valores[`${olho}_eixo`] = ''; delete erros[`${olho}_eixo`]; }
+    if (cil && cil.toUpperCase() === 'PLANO') { valores[`${olho}_eixo`] = ''; delete erros[`${olho}_eixo`]; }
   }
   return { erros, valores };
 };
 
-const SPH = ['Plano','+0,25','+0,50','+0,75','+1,00','+1,25','+1,50','+1,75','+2,00','+2,25','+2,50',
+const SPH = ['PLANO','+0,25','+0,50','+0,75','+1,00','+1,25','+1,50','+1,75','+2,00','+2,25','+2,50',
   '+2,75','+3,00','+3,50','+4,00','+4,50','+5,00','+5,50','+6,00',
   '-0,25','-0,50','-0,75','-1,00','-1,25','-1,50','-1,75','-2,00','-2,25','-2,50',
   '-2,75','-3,00','-3,50','-4,00','-4,50','-5,00','-5,50','-6,00','-7,00','-8,00'];
-const CYL = ['Plano','-0,25','-0,50','-0,75','-1,00','-1,25','-1,50','-1,75','-2,00','-2,50','-3,00'];
+const CYL = ['PLANO','-0,25','-0,50','-0,75','-1,00','-1,25','-1,50','-1,75','-2,00','-2,50','-3,00'];
 const AXIS = Array.from({length:180},(_,i)=>String(i+1));
 const ADD_VALS = ['N/A','+0,75','+1,00','+1,25','+1,50','+1,75','+2,00','+2,25','+2,50','+2,75','+3,00'];
 const DNP_VALS = ['N/A','28','29','30','31','32','33','34','35','36','37','38','39','40'];
@@ -1619,7 +1619,7 @@ function Atendimento({ user, selectedUnidade='' }) {
   };
 
   const [errosRx, setErrosRx] = useState({});
-  const PLACEHOLDER_RX = { esf:'Plano', cil:'Plano', eixo:'0 a 180', add:'N/A', dnp:'N/A' };
+  const PLACEHOLDER_RX = { esf:'PLANO', cil:'PLANO', eixo:'0 a 180', add:'N/A', dnp:'N/A' };
   // Ao sair do campo: confere a regra e formata (ex.: "1.25" → "+1,25"; cilíndrico "0,75" → "-0,75")
   const formatarRx = fk => {
     const tipo = fk.slice(3), olho = fk.slice(0,2);
@@ -2691,14 +2691,15 @@ function Receitas({ user, selectedUnidade='' }) {
   useRealtime('receitas', () => load());
 
   const fmtOlho = (r, pref) => {
+    const P = v => String(v||'').toUpperCase() === 'PLANO';
     const esf = r[pref+'_esf']; const cil = r[pref+'_cil'];
     const eixo = r[pref+'_eixo']; const add = r[pref+'_adicao'];
     const parts = [];
-    if (esf && esf !== 'Plano') parts.push(`Esf ${esf}`);
-    if (cil && cil !== 'Plano') parts.push(`Cil ${cil}`);
-    if (eixo) parts.push(`Eixo ${eixo}`);
-    if (add && add !== 'N/A') parts.push(`Add ${add}`);
-    return parts.length ? parts.join(' / ') : (esf === 'Plano' ? 'Plano' : '—');
+    if (esf && !P(esf)) parts.push(`ESF ${esf}`);
+    if (cil && !P(cil)) parts.push(`CIL ${cil}`);
+    if (eixo) parts.push(`EIXO ${eixo}`);
+    if (add && add !== 'N/A') parts.push(`ADD ${add}`);
+    return parts.length ? parts.join(' / ') : (P(esf) ? 'PLANO' : '—');
   };
 
   return (

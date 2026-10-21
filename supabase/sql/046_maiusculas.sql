@@ -7,3 +7,4 @@
 -- conversoes: paciente_nome, opto_nome, produto, prevenda_nome, unidade
 -- usuarios:   nome, cro, unidade, endereco
 -- unidades:   nome, endereco
+-- 047 — receitas também: refração (od_/oe_ esf, cil, eixo, adicao, dnp) e tratamentos_sugeridos (array) — trigger trg_maiusculas_rx
