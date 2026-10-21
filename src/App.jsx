@@ -746,10 +746,10 @@ function Agenda({ user, selectedUnidade='' }) {
               <tbody>
                 {[...new Set(slots.map(x=>x.data))].map(dia => {
                   const doDia = slots.filter(x=>x.data===dia);
-                  const rotulo = new Date(dia+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'});
+                  const r0 = new Date(dia+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'}); const rotulo = r0.charAt(0).toUpperCase() + r0.slice(1);
                   return [
-                    <tr key={'h'+dia}><td colSpan={6} style={{padding:'14px 16px 8px',background:C.tealBg,fontWeight:700,color:C.navy,textTransform:'capitalize'}}>
-                      {rotulo} <span style={{fontWeight:500,color:C.gray,textTransform:'none'}}>· {doDia.length} agendamento(s)</span>
+                    <tr key={'h'+dia}><td colSpan={6} style={{padding:'14px 16px 8px',background:C.tealBg,fontWeight:700,color:C.navy}}>
+                      {rotulo} <span style={{fontWeight:500,color:C.gray}}>· {doDia.length} agendamento(s)</span>
                     </td></tr>,
                     ...doDia.map((slot,i)=>(
                       <tr key={slot.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
@@ -2316,6 +2316,7 @@ function Usuarios({ selectedUnidade='' }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
+  const [verInativos, setVerInativos] = useState(false);
   const [toast, setToast] = useState('');
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(''),3000); };
 
@@ -2344,20 +2345,29 @@ function Usuarios({ selectedUnidade='' }) {
   return (
     <div>
       <Toast msg={toast}/>
-      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:16}}>
-        <Btn color={C.teal} onClick={()=>setModal({perfil:'opto',ativo:true,cro:''})}>+ Novo Usuário</Btn>
-      </div>
+      <TopoTela titulo="Usuários" subtitulo={`${rows.filter(u=>u.ativo).length} ativo(s) · ${rows.filter(u=>!u.ativo).length} inativo(s)`}>
+        <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
+          <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,color:C.textSm,cursor:'pointer',userSelect:'none'}}>
+            <span role="switch" aria-checked={verInativos} onClick={()=>setVerInativos(v=>!v)}
+              style={{width:36,height:20,borderRadius:999,background:verInativos?C.teal:C.border,position:'relative',transition:'background .15s',display:'inline-block'}}>
+              <span style={{position:'absolute',top:2,left:verInativos?18:2,width:16,height:16,borderRadius:'50%',background:C.white,transition:'left .15s',boxShadow:'0 1px 2px rgba(0,0,0,.2)'}}/>
+            </span>
+            <span onClick={()=>setVerInativos(v=>!v)}>Mostrar inativos</span>
+          </label>
+          <Btn color={C.teal} onClick={()=>setModal({perfil:'opto',ativo:true,cro:''})}>+ Novo Usuário</Btn>
+        </div>
+      </TopoTela>
       {loading ? <Spinner/> : (
         <Card>
           <div className="tbl-wrap">
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
-              <thead><tr style={{background:C.navy,color:C.white}}>
+              <thead><tr style={{background:C.teal,color:C.white}}>
                 {['Nome','Perfil','Unidade','CRO','Senha','Status',''].map(h=>(
                   <th key={h} style={{padding:'9px 12px',textAlign:'left'}}>{h}</th>
                 ))}
               </tr></thead>
               <tbody>
-                {rows.map((u,i)=>(
+                {rows.filter(u => verInativos || u.ativo).map((u,i)=>(
                   <tr key={u.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`,opacity:u.ativo?1:.5}}>
                     <td style={{padding:'8px 12px',fontWeight:600}}>{u.nome}</td>
                     <td style={{padding:'8px 12px'}}><Badge color={PERFIS[u.perfil]?.cor||C.gray}>{PERFIS[u.perfil]?.label||u.perfil}</Badge></td>
