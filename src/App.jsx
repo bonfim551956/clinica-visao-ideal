@@ -2214,9 +2214,9 @@ function Relatorios({ selectedUnidade='' }) {
 
   // Etapa do funil
   const Etapa = ({ titulo, valor, base, cor=C.teal, anterior, inverso, pendente, children }) => (
-    <div style={{flex:1,minWidth:150,background:C.white,borderRadius:16,padding:'16px 18px',border:`1px solid ${C.border}`,
-      borderTop:`4px solid ${pendente?C.grayL:cor}`,opacity:pendente?.75:1}}>
-      <div style={{fontSize:12,fontWeight:700,color:C.textSm,textTransform:'uppercase',letterSpacing:.4}}>{titulo}</div>
+    <div style={{flex:1,minWidth:150,background:cor+'0F',borderRadius:14,padding:'16px 20px',
+      border:`2px solid ${pendente?C.border:cor}`,opacity:pendente?.75:1}}>
+      <div style={{fontSize:12,fontWeight:700,color:cor,textTransform:'uppercase',letterSpacing:.4}}>{titulo}</div>
       <div style={{display:'flex',alignItems:'baseline',gap:8,marginTop:6}}>
         <span style={{fontSize:32,fontWeight:800,color:C.navy,lineHeight:1.1}}>{pendente ? '—' : valor}</span>
         {base !== undefined && !pendente && <span style={{fontSize:13,fontWeight:700,color:cor}}>{pct(valor, base)}%</span>}
