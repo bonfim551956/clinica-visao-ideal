@@ -93,8 +93,8 @@ const DNP_VALS = ['N/A','28','29','30','31','32','33','34','35','36','37','38','
 
 const PERFIS = {
   opto:      { label:'Optometrista', cor:C.teal,    nav:['inicio','agenda','atendimento','receitas'] },
-  comercial: { label:'Comercial',    cor:'#4DA6A4',  nav:['inicio','atendimento','receitas'] },
-  prevenda:  { label:'Pré-Venda',    cor:'#3F6FA0',  nav:['inicio','conversao','noshow','receitas'] },
+  comercial: { label:'Comercial',    cor:'#4DA6A4',  nav:['inicio','agenda','atendimento','receitas'] },
+  prevenda:  { label:'Pré-Venda',    cor:'#3F6FA0',  nav:['inicio','agenda','conversao','noshow','receitas'] },
   gerente:   { label:'Gerente',      cor:C.orange,   nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios'] },
   supervisor:{ label:'Supervisor',   cor:'#2A5790',  nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios','lojas'] },
   diretor:   { label:'Diretor',      cor:C.navy,     nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios','lojas'] },
