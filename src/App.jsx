@@ -1300,6 +1300,7 @@ function imprimirReceita(r) {
     .obs-box{font-size:13px;line-height:1.6;color:#1A1A1A;background:#fff;border:1px solid #bbb;border-radius:6px;padding:10px 14px;margin-bottom:22px}
     .assinatura-area{display:flex;align-items:flex-end;justify-content:space-between;margin:28px 0 20px;gap:24px}
     .assinatura-col{display:flex;flex-direction:column;align-items:center;gap:4px}
+    .assinatura-img{height:100px;max-width:260px;object-fit:contain;margin-bottom:-16px}
     .assinatura-linha{border-top:1.5px solid #1A1A1A;width:220px;margin-bottom:6px}
     .assinatura-nome{font-size:13px;font-weight:700;text-align:center}
     .assinatura-cro{font-size:11px;color:#555;text-align:center}
@@ -1334,6 +1335,7 @@ function imprimirReceita(r) {
     ${r.observacoes ? `<div class="section-title">Observações</div><div class="obs-box">${esc(r.observacoes)}</div>` : ''}
     <div class="assinatura-area">
       <div class="assinatura-col">
+        ${imgAssinatura(r.opto_id, 'assinatura-img')}
         <div class="assinatura-linha"></div>
         <div class="assinatura-nome">${esc(r.opto_nome)}</div>
         ${cro ? `<div class="assinatura-cro">${esc(cro)}</div>` : ''}
@@ -1351,6 +1353,11 @@ function imprimirReceita(r) {
   </body></html>`);
   w.document.close();
 }
+
+// Assinaturas digitalizadas por optometrista (id do usuário → imagem em /public/assinaturas)
+const ASSINATURAS = { AHAH8YRN: '/assinaturas/AHAH8YRN.png' };
+const imgAssinatura = (optoId, classe) => ASSINATURAS[optoId]
+  ? `<img src="${window.location.origin}${ASSINATURAS[optoId]}" class="${classe}" alt="Assinatura" onerror="this.style.display='none'"/>` : '';
 
 /* ══════════════════════════════════════════════════════
    DECLARAÇÃO DE COMPARECIMENTO
@@ -1386,6 +1393,7 @@ function imprimirDeclaracao(r, { cpf, inicio, fim }) {
     .texto{font-size:15px;line-height:2;text-align:justify}
     .texto b{font-weight:700}
     .local{font-size:15px;margin-top:40px;text-align:right}
+    .assinatura-img{height:96px;max-width:280px;object-fit:contain;margin-bottom:-16px}
     .assinatura{margin-top:80px;display:flex;flex-direction:column;align-items:center;gap:4px}
     .linha{border-top:1.5px solid #1A1A1A;width:300px;margin-bottom:8px}
     .nome{font-size:14px;font-weight:700}
@@ -1405,6 +1413,7 @@ function imprimirDeclaracao(r, { cpf, inicio, fim }) {
     para a realização de avaliação visual / atendimento optométrico.</p>
     <p class="local">${esc(unidade)}/SP, ${esc(dataEmissao)}.</p>
     <div class="assinatura">
+      ${imgAssinatura(r.opto_id, 'assinatura-img')}
       <div class="linha"></div>
       <div class="nome">${esc(r.opto_nome)}</div>
       <div class="reg">Optometrista — CBO 3223${cro ? ' · ' + esc(cro) : ''}</div>
