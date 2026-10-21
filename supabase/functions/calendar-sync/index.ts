@@ -8,9 +8,10 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const CALENDARIOS: Record<string, string> = {
   'São Vicente': 'gerencia.callcenter.idealize@gmail.com',
-  'Campinas': 'agendavicampinas@gmail.com',
-  'Sorocaba': 'agendavisorocaba@gmail.com',
-  'Piracicaba': 'agendavipiracicaba@gmail.com',
+  // Agendas "<Loja> - Visão Ideal" (onde a IA da Strong grava os agendamentos de cada loja)
+  'Campinas': '2ab789af72d8528a3b3b6edc4688a6f776b93ec5c664ad396e19fb6f82c13094@group.calendar.google.com',
+  'Sorocaba': 'b199cc51bf81eb66eb2220d57ee3f16f9d8f7459793506f5f894ec03025c24c8@group.calendar.google.com',
+  'Piracicaba': 'aa156e0a3aa3bb86fc2cc386b4b6af0c6921fe60cd978bfdd9bc30a99d6066c3@group.calendar.google.com',
 }
 const TZ = 'America/Sao_Paulo'
 const COR_NAO_COMPARECEU = '4' // Flamingo
@@ -110,6 +111,7 @@ Deno.serve(async (req: Request) => {
     }
     const lista = await (await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', { headers: gHeaders })).json()
     out.calendarList = (lista.items || []).map((c: any) => ({ id: c.id, nome: c.summary, acesso: c.accessRole }))
+    try { out.conta_servico = JSON.parse(raw).client_email } catch { /* */ }
     return json(out)
   }
 
