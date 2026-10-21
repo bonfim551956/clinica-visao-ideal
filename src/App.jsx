@@ -152,6 +152,7 @@ input:disabled,textarea:disabled{background:#F5F5F5 !important;color:#5A5A5A;cur
 .nav-item{transition:all .15s;border-radius:12px}
 .btn:not(:disabled):hover{filter:brightness(.92);box-shadow:0 2px 6px rgba(30,58,95,.18)}
 .btn:disabled{cursor:default}
+.cel-semana:hover{background:#F2F8F8 !important}
 .btn-sec:not(:disabled):hover{filter:none;background:${C.tealBg} !important;border-color:${C.tealL} !important;box-shadow:none}
 .nav-item:not(.ativo):hover{background:${C.teal}11 !important}
 @media(max-width:767px){
@@ -627,7 +628,15 @@ function Agenda({ user, selectedUnidade='' }) {
   const [optos, setOptos] = useState([]);
   const [selOpto, setSelOpto] = useState('');
   const per = usePeriodo('hoje');
-  const { de: dataDe, ate: dataAte } = per;
+  // Semana: grade em colunas (seg a sáb), com setas para semana anterior/próxima
+  const [semOff, setSemOff] = useState(0);
+  useEffect(() => { setSemOff(0); }, [per.periodo]);
+  const modoSemana = per.periodo === 'semana';
+  const { de: dataDe, ate: dataAte } = modoSemana ? (() => {
+    const ini = new Date(per.de + 'T12:00:00'); ini.setDate(ini.getDate() + semOff * 7);
+    const fim = new Date(ini); fim.setDate(ini.getDate() + 6);
+    return { de: ymd(ini), ate: ymd(fim) };
+  })() : per;
   const umDia = dataDe === dataAte;
   const selData = dataDe;
   const [modal, setModal] = useState(null); // null | { hora, existing }
@@ -745,9 +754,18 @@ function Agenda({ user, selectedUnidade='' }) {
       </TopoTela>
       <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end',marginBottom:20}}>
         <Btn onClick={()=>setModal({hora:HORARIOS[0], data: dataDe < today() ? today() : dataDe})} color={C.teal}>+ Novo Agendamento</Btn>
-        {!umDia && <span style={{fontSize:12,color:C.gray}}>Para ver a grade de horários livres, escolha "Hoje" ou um único dia em "Personalizado".</span>}
+        {modoSemana && <div style={{display:'flex',alignItems:'center',gap:6,marginLeft:'auto'}}>
+          <Btn outline size="sm" onClick={()=>setSemOff(o=>o-1)} aria-label="Semana anterior">‹</Btn>
+          <Btn outline size="sm" onClick={()=>setSemOff(0)} disabled={semOff===0}>Esta semana</Btn>
+          <Btn outline size="sm" onClick={()=>setSemOff(o=>o+1)} aria-label="Próxima semana">›</Btn>
+        </div>}
+        {!umDia && !modoSemana && <span style={{fontSize:12,color:C.gray}}>Para ver a grade de horários, escolha "Hoje", "Semana" ou um único dia em "Personalizado".</span>}
       </div>
-      {loading ? <Spinner/> : !umDia ? (
+      {loading ? <Spinner/> : modoSemana ? (
+        <GradeSemana de={dataDe} slots={slots} mostrarLoja={!unidadeFixa}
+          onAbrir={slot=>setModal({hora:slot.hora,existing:slot})}
+          onNovo={(data,hora)=>setModal({hora,data})}/>
+      ) : !umDia ? (
         <Card>
           {slots.length === 0 && <p style={{textAlign:'center',color:C.gray,padding:20}}>Nenhum agendamento no período</p>}
           {slots.length > 0 && <div className="tbl-wrap">
@@ -860,6 +878,82 @@ function Agenda({ user, selectedUnidade='' }) {
         pedirUnidade={!(user.unidade || selectedUnidade)}
         onSave={handleSave} onDelete={handleDelete} onClose={()=>setModal(null)}/>}
     </div>
+  );
+}
+
+/* Grade semanal: colunas de segunda a sábado (domingo só aparece se tiver agendamento), linhas de 30 em 30 min */
+const DIAS_SEMANA = ['DOM','SEG','TER','QUA','QUI','SEX','SÁB'];
+const corJornada = a => {
+  const j = jornada(a);
+  return { Comprou:['#E7F4EC','#1E7A3C'], 'Não comprou':['#FFF1E2','#9A5200'], 'Não compareceu':['#FDECEE','#B02A37'], Cancelado:['#F0F0EE','#5A5A5A'] }[j.label] || ['#E6F2F4','#1F5F70'];
+};
+function GradeSemana({ de, slots, mostrarLoja, onAbrir, onNovo }) {
+  const dias = Array.from({length:7},(_,i)=>{ const d=new Date(de+'T12:00:00'); d.setDate(d.getDate()+i); return ymd(d); });
+  const visiveis = dias.filter((d,i) => i < 6 || slots.some(s=>s.data===d));
+  const meia = h => { const [hh,mm] = String(h||'').slice(0,5).split(':').map(Number); return `${pad(hh)}:${mm<30?'00':'30'}`; };
+  const linhas = [];
+  const horas = slots.map(s=>meia(s.hora)).filter(h=>/^\d\d:\d\d$/.test(h));
+  const ini = horas.reduce((m,h)=>h<m?h:m,'08:00'), fim = horas.reduce((m,h)=>h>m?h:m,'18:30');
+  for (let t = Number(ini.slice(0,2))*60+Number(ini.slice(3)); t <= Number(fim.slice(0,2))*60+Number(fim.slice(3)); t += 30) linhas.push(`${pad(Math.floor(t/60))}:${pad(t%60)}`);
+  const hoje = today();
+  return (
+    <Card style={{padding:0,overflow:'hidden'}}>
+      <div className="tbl-wrap">
+        <table style={{width:'100%',borderCollapse:'collapse',tableLayout:'fixed',minWidth:760}}>
+          <colgroup><col style={{width:64}}/>{visiveis.map(d=><col key={d}/>)}</colgroup>
+          <thead>
+            <tr>
+              <th style={{background:C.bg,borderBottom:`1px solid ${C.border}`}}/>
+              {visiveis.map(d=>{
+                const dt = new Date(d+'T12:00:00'); const n = slots.filter(s=>s.data===d).length;
+                return <th key={d} style={{padding:'12px 8px',background:d===hoje?C.tealBg:C.bg,borderBottom:`1px solid ${C.border}`,borderLeft:`1px solid ${C.border}`,textAlign:'center'}}>
+                  <div style={{fontSize:12,fontWeight:700,color:d===hoje?C.teal:C.textSm,letterSpacing:.5}}>{DIAS_SEMANA[dt.getDay()]} {pad(dt.getDate())}/{pad(dt.getMonth()+1)}</div>
+                  <div style={{fontSize:11,color:C.gray,fontWeight:500,marginTop:2}}>{n} agend.</div>
+                </th>;
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {linhas.map(h=>(
+              <tr key={h}>
+                <td style={{padding:'6px 8px',fontSize:12,fontWeight:600,color:C.textSm,verticalAlign:'top',textAlign:'right',borderTop:`1px solid ${C.grayL}`}}>{h}</td>
+                {visiveis.map(d=>{
+                  const doSlot = slots.filter(s=>s.data===d && meia(s.hora)===h);
+                  const passado = d < hoje;
+                  return (
+                    <td key={d} className="cel-semana" onClick={()=>{ if (!doSlot.length && !passado) onNovo(d, h); }}
+                      title={!doSlot.length && !passado ? `Agendar ${fmtDate(d)} às ${h}` : undefined}
+                      style={{verticalAlign:'top',padding:4,height:48,borderTop:`1px solid ${C.grayL}`,borderLeft:`1px solid ${C.border}`,
+                        background:d===hoje?'#F7FBFB':C.white,cursor:!doSlot.length&&!passado?'pointer':'default'}}>
+                      <div style={{display:'flex',flexDirection:'column',gap:4}}>
+                        {doSlot.map(a=>{
+                          const [bg,fg] = corJornada(a);
+                          return (
+                            <button key={a.id} onClick={e=>{e.stopPropagation(); onAbrir(a);}} title={`${a.hora} · ${a.paciente_nome} · ${jornada(a).label}`}
+                              style={{display:'block',width:'100%',textAlign:'left',background:bg,color:fg,borderLeft:`3px solid ${fg}`,borderRadius:6,padding:'4px 6px',fontSize:12,lineHeight:1.3,cursor:'pointer'}}>
+                              <div style={{fontWeight:700}}>{String(a.hora).slice(0,5)}{a.agendado_por==='IA' && <span style={{marginLeft:6,fontSize:10,opacity:.8}}>IA</span>}</div>
+                              <div style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',color:C.text}}>{a.paciente_nome}</div>
+                              {mostrarLoja && a.unidade && <div style={{fontSize:10,color:C.gray,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.unidade}</div>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{display:'flex',gap:16,flexWrap:'wrap',padding:'12px 16px',borderTop:`1px solid ${C.border}`,fontSize:12,color:C.textSm}}>
+        {[['Agendado',{status:'Agendado'}],['Não compareceu',{status:'Não Compareceu'}],['Compareceu e não comprou',{status:'Compareceu'}],['Comprou',{status:'Compareceu',_compra:{converteu:true}}]].map(([l,a])=>{
+          const [bg,fg] = corJornada(a);
+          return <span key={l} style={{display:'inline-flex',alignItems:'center',gap:6}}><span style={{width:12,height:12,borderRadius:3,background:bg,borderLeft:`3px solid ${fg}`}}/>{l}</span>;
+        })}
+        <span style={{marginLeft:'auto',color:C.gray}}>Clique num horário vazio para agendar</span>
+      </div>
+    </Card>
   );
 }
 
