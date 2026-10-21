@@ -297,24 +297,11 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
   const perfil = PERFIS[user.perfil];
 
   const podeVerTodasUnidades = ['diretor','supervisor','prevenda'].includes(user.perfil);
-  const UnidadeFilter = () => {
-    // Opto e outros perfis de unidade fixa: não mostram seletor nem badge
-    if (!podeVerTodasUnidades) return null;
-    return (
-      <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
-        {['Todas',...UNIDADES].map(u=>{
-          const val = u==='Todas'?'':u;
-          const active = selectedUnidade===val;
-          return (
-            <button key={u} onClick={()=>setSelectedUnidade(val)}
-              style={{padding:'4px 12px',borderRadius:999,fontSize:12,fontWeight:600,cursor:'pointer',border:`1.5px solid ${active?C.teal:C.border}`,background:active?C.teal:'transparent',color:active?C.white:C.gray,transition:'all .15s',whiteSpace:'nowrap'}}>
-              {u}
-            </button>
-          );
-        })}
-      </div>
-    );
-  };
+  // Seletor de loja no mesmo padrão das listas do sistema (só para quem vê todas as unidades)
+  const unidadeFilter = () => !podeVerTodasUnidades ? null : (
+    <Select value={selectedUnidade} onChange={e=>setSelectedUnidade(e.target.value)} style={{minWidth:200}}
+      options={[{value:'',label:'Todas as unidades'},...UNIDADES.map(u=>({value:u,label:u}))]}/>
+  );
 
   const SideNav = ({ onItemClick }) => (
     <nav style={{display:'flex',flexDirection:'column',gap:1,padding:'8px 0'}}>
@@ -352,7 +339,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
       </div>
       {podeVerTodasUnidades && (
       <div style={{padding:'6px 12px 8px',overflowX:'auto',display:'flex',gap:6,borderTop:`1px solid ${C.border}11`}}>
-        <UnidadeFilter/>
+        {unidadeFilter()}
       </div>
       )}
       </div>
@@ -430,7 +417,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
           {podeVerTodasUnidades && (
           <div style={{height:UNIDADE_H,boxSizing:'border-box',padding:'0 28px',background:C.bg+'cc',display:'flex',alignItems:'center',gap:10,borderTop:`1px solid ${C.border}`}}>
             <span style={{fontSize:11,fontWeight:700,color:C.textSm,whiteSpace:'nowrap',textTransform:'uppercase',letterSpacing:'0.5px'}}>Unidade:</span>
-            <UnidadeFilter/>
+            {unidadeFilter()}
           </div>
           )}
         </div>
