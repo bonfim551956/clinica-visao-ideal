@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase, entrar, usuarioDaSessao, gerirUsuario, sair, listarUsuarios } from './supabase';
+import { supabase, entrar, usuarioDaSessao, gerirUsuario, sair, listarUsuarios, listarUnidades } from './supabase';
 
 /* ── helpers ── */
 const pad = n => String(n).padStart(2,'0');
@@ -96,10 +96,11 @@ const PERFIS = {
   comercial: { label:'Comercial',    cor:'#4DA6A4',  nav:['inicio','atendimento','receitas'] },
   prevenda:  { label:'Pré-Venda',    cor:'#3F6FA0',  nav:['inicio','conversao','noshow','receitas'] },
   gerente:   { label:'Gerente',      cor:C.orange,   nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios'] },
-  supervisor:{ label:'Supervisor',   cor:'#2A5790',  nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios'] },
-  diretor:   { label:'Diretor',      cor:C.navy,     nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios'] },
+  supervisor:{ label:'Supervisor',   cor:'#2A5790',  nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios','lojas'] },
+  diretor:   { label:'Diretor',      cor:C.navy,     nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios','lojas'] },
 };
 
+// Lojas ativas — carregadas da tabela public.unidades ao entrar (tela "Lojas"); os valores abaixo são só o ponto de partida
 const UNIDADES = ['São Vicente','Piracicaba','Sorocaba','Campinas'];
 
 // Endereços por unidade — para cabeçalho da receita e rodapé
@@ -108,6 +109,15 @@ const ENDERECOS_UNIDADES = {
   'Piracicaba':  'Rua Benjamin Constant, 1379 - Centro – Piracicaba – SP',
   'Sorocaba':    'R. Comendador Hermelino Matarazzo, 468 - Vila Santana – Sorocaba – SP',
   'Campinas':    'Rua Conceição, 233, Sala 604 - Centro – Campinas – SP',
+};
+
+// Atualiza as listas de lojas usadas pelo sistema todo a partir do banco
+const aplicarUnidades = lista => {
+  if (!lista || !lista.length) return; // sem resposta do banco: mantém a lista atual
+  const ativas = lista.filter(u => u.ativa);
+  UNIDADES.splice(0, UNIDADES.length, ...ativas.map(u => u.nome));
+  Object.keys(ENDERECOS_UNIDADES).forEach(k => delete ENDERECOS_UNIDADES[k]);
+  lista.forEach(u => { if (u.endereco) ENDERECOS_UNIDADES[u.nome] = u.endereco; });
 };
 
 // Perfis que veem os KPIs comerciais (Conversões, Faturamento, No-Show, Taxa Conv.)
@@ -122,6 +132,7 @@ const NAV_ITEMS = [
   { id:'noshow',       label:'No-Show'       },
   { id:'relatorios',   label:'Relatórios'    },
   { id:'usuarios',     label:'Usuários'      },
+  { id:'lojas',        label:'Lojas'         },
 ];
 
 /* ── CSS global ── */
@@ -2341,6 +2352,159 @@ function Relatorios({ selectedUnidade='' }) {
 }
 
 /* ══════════════════════════════════════════════════════
+   LOJAS (cadastro de unidades e da agenda do Google de cada uma)
+══════════════════════════════════════════════════════ */
+function Lojas({ onAlterar }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState(null);
+  const [testes, setTestes] = useState({});
+  const [toast, setToast] = useState('');
+  const showToast = msg => { setToast(msg); setTimeout(()=>setToast(''),3000); };
+
+  const load = useCallback(async () => {
+    const lista = await listarUnidades();
+    setRows(lista || []);
+    setLoading(false);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const testar = async (loja) => {
+    if (!loja.calendario_google) return;
+    setTestes(t => ({ ...t, [loja.id]: { carregando: true } }));
+    const r = await testarAgenda(loja.calendario_google);
+    setTestes(t => ({ ...t, [loja.id]: r }));
+  };
+
+  const salvar = async (form) => {
+    const dados = { nome: form.nome.trim(), endereco: form.endereco.trim(), calendario_google: form.calendario_google.trim() || null, ativa: form.ativa };
+    const { error } = form.id
+      ? await supabase.from('unidades').update({ endereco: dados.endereco, calendario_google: dados.calendario_google, ativa: dados.ativa }).eq('id', form.id)
+      : await supabase.from('unidades').insert({ ...dados, ordem: rows.length + 1 });
+    if (error) return error.code === '23505' ? 'Já existe uma loja com esse nome.' : 'Erro ao salvar: ' + error.message;
+    setModal(null);
+    showToast('Loja salva! A agenda passa a ser lida na próxima sincronização (até 5 min).');
+    await load();
+    onAlterar?.();
+    return null;
+  };
+
+  return (
+    <div>
+      <Toast msg={toast}/>
+      <TopoTela titulo="Lojas" subtitulo="Cada loja e a agenda do Google onde a IA grava os agendamentos dela">
+        <Btn color={C.teal} onClick={()=>setModal({ nome:'', endereco:'', calendario_google:'', ativa:true })}>+ Nova loja</Btn>
+      </TopoTela>
+      {loading ? <Spinner/> : (
+        <Card>
+          <div className="tbl-wrap">
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+              <thead><tr style={{background:C.teal,color:C.white}}>
+                {['Loja','Endereço','Agenda do Google','Situação',''].map(h=><th key={h} style={{padding:'9px 12px',textAlign:'left',whiteSpace:'nowrap'}}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {rows.map((u,i)=>{
+                  const t = testes[u.id];
+                  return (
+                    <tr key={u.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`,opacity:u.ativa?1:.6}}>
+                      <td style={{padding:'10px 12px',fontWeight:700,whiteSpace:'nowrap'}}>{u.nome}</td>
+                      <td style={{padding:'10px 12px',fontSize:12,color:C.textSm}}>{u.endereco||'—'}</td>
+                      <td style={{padding:'10px 12px',fontSize:12,maxWidth:280}}>
+                        {u.calendario_google
+                          ? <span title={u.calendario_google} style={{display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:C.textSm}}>{u.calendario_google}</span>
+                          : <span style={{color:C.danger,fontWeight:600}}>Sem agenda — a IA não entra no sistema</span>}
+                        {t && !t.carregando && (t.ok
+                          ? <div style={{color:C.success,fontWeight:600,marginTop:4}}>✓ Agenda "{t.nome_agenda}" lida · {t.eventos_ia} agendamento(s) da IA nos próximos 21 dias</div>
+                          : <div style={{color:C.danger,fontWeight:600,marginTop:4}}>✗ {t.erro}{t.conta_servico ? ` Compartilhe a agenda com ${t.conta_servico}.` : ''}</div>)}
+                        {t?.carregando && <div style={{color:C.gray,marginTop:4}}>Testando…</div>}
+                      </td>
+                      <td style={{padding:'10px 12px'}}><Badge color={u.ativa?C.success:C.gray}>{u.ativa?'Ativa':'Inativa'}</Badge></td>
+                      <td style={{padding:'10px 12px'}}>
+                        <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
+                          <Btn outline size="sm" color={C.teal} disabled={!u.calendario_google || t?.carregando} style={{width:120,padding:'7px 0'}} onClick={()=>testar(u)}>Testar agenda</Btn>
+                          <Btn outline size="sm" color={C.teal} style={{width:90,padding:'7px 0'}} onClick={()=>setModal({ ...u, calendario_google: u.calendario_google||'' })}>Editar</Btn>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+      <Card style={{marginTop:16,background:C.tealBg,boxShadow:'none'}}>
+        <h4 style={{color:C.navy,marginBottom:8}}>Como ligar a agenda de uma loja nova</h4>
+        <ol style={{fontSize:13,color:C.textSm,lineHeight:1.8,paddingLeft:18}}>
+          <li>No Google Agenda, passe o mouse na agenda da loja → <b>⋮ → Configurações e compartilhamento</b>.</li>
+          <li>Em <b>Integrar agenda</b>, copie o <b>ID da agenda</b> (algo como <i>…@group.calendar.google.com</i>).</li>
+          <li>Em <b>Compartilhar com pessoas específicas</b>, adicione a conta de serviço do sistema com permissão <b>"Fazer alterações nos eventos"</b> (o e-mail aparece ao clicar em "Testar agenda").</li>
+          <li>Aqui, clique em <b>+ Nova loja</b> (ou Editar), cole o ID e clique em <b>Testar agenda</b> antes de salvar.</li>
+        </ol>
+      </Card>
+      {modal && <LojaModal loja={modal} onSave={salvar} onClose={()=>setModal(null)}/>}
+    </div>
+  );
+}
+
+// Testa a leitura de uma agenda pela conta de serviço (só supervisor/diretor)
+async function testarAgenda(calendarioId) {
+  const { data, error } = await supabase.functions.invoke('calendar-sync', { body: { testar: calendarioId } });
+  if (!error && data) return data;
+  let r = { ok: false, erro: 'Não foi possível testar agora.' };
+  try { r = { ...r, ...(await error?.context?.json()) }; } catch {}
+  return r;
+}
+
+function LojaModal({ loja, onSave, onClose }) {
+  const [form, setForm] = useState(loja);
+  const [erro, setErro] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const [teste, setTeste] = useState(null);
+  const set = (k,v) => { setForm(f=>({...f,[k]:v})); setErro(''); if (k==='calendario_google') setTeste(null); };
+  const novo = !loja.id;
+  const salvar = async () => {
+    if (form.nome.trim().length < 2) return setErro('Informe o nome da loja.');
+    setSalvando(true);
+    const e = await onSave(form);
+    setSalvando(false);
+    if (e) setErro(e);
+  };
+  const testar = async () => { setTeste({ carregando:true }); setTeste(await testarAgenda(form.calendario_google.trim())); };
+  return (
+    <Modal title={novo ? 'Nova loja' : `Editar loja — ${loja.nome}`} onClose={onClose} width={560}>
+      <div style={{display:'flex',flexDirection:'column',gap:14}}>
+        <div>
+          <Input label="Nome da loja" value={form.nome} disabled={!novo} onChange={e=>set('nome',e.target.value)} placeholder="Ex.: Santos"/>
+          {!novo && <div style={{fontSize:11,color:C.gray,marginTop:4}}>O nome não muda depois de criado, porque os agendamentos ficam ligados a ele.</div>}
+        </div>
+        <Input label="Endereço (sai na receita e na declaração)" value={form.endereco} onChange={e=>set('endereco',e.target.value)} placeholder="Rua, número - Bairro – Cidade – UF"/>
+        <div>
+          <Input label="ID da agenda do Google" value={form.calendario_google} onChange={e=>set('calendario_google',e.target.value)} placeholder="…@group.calendar.google.com"/>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginTop:8,flexWrap:'wrap'}}>
+            <Btn outline size="sm" color={C.teal} disabled={!form.calendario_google.trim() || teste?.carregando} onClick={testar}>{teste?.carregando ? 'Testando…' : 'Testar agenda'}</Btn>
+            {teste && !teste.carregando && (teste.ok
+              ? <span style={{fontSize:12,color:C.success,fontWeight:600}}>✓ "{teste.nome_agenda}" · {teste.eventos_ia} agendamento(s) da IA nos próximos 21 dias</span>
+              : <span style={{fontSize:12,color:C.danger,fontWeight:600}}>✗ {teste.erro}</span>)}
+          </div>
+          {teste && !teste.carregando && !teste.ok && teste.conta_servico && (
+            <div style={{fontSize:12,color:C.textSm,marginTop:6,lineHeight:1.5}}>Compartilhe a agenda com <b>{teste.conta_servico}</b> ("Fazer alterações nos eventos") e teste de novo.</div>
+          )}
+        </div>
+        <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,color:C.textSm,cursor:'pointer'}}>
+          <input type="checkbox" checked={form.ativa} onChange={e=>set('ativa',e.target.checked)}/> Loja ativa (aparece no sistema e tem a agenda sincronizada)
+        </label>
+        {erro && <div style={{fontSize:12,color:C.danger,fontWeight:600}}>{erro}</div>}
+        <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+          <Btn outline color={C.gray} onClick={onClose}>Cancelar</Btn>
+          <Btn color={C.teal} disabled={salvando} onClick={salvar}>{salvando ? 'Salvando…' : 'Salvar'}</Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ══════════════════════════════════════════════════════
    USUÁRIOS
 ══════════════════════════════════════════════════════ */
 function Usuarios({ selectedUnidade='' }) {
@@ -2698,6 +2862,17 @@ export default function App() {
     return () => { vivo = false; sub?.subscription?.unsubscribe(); };
   }, []);
 
+  // Lojas do banco: carregadas ao entrar e recarregadas quando a tela Lojas salva algo
+  const [lojasProntas, setLojasProntas] = useState(false);
+  const recarregarLojas = useCallback(async () => {
+    const lista = await listarUnidades();
+    aplicarUnidades(lista);
+    setLojasProntas(true);
+    return lista;
+  }, []);
+  const usuarioId = usuario?.id;
+  useEffect(() => { if (usuarioId) recarregarLojas(); else setLojasProntas(false); }, [usuarioId, recarregarLojas]);
+
   const handleLogout = () => {
     try { localStorage.removeItem(SESSION_KEY); } catch {}
     sair();
@@ -2709,6 +2884,7 @@ export default function App() {
 
   if (verificando) return <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:C.bg}}><style>{GLOBAL_CSS}</style><Spinner/></div>;
   if (!usuario) return <Login onLogin={handleLogin}/>;
+  if (!lojasProntas) return <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:C.bg}}><style>{GLOBAL_CSS}</style><Spinner/></div>;
 
   const navPerm = PERFIS[usuario.perfil]?.nav || [];
   if (!navPerm.includes(tab)) return (
@@ -2726,6 +2902,7 @@ export default function App() {
     noshow:       <NoShow user={usuario} selectedUnidade={selectedUnidade}/>,
     relatorios:   <Relatorios selectedUnidade={selectedUnidade}/>,
     usuarios:     <Usuarios selectedUnidade={selectedUnidade}/>,
+    lojas:        <Lojas onAlterar={recarregarLojas}/>,
   };
 
   return (

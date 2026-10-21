@@ -1,14 +1,15 @@
 // calendar-sync — substitui os workflows n8n "Clínica | Calendar → Sistema" e "Sistema → Calendar"
-// 1) Lê os 4 Google Agendas (hoje até +21 dias), só eventos "IAW - ...", e espelha na tabela `agenda`:
+// 1) Lê os Google Agendas das lojas (hoje até +21 dias), só eventos "IAW - ...", e espelha na tabela `agenda`:
 //    novos → insere (agendado_por = 'IA'); remarcados → atualiza data/hora; apagados → status "Cancelado"
 // 0) Reagendados no sistema (google_sync_pendente) → move o evento no Google antes da leitura
 // 2) Agendamentos com status "Não Compareceu" e google_event_id → pinta o evento de Flamingo (colorId 4) no Google
 // Disparado pelo pg_cron a cada 5 minutos. Credencial: secret GOOGLE_SERVICE_ACCOUNT (JSON da conta de serviço).
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const CALENDARIOS: Record<string, string> = {
+// As lojas e suas agendas vêm da tabela public.unidades (tela "Lojas" do sistema).
+// Esta lista só é usada se a tabela não puder ser lida.
+const CALENDARIOS_RESERVA: Record<string, string> = {
   'São Vicente': 'gerencia.callcenter.idealize@gmail.com',
-  // Agendas "<Loja> - Visão Ideal" (onde a IA da Strong grava os agendamentos de cada loja)
   'Campinas': '2ab789af72d8528a3b3b6edc4688a6f776b93ec5c664ad396e19fb6f82c13094@group.calendar.google.com',
   'Sorocaba': 'b199cc51bf81eb66eb2220d57ee3f16f9d8f7459793506f5f894ec03025c24c8@group.calendar.google.com',
   'Piracicaba': 'aa156e0a3aa3bb86fc2cc386b4b6af0c6921fe60cd978bfdd9bc30a99d6066c3@group.calendar.google.com',
@@ -83,6 +84,14 @@ function montarLinha(ev: any, unidade: string) {
   }
 }
 
+async function carregarCalendarios(admin: any): Promise<Record<string, string>> {
+  const { data, error } = await admin.from('unidades').select('nome, calendario_google').eq('ativa', true)
+  if (error || !data) return CALENDARIOS_RESERVA
+  const m: Record<string, string> = {}
+  for (const u of data) { const c = String(u.calendario_google || '').trim(); if (c) m[u.nome] = c }
+  return m
+}
+
 Deno.serve(async (req: Request) => {
   const body = await req.json().catch(() => ({}))
   const raw = Deno.env.get('GOOGLE_SERVICE_ACCOUNT')
@@ -96,6 +105,28 @@ Deno.serve(async (req: Request) => {
   try { token = await googleToken(JSON.parse(raw)) } catch (e) { return json({ ok: false, erro: String(e) }, 500) }
   const gHeaders = { Authorization: `Bearer ${token}` }
   const eventosPorUnidade: Record<string, number> = {}
+
+  // Teste de uma agenda (tela Lojas): só supervisor/diretor. Diz se a conta de serviço lê a agenda e quantos agendamentos da IA há.
+  if (body?.testar) {
+    const jwt = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
+    const { data: au } = await admin.auth.getUser(jwt)
+    const { data: eu } = au?.user ? await admin.from('usuarios').select('perfil, ativo').eq('auth_id', au.user.id).maybeSingle() : { data: null }
+    if (!eu?.ativo || !['supervisor', 'diretor'].includes(eu.perfil)) return json({ ok: false, erro: 'Sem permissão.' }, 403)
+    let conta = ''; try { conta = JSON.parse(raw).client_email } catch { /* */ }
+    const calId = String(body.testar).trim()
+    const url = new URL(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`)
+    url.search = new URLSearchParams({ timeMin: new Date(`${hojeSP()}T00:00:00-03:00`).toISOString(), timeMax: new Date(Date.now() + 21 * 86400000).toISOString(), singleEvents: 'true', maxResults: '250' }).toString()
+    const r = await fetch(url, { headers: gHeaders })
+    if (!r.ok) {
+      const motivo = r.status === 404 ? 'Agenda não encontrada ou não compartilhada com a conta de serviço.' : r.status === 403 ? 'Sem permissão para ler esta agenda.' : `Erro ${r.status} do Google.`
+      return json({ ok: false, status: r.status, erro: motivo, conta_servico: conta })
+    }
+    const j = await r.json()
+    const ia = (j.items || []).filter((e: any) => e.status !== 'cancelled' && /^IAW\b/i.test(String(e.summary || '').trim()))
+    return json({ ok: true, nome_agenda: j.summary || '', eventos_ia: ia.length, eventos_total: (j.items || []).length, conta_servico: conta })
+  }
+
+  const CALENDARIOS = await carregarCalendarios(admin)
 
   // Diagnóstico: lista os calendários que a conta de serviço enxerga
   if (body?.debug) {
@@ -123,7 +154,8 @@ Deno.serve(async (req: Request) => {
   if (pErr) erros.push('busca reagendados: ' + pErr.message)
   let reagendados = 0
   for (const a of pendentes || []) {
-    const calId = CALENDARIOS[a.unidade as string] || CALENDARIOS['São Vicente']
+    const calId = CALENDARIOS[a.unidade as string]
+    if (!calId) { erros.push(`reagendar ${a.google_event_id}: loja "${a.unidade}" sem agenda cadastrada`); continue }
     try {
       const ini = new Date(`${a.data}T${String(a.hora).slice(0, 5)}:00-03:00`)
       const fim = new Date(ini.getTime() + 30 * 60000)
@@ -226,7 +258,8 @@ Deno.serve(async (req: Request) => {
   if (fErr) erros.push('busca faltas: ' + fErr.message)
 
   for (const f of faltas || []) {
-    const calId = CALENDARIOS[f.unidade as string] || CALENDARIOS['São Vicente']
+    const calId = CALENDARIOS[f.unidade as string]
+    if (!calId) continue
     try {
       const r = await fetch(
         `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${encodeURIComponent(f.google_event_id)}`,

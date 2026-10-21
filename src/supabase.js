@@ -49,6 +49,12 @@ export async function listarUsuarios(forcar = false) {
   cacheUsuarios = { em: Date.now(), lista: data || [] };
   return cacheUsuarios.lista;
 }
+// Lojas (tabela public.unidades): nome, endereço e ID da agenda do Google de cada loja
+export async function listarUnidades() {
+  const { data, error } = await supabase.from('unidades').select('*').order('ordem').order('nome');
+  return error ? null : (data || []);
+}
+
 export const limparCacheUsuarios = () => { cacheUsuarios = null; };
 
 export async function sair() {
