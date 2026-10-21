@@ -141,6 +141,7 @@ const GLOBAL_CSS = `
 body{font-family:'Plus Jakarta Sans','Inter',sans-serif;-webkit-font-smoothing:antialiased;background:${C.bg};color:${C.text};font-size:14px}
 button{cursor:pointer;border:none;outline:none;font-family:inherit}
 input,select,textarea{font-family:inherit;outline:none}
+input:disabled,textarea:disabled{background:#F5F5F5 !important;color:#5A5A5A;cursor:not-allowed}
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:#f1f1f1}
 ::-webkit-scrollbar-thumb{background:#ccc;border-radius:3px}
@@ -486,7 +487,8 @@ function Dashboard({ user, selectedUnidade='' }) {
   const [proximos, setProximos] = useState([]);
   const [periodo, setPeriodo] = useState('hoje');
   const [custom, setCustom] = useState({ de: today(), ate: today() });
-  const { de, ate } = periodoDatas(periodo, custom.de, custom.ate);
+  const [dia, setDia] = useState(today());
+  const { de, ate } = periodo === 'dia' ? { de: dia, ate: dia } : periodoDatas(periodo, custom.de, custom.ate);
   const textoPeriodo = de === ate ? fmtDate(de) : `${fmtDate(de)} a ${fmtDate(ate)}`;
 
   useEffect(() => {
@@ -541,13 +543,16 @@ function Dashboard({ user, selectedUnidade='' }) {
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',gap:16,flexWrap:'wrap',marginBottom:20}}>
         <div>
           <h2 style={{fontSize:22,fontWeight:800,color:C.navy}}>Visão Geral</h2>
-          <p style={{color:C.gray,fontSize:13,marginTop:2}}>{PERIODOS.find(p=>p[0]===periodo)[1]} · {textoPeriodo}</p>
+          <p style={{color:C.gray,fontSize:13,marginTop:2}}>{periodo === 'dia' ? 'Data específica' : PERIODOS.find(p=>p[0]===periodo)[1]} · {textoPeriodo}</p>
         </div>
         <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'flex-end'}}>
           {periodo === 'personalizado' && <>
             <Input label="De" type="date" value={custom.de} onChange={e=>setCustom(c=>({...c,de:e.target.value, ate: c.ate < e.target.value ? e.target.value : c.ate}))}/>
             <Input label="Até" type="date" value={custom.ate} min={custom.de} onChange={e=>setCustom(c=>({...c,ate:e.target.value}))}/>
           </>}
+          {/* Seletor de data separado: escolhe um dia específico direto */}
+          <Input label="Data" type="date" value={periodo === 'dia' ? dia : ''}
+            onChange={e=>{ if (e.target.value) { setDia(e.target.value); setPeriodo('dia'); } }}/>
           <div style={{display:'flex',gap:6}}>
             {PERIODOS.map(([id,label])=>{
               const ativo = periodo === id;
@@ -1551,6 +1556,8 @@ function Atendimento({ user, selectedUnidade='' }) {
 
   // Regra: só usuário com perfil de optometrista gera (ou altera) receita — o banco também bloqueia
   const podeReceita = user.perfil === 'opto';
+  // Anamnese e refração: só o optometrista preenche, e nada muda depois da receita gerada
+  const soLeitura = !podeReceita || !!receita;
   const gerarReceita = async () => {
     if (!podeReceita) { alert('Somente optometristas podem gerar receitas.'); return; }
     if (!conferirNasc()) return;
@@ -1667,20 +1674,20 @@ function Atendimento({ user, selectedUnidade='' }) {
           <h4 style={{marginBottom:16,color:C.navy}}>Anamnese</h4>
           <div style={{display:'flex',flexDirection:'column',gap:14}}>
             <div style={{maxWidth:280}}>
-              <Input label={<>Data de nascimento <span style={{color:C.danger}}>*</span></>} type="date" max={today()} value={form.nasc}
+              <Input label={<>Data de nascimento <span style={{color:C.danger}}>*</span></>} type="date" max={today()} value={form.nasc} disabled={soLeitura}
                 onChange={e=>{ setF('nasc',e.target.value); setErroNasc(''); }}
                 style={erroNasc ? {['--borda']:C.danger} : {}}/>
               {erroNasc ? <div style={{fontSize:11,color:C.danger,marginTop:4,fontWeight:600}}>{erroNasc}</div>
                 : <div style={{fontSize:11,color:C.gray,marginTop:4}}>Obrigatória · sai a idade na receita</div>}
             </div>
             <div><label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:4}}>Queixa principal</label>
-              <textarea value={form.queixa} onChange={e=>setF('queixa',e.target.value)} rows={3}
+              <textarea disabled={soLeitura} value={form.queixa} onChange={e=>setF('queixa',e.target.value)} rows={3}
                 style={{width:'100%',border:`1.5px solid ${C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,resize:'vertical'}}/></div>
             <div><label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:4}}>Medicamentos em uso</label>
-              <textarea value={form.medicamentos} onChange={e=>setF('medicamentos',e.target.value)} rows={2}
+              <textarea disabled={soLeitura} value={form.medicamentos} onChange={e=>setF('medicamentos',e.target.value)} rows={2}
                 style={{width:'100%',border:`1.5px solid ${C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,resize:'vertical'}}/></div>
             <div><label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:4}}>Observações adicionais</label>
-              <textarea value={form.anamnese} onChange={e=>setF('anamnese',e.target.value)} rows={3}
+              <textarea disabled={soLeitura} value={form.anamnese} onChange={e=>setF('anamnese',e.target.value)} rows={3}
                 style={{width:'100%',border:`1.5px solid ${C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,resize:'vertical'}}/></div>
             <div>
               <label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:8}}>Tratamentos sugeridos para as lentes</label>
@@ -1689,8 +1696,8 @@ function Atendimento({ user, selectedUnidade='' }) {
                   const on = (form.trat||[]).includes(t.id);
                   return (
                     <button key={t.id} type="button" role="checkbox" aria-checked={on}
-                      onClick={()=>setF('trat', on ? form.trat.filter(x=>x!==t.id) : [...(form.trat||[]), t.id])}
-                      style={{flex:'1 1 200px',display:'flex',alignItems:'flex-start',gap:12,textAlign:'left',padding:'14px 16px',borderRadius:12,cursor:'pointer',
+                      disabled={soLeitura} onClick={()=>!soLeitura && setF('trat', on ? form.trat.filter(x=>x!==t.id) : [...(form.trat||[]), t.id])}
+                      style={{flex:'1 1 200px',display:'flex',alignItems:'flex-start',gap:12,textAlign:'left',padding:'14px 16px',borderRadius:12,cursor:soLeitura?'default':'pointer',opacity:soLeitura&&!on?.6:1,
                         border:`1.5px solid ${on?C.teal:C.border}`,background:on?C.tealBg:C.white,transition:'all .15s'}}>
                       <span style={{flexShrink:0,width:20,height:20,borderRadius:6,marginTop:1,display:'flex',alignItems:'center',justifyContent:'center',
                         border:`1.5px solid ${on?C.teal:C.border}`,background:on?C.teal:C.white}}>
@@ -1706,7 +1713,8 @@ function Atendimento({ user, selectedUnidade='' }) {
               </div>
               <div style={{fontSize:11,color:C.gray,marginTop:6}}>Os marcados saem na receita como recomendação.</div>
             </div>
-            <div style={{textAlign:'right'}}><Btn color={C.teal} onClick={()=>{ if (conferirNasc()) setTabAte('refracao'); }}>Próximo: Refração</Btn></div>
+            <div style={{textAlign:'right'}}>{!podeReceita && <span style={{fontSize:13,color:C.gray,fontWeight:600,marginRight:12}}>Somente o optometrista pode preencher a anamnese e a receita.</span>}
+              <Btn color={C.teal} onClick={()=>{ if (soLeitura || conferirNasc()) setTabAte('refracao'); }}>Próximo: Refração</Btn></div>
           </div>
         </Card>
       )}
