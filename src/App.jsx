@@ -1277,36 +1277,36 @@ function imprimirReceita(r) {
   w.document.write(`<!DOCTYPE html><html><head><title>Prescrição de Óculos</title><meta charset="utf-8"/>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#1E3A5F;padding:20mm 22mm 16mm 22mm;width:210mm;min-height:297mm}
-    .header{display:flex;align-items:center;gap:20px;padding-bottom:14px;border-bottom:3px solid #357F96;margin-bottom:22px}
+    body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#1A1A1A;padding:20mm 22mm 16mm 22mm;width:210mm;min-height:297mm}
+    .header{display:flex;align-items:center;gap:20px;padding-bottom:14px;border-bottom:1.5px solid #1A1A1A;margin-bottom:22px}
     .logo{height:58px;object-fit:contain}
     .titulo{font-size:18px;font-weight:800;letter-spacing:.5px;text-transform:uppercase}
-    .subtitulo{font-size:12px;color:#357F96;font-weight:600;margin-top:3px}
-    .section-box{border:1.5px solid #e0e0e0;border-radius:8px;padding:12px 16px;margin-bottom:20px;background:#fafaf8}
+    .subtitulo{font-size:12px;color:#555;font-weight:600;margin-top:3px}
+    .section-box{border:1px solid #bbb;border-radius:8px;padding:12px 16px;margin-bottom:20px;background:#fff}
     .field-row{display:flex;gap:24px;flex-wrap:wrap}
     .field{display:flex;flex-direction:column;gap:2px;flex:1}
-    .label{font-size:10px;font-weight:700;color:#357F96;text-transform:uppercase;letter-spacing:.5px}
-    .value{font-size:14px;font-weight:600;border-bottom:1px solid #d0d0d0;padding-bottom:4px;margin-top:2px;min-height:22px}
-    .section-title{font-size:11px;font-weight:700;color:#357F96;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+    .label{font-size:10px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px}
+    .value{font-size:14px;font-weight:600;border-bottom:1px solid #bbb;padding-bottom:4px;margin-top:2px;min-height:22px}
+    .section-title{font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
     table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:22px}
-    table th{background:#1E3A5F;color:#fff;padding:10px 12px;text-align:center;font-size:12px;font-weight:700}
+    table th{background:#fff;color:#1A1A1A;border:1px solid #999;padding:10px 12px;text-align:center;font-size:12px;font-weight:700}
     table th:first-child{border-radius:6px 0 0 0} table th:last-child{border-radius:0 6px 0 0}
-    table td{border:1px solid #e0e0e0;padding:10px 12px;text-align:center}
-    table tbody tr:nth-child(even){background:#F4F9F9}
-    .olho{font-weight:800;font-size:14px;background:#EAF4F4!important}
-    .adicao-row td{background:#E9EEF6!important;color:#2A5790;font-weight:700}
+    table td{border:1px solid #999;padding:10px 12px;text-align:center}
+    table tbody tr:nth-child(even){background:#fff}
+    .olho{font-weight:800;font-size:14px;background:#fff!important}
+    .adicao-row td{background:#fff!important;color:#1A1A1A;font-weight:700}
     .trat{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px}
-    .trat-item{font-size:13px;font-weight:700;color:#357F96;background:#EAF4F4;border:1px solid #cfe5e5;border-radius:6px;padding:6px 12px}
-    .obs-box{font-size:13px;line-height:1.6;color:#333;background:#fafaf8;border:1px solid #e0e0e0;border-radius:6px;padding:10px 14px;margin-bottom:22px}
+    .trat-item{font-size:13px;font-weight:700;color:#1A1A1A;background:#fff;border:1px solid #999;border-radius:6px;padding:6px 12px}
+    .obs-box{font-size:13px;line-height:1.6;color:#1A1A1A;background:#fff;border:1px solid #bbb;border-radius:6px;padding:10px 14px;margin-bottom:22px}
     .assinatura-area{display:flex;align-items:flex-end;justify-content:space-between;margin:28px 0 20px;gap:24px}
     .assinatura-col{display:flex;flex-direction:column;align-items:center;gap:4px}
-    .assinatura-linha{border-top:1.5px solid #1E3A5F;width:220px;margin-bottom:6px}
+    .assinatura-linha{border-top:1.5px solid #1A1A1A;width:220px;margin-bottom:6px}
     .assinatura-nome{font-size:13px;font-weight:700;text-align:center}
     .assinatura-cro{font-size:11px;color:#555;text-align:center}
     .data-local{font-size:13px;text-align:right;flex:1}
-    .lembrete{font-size:11px;color:#1E3A5F;line-height:1.6;border-left:3px solid #357F96;padding:10px 14px;background:#EEF6F6;border-radius:0 6px 6px 0;margin-bottom:18px}
-    .lembrete b{color:#357F96}
-    .footer{border-top:1px solid #ddd;padding-top:10px;font-size:10px;color:#999;text-align:center}
+    .lembrete{font-size:11px;color:#333;line-height:1.6;border-left:3px solid #999;padding:10px 14px;background:#fff;border-radius:0 6px 6px 0;margin-bottom:18px}
+    .lembrete b{color:#1A1A1A}
+    .footer{border-top:1px solid #bbb;padding-top:10px;font-size:10px;color:#666;text-align:center}
     @media print{html,body{width:210mm;height:297mm}body{padding:18mm 20mm 14mm 20mm}@page{size:A4 portrait;margin:0}}
   </style></head><body>
     <div class="header">
@@ -1377,21 +1377,21 @@ function imprimirDeclaracao(r, { cpf, inicio, fim }) {
   w.document.write(`<!DOCTYPE html><html><head><title>Declaração de Comparecimento</title><meta charset="utf-8"/>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#1E3A5F;padding:22mm 24mm 16mm 24mm;width:210mm;min-height:297mm;display:flex;flex-direction:column}
-    .header{display:flex;align-items:center;gap:20px;padding-bottom:14px;border-bottom:3px solid #357F96;margin-bottom:48px}
+    body{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#1A1A1A;padding:22mm 24mm 16mm 24mm;width:210mm;min-height:297mm;display:flex;flex-direction:column}
+    .header{display:flex;align-items:center;gap:20px;padding-bottom:14px;border-bottom:1.5px solid #1A1A1A;margin-bottom:48px}
     .logo{height:58px;object-fit:contain}
     .titulo{font-size:18px;font-weight:800;letter-spacing:.5px;text-transform:uppercase}
-    .subtitulo{font-size:12px;color:#357F96;font-weight:600;margin-top:3px}
+    .subtitulo{font-size:12px;color:#555;font-weight:600;margin-top:3px}
     h1{font-size:20px;font-weight:800;text-align:center;letter-spacing:1.5px;margin-bottom:40px}
     .texto{font-size:15px;line-height:2;text-align:justify}
     .texto b{font-weight:700}
     .local{font-size:15px;margin-top:40px;text-align:right}
     .assinatura{margin-top:80px;display:flex;flex-direction:column;align-items:center;gap:4px}
-    .linha{border-top:1.5px solid #1E3A5F;width:300px;margin-bottom:8px}
+    .linha{border-top:1.5px solid #1A1A1A;width:300px;margin-bottom:8px}
     .nome{font-size:14px;font-weight:700}
     .reg{font-size:12px;color:#555}
     .carimbo{font-size:11px;color:#999;margin-top:10px}
-    .footer{margin-top:auto;border-top:1px solid #ddd;padding-top:10px;font-size:10px;color:#999;text-align:center}
+    .footer{margin-top:auto;border-top:1px solid #bbb;padding-top:10px;font-size:10px;color:#666;text-align:center}
     @media print{html,body{width:210mm;height:297mm}body{padding:20mm 22mm 14mm 22mm}@page{size:A4 portrait;margin:0}}
   </style></head><body>
     <div class="header">
