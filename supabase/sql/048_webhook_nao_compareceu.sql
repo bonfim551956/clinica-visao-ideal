@@ -1,0 +1,5 @@
+-- 048 — Webhook de "Não Compareceu" (aplicada via MCP em 22/10/2026)
+-- Trigger trg_agenda_webhook_nao_compareceu (AFTER UPDATE OF status ON agenda): quando o status vira "Não Compareceu",
+-- faz POST (pg_net) para https://web.strongsalesia.cloud/webhook/8f2ee06e-5a04-415f-964e-b0129f1cbc9b com
+--   { "nome", "telefone" (só dígitos, com 55), "data" (DD/MM/AAAA), "hora" (HH:MM), "unidade" }
+-- Cada envio fica em public.agenda_webhook_log (agenda_id, payload, request_id → net._http_response).
