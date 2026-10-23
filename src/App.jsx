@@ -103,12 +103,12 @@ const ADD_VALS = ['N/A','+0,75','+1,00','+1,25','+1,50','+1,75','+2,00','+2,25',
 const DNP_VALS = ['N/A','28','29','30','31','32','33','34','35','36','37','38','39','40'];
 
 const PERFIS = {
-  opto:      { label:'Optometrista', cor:C.teal,    nav:['inicio','agenda','atendimento','receitas','manual'] },
-  comercial: { label:'Comercial',    cor:'#4DA6A4',  nav:['inicio','agenda','atendimento','receitas','manual'] },
-  prevenda:  { label:'Pré-Venda',    cor:'#3F6FA0',  nav:['inicio','agenda','conversao','noshow','receitas','manual'] },
-  gerente:   { label:'Gerente',      cor:C.orange,   nav:['inicio','agenda','atendimento','receitas','manual'] },
-  supervisor:{ label:'Supervisor',   cor:'#2A5790',  nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios','lojas','manual'] },
-  diretor:   { label:'Diretor',      cor:C.navy,     nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios','lojas','manual'] },
+  opto:      { label:'Optometrista', cor:C.teal,    nav:['inicio','agenda','atendimento','receitas','chat','manual'] },
+  comercial: { label:'Comercial',    cor:'#4DA6A4',  nav:['inicio','agenda','atendimento','receitas','chat','manual'] },
+  prevenda:  { label:'Pré-Venda',    cor:'#3F6FA0',  nav:['inicio','agenda','conversao','noshow','receitas','chat','manual'] },
+  gerente:   { label:'Gerente',      cor:C.orange,   nav:['inicio','agenda','atendimento','receitas','chat','manual'] },
+  supervisor:{ label:'Supervisor',   cor:'#2A5790',  nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios','lojas','chat','manual'] },
+  diretor:   { label:'Diretor',      cor:C.navy,     nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios','lojas','chat','manual'] },
 };
 
 // Lojas ativas — carregadas da tabela public.unidades ao entrar (tela "Lojas"); os valores abaixo são só o ponto de partida
@@ -144,6 +144,7 @@ const NAV_ITEMS = [
   { id:'relatorios',   label:'Relatórios'    },
   { id:'usuarios',     label:'Usuários'      },
   { id:'lojas',        label:'Lojas'         },
+  { id:'chat',         label:'Chat'          },
   { id:'manual',       label:'Manual'        },
 ];
 
@@ -388,6 +389,12 @@ function useNovaVersao() {
   }, []);
   return nova;
 }
+const BotaoChat = ({ n, onClick }) => (
+  <button onClick={onClick} title="Abrir o chat da loja"
+    style={{display:'inline-flex',alignItems:'center',gap:8,padding:'6px 12px',borderRadius:999,border:`1.5px solid ${C.teal}`,background:C.tealBg,color:C.teal,fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
+    Chat <ContadorChat n={n}/>
+  </button>
+);
 const AvisoVersao = () => (
   <button onClick={()=>window.location.reload()} title="Recarrega o sistema na versão nova"
     style={{display:'inline-flex',alignItems:'center',gap:8,padding:'6px 12px',borderRadius:999,border:`1.5px solid ${C.orange}`,background:C.orangeBg,color:C.orange,fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
@@ -395,7 +402,7 @@ const AvisoVersao = () => (
   </button>
 );
 
-function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnidade, children }) {
+function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnidade, chatN = 0, children }) {
   const novaVersao = useNovaVersao();
   const [minhaSenha, setMinhaSenha] = useState(false);
   const modalSenha = minhaSenha && <TrocarSenhaModal onClose={()=>setMinhaSenha(false)}/>;
@@ -421,7 +428,8 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
             style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderRadius:12,margin:'0 8px',
               background:active?C.teal:'transparent',color:active?C.white:C.text,
               fontWeight:active?700:500,fontSize:13.5,border:'none',cursor:'pointer',textAlign:'left',position:'relative'}}>
-            {n.label}
+            <span style={{flex:1}}>{n.label}</span>
+            {n.id==='chat' && <ContadorChat n={chatN} claro={active}/>}
           </button>
         );
       })}
@@ -444,7 +452,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
       <div style={{height:52,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px'}}>
         <button onClick={()=>setDrawer(true)} style={{background:'none',fontSize:22,color:C.navy,border:'none',fontWeight:700}}>&#9776;</button>
         <img src="/logo-visao-ideal.png" alt="Visão Ideal" style={{height:36,objectFit:'contain'}}/>
-        <Badge color={perfil?.cor||C.teal}>{perfil?.label}</Badge>
+        {chatN > 0 && tab !== 'chat' ? <BotaoChat n={chatN} onClick={()=>setTab('chat')}/> : <Badge color={perfil?.cor||C.teal}>{perfil?.label}</Badge>}
       </div>
       {novaVersao && <div style={{padding:'0 12px 8px',display:'flex',justifyContent:'center'}}><AvisoVersao/></div>}
       {podeVerTodasUnidades && (
@@ -476,7 +484,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
       <div style={{position:'fixed',bottom:0,left:0,right:0,background:C.white,borderTop:`1px solid ${C.border}`,display:'flex',justifyContent:'space-around',padding:'6px 0',zIndex:200}}>
         {navItems.slice(0,5).map(n=>(
           <button key={n.id} onClick={()=>setTab(n.id)} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,background:'none',border:'none',cursor:'pointer',padding:'4px 8px',color:tab===n.id?C.teal:C.gray}}>
-            <span style={{fontSize:10,fontWeight:tab===n.id?700:400}}>{n.label}</span>
+            <span style={{fontSize:10,fontWeight:tab===n.id?700:400,display:'inline-flex',alignItems:'center',gap:4}}>{n.label}{n.id==='chat' && <ContadorChat n={chatN}/>}</span>
           </button>
         ))}
       </div>
@@ -529,6 +537,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
             </div>
             <div style={{display:'flex',alignItems:'center',gap:12}}>
               {novaVersao && <AvisoVersao/>}
+              {chatN > 0 && tab !== 'chat' && <BotaoChat n={chatN} onClick={()=>setTab('chat')}/>}
               <Badge color={perfil?.cor||C.teal}>{perfil?.label}</Badge>
               {podeVerTodasUnidades ? unidadeFilter() : user.unidade && <span style={{fontSize:12,color:C.gray}}>{user.unidade}</span>}
             </div>
@@ -3338,6 +3347,364 @@ function Manual({ user }) {
 }
 
 /* ══════════════════════════════════════════════════════
+   CHAT INTERNO — um grupo por loja
+   Colaborador da loja vê só o grupo dela; diretor, supervisor e pré-venda veem todos.
+   Mensagens não são apagadas; o autor pode editar (o texto anterior fica no histórico).
+══════════════════════════════════════════════════════ */
+const salasDoUsuario = u => ['diretor','supervisor','prevenda'].includes(u?.perfil) ? [...UNIDADES] : (u?.unidade ? [u.unidade] : []);
+const nomeSala = s => 'LOJA ' + s;
+const horaMsg = iso => new Date(iso).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+const diaMsg = iso => {
+  const d = new Date(iso); const k = x => x.toDateString();
+  const hoje = new Date(); const ontem = new Date(); ontem.setDate(hoje.getDate() - 1);
+  if (k(d) === k(hoje)) return 'Hoje';
+  if (k(d) === k(ontem)) return 'Ontem';
+  return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' });
+};
+// Som curto de aviso (gerado no navegador, sem arquivo)
+let audioCtx = null;
+const tocarAviso = () => {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    [[880, 0], [1320, 0.12]].forEach(([f, t]) => {
+      const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+      o.frequency.value = f; o.type = 'sine';
+      g.gain.setValueAtTime(0.0001, audioCtx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.15, audioCtx.currentTime + t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + t + 0.18);
+      o.connect(g); g.connect(audioCtx.destination); o.start(audioCtx.currentTime + t); o.stop(audioCtx.currentTime + t + 0.2);
+    });
+  } catch {}
+};
+const podeNotificar = () => typeof window !== 'undefined' && 'Notification' in window;
+
+// Escuta o chat no app inteiro: contador de não lidas, som, aviso na tela e notificação do computador/celular
+function useChatAvisos(usuario, tab) {
+  const [naoLidas, setNaoLidas] = useState({});
+  const [aviso, setAviso] = useState(null);
+  const salaAberta = useRef(null);   // sala que o usuário está vendo agora (definida pela tela do Chat)
+  const pedida = useRef(null);       // sala a abrir quando o usuário clica no aviso/notificação
+  const tabRef = useRef(tab);
+  useEffect(() => { tabRef.current = tab; }, [tab]);
+  const uid = usuario?.id;
+
+  const recarregar = useCallback(async () => {
+    const { data } = await supabase.rpc('chat_nao_lidas');
+    const m = {}; (data || []).forEach(r => { m[r.sala] = Number(r.n) || 0; });
+    setNaoLidas(m);
+  }, []);
+  const marcarLida = useCallback(async sala => {
+    setNaoLidas(m => (m[sala] ? { ...m, [sala]: 0 } : m));
+    await supabase.rpc('chat_marcar_lida', { p_sala: sala });
+  }, []);
+
+  useEffect(() => {
+    if (!uid) return;
+    recarregar();
+    const ch = supabase.channel('chat_global_' + Math.random().toString(36).slice(2))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_mensagens' }, p => {
+        window.dispatchEvent(new CustomEvent('chat-mensagem', { detail: p }));
+        if (p.eventType !== 'INSERT') return;
+        const m = p.new;
+        if (m.autor_id === uid) return;
+        const vendo = tabRef.current === 'chat' && salaAberta.current === m.sala && document.visibilityState === 'visible';
+        if (vendo) return;
+        setNaoLidas(x => ({ ...x, [m.sala]: (x[m.sala] || 0) + 1 }));
+        tocarAviso();
+        if (tabRef.current !== 'chat' || salaAberta.current !== m.sala) {
+          setAviso({ sala: m.sala, autor: m.autor_nome, texto: m.texto, id: m.id });
+        }
+        if (document.visibilityState !== 'visible' && podeNotificar() && Notification.permission === 'granted') {
+          try {
+            const n = new Notification(`${nomeSala(m.sala)} · ${m.autor_nome}`, { body: m.texto.slice(0, 140), icon: '/logo-visao-ideal.png', tag: 'chat-' + m.sala });
+            n.onclick = () => { window.focus(); window.dispatchEvent(new CustomEvent('chat-abrir', { detail: m.sala })); n.close(); };
+          } catch {}
+        }
+      })
+      .subscribe();
+    // ao voltar para a aba, confere o que chegou enquanto a conexão estava parada
+    const aoVoltar = () => { if (document.visibilityState === 'visible') recarregar(); };
+    document.addEventListener('visibilitychange', aoVoltar);
+    return () => { supabase.removeChannel(ch); document.removeEventListener('visibilitychange', aoVoltar); };
+  }, [uid, recarregar]);
+
+  // aviso na tela some sozinho depois de 6 s
+  useEffect(() => { if (!aviso) return; const t = setTimeout(() => setAviso(null), 6000); return () => clearTimeout(t); }, [aviso]);
+
+  const total = Object.values(naoLidas).reduce((a, b) => a + b, 0);
+  // número de não lidas no título da aba do navegador
+  useEffect(() => {
+    const base = document.title.replace(/^\(\d+\)\s*/, '');
+    document.title = total ? `(${total}) ${base}` : base;
+  }, [total]);
+
+  useEffect(() => {
+    const h = e => { pedida.current = e.detail; };
+    window.addEventListener('chat-abrir', h);
+    return () => window.removeEventListener('chat-abrir', h);
+  }, []);
+
+  return { naoLidas, total, aviso, fecharAviso: () => setAviso(null), salaAberta, marcarLida, pedida };
+}
+
+const AvisoChat = ({ aviso, onAbrir, onFechar }) => !aviso ? null : (
+  <div style={{position:'fixed',right:16,bottom:88,zIndex:900,width:'min(340px, calc(100vw - 32px))',background:C.white,borderRadius:16,boxShadow:'0 8px 28px rgba(0,0,0,.18)',borderLeft:`4px solid ${C.teal}`,padding:'12px 14px',display:'flex',gap:10,alignItems:'flex-start'}}>
+    <button onClick={onAbrir} style={{flex:1,minWidth:0,textAlign:'left',background:'none',border:'none',cursor:'pointer',padding:0}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.teal,letterSpacing:'.04em'}}>{nomeSala(aviso.sala)}</div>
+      <div style={{fontSize:13,fontWeight:700,color:C.navy,marginTop:2}}>{aviso.autor}</div>
+      <div style={{fontSize:13,color:C.textSm,marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{aviso.texto}</div>
+    </button>
+    <button onClick={onFechar} aria-label="Fechar" style={{background:'none',border:'none',color:C.gray,fontSize:18,lineHeight:1,cursor:'pointer'}}>×</button>
+  </div>
+);
+
+const ContadorChat = ({ n, claro }) => !n ? null : (
+  <span style={{minWidth:18,height:18,padding:'0 6px',borderRadius:9,background:claro?C.white:C.danger,color:claro?C.teal:C.white,fontSize:11,fontWeight:700,display:'inline-flex',alignItems:'center',justifyContent:'center'}}>{n > 99 ? '99+' : n}</span>
+);
+
+function HistoricoMensagem({ msg, onClose }) {
+  const [itens, setItens] = useState(null);
+  useEffect(() => {
+    supabase.from('chat_edicoes').select('*').eq('mensagem_id', msg.id).order('editado_em', { ascending:false })
+      .then(({ data }) => setItens(data || []));
+  }, [msg.id]);
+  return (
+    <Modal title="Histórico da mensagem" onClose={onClose}>
+      <div style={{fontSize:12,color:C.gray,marginBottom:6}}>Texto atual</div>
+      <div style={{padding:'10px 12px',background:C.tealBg,borderRadius:12,whiteSpace:'pre-wrap',fontSize:14,marginBottom:16}}>{msg.texto}</div>
+      {!itens ? <Spinner/> : itens.map(e => (
+        <div key={e.id} style={{marginBottom:12}}>
+          <div style={{fontSize:12,color:C.gray,marginBottom:4}}>Antes da edição de {diaMsg(e.editado_em).toLowerCase()} às {horaMsg(e.editado_em)}</div>
+          <div style={{padding:'10px 12px',background:C.bg,borderRadius:12,whiteSpace:'pre-wrap',fontSize:14}}>{e.texto_anterior}</div>
+        </div>
+      ))}
+    </Modal>
+  );
+}
+
+function Chat({ user, chat }) {
+  const isMobile = useIsMobile();
+  const salas = salasDoUsuario(user);
+  const [sala, setSala] = useState(() => salas.includes(chat.pedida.current) ? chat.pedida.current : (salas[0] || ''));
+  const [msgs, setMsgs] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const [temMais, setTemMais] = useState(false);
+  const [texto, setTexto] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState('');
+  const [editando, setEditando] = useState(null); // { id, texto }
+  const [historico, setHistorico] = useState(null);
+  const [perm, setPerm] = useState(() => podeNotificar() ? Notification.permission : 'indisponivel');
+  const fimRef = useRef(null);
+  const listaRef = useRef(null);
+  const LOTE = 100;
+  const { salaAberta, marcarLida, naoLidas } = chat;
+
+  // abrir uma sala a partir do aviso/notificação
+  useEffect(() => {
+    const h = e => { if (salas.includes(e.detail)) setSala(e.detail); };
+    window.addEventListener('chat-abrir', h);
+    return () => window.removeEventListener('chat-abrir', h);
+  }, [salas.join('|')]);
+
+  useEffect(() => {
+    salaAberta.current = sala;
+    return () => { salaAberta.current = null; };
+  }, [sala, salaAberta]);
+
+  const rolarFim = (suave) => setTimeout(() => fimRef.current?.scrollIntoView({ behavior: suave ? 'smooth' : 'auto', block: 'end' }), 30);
+
+  useEffect(() => {
+    if (!sala) { setCarregando(false); return; }
+    let vivo = true;
+    setCarregando(true); setMsgs([]); setEditando(null); setErro('');
+    supabase.from('chat_mensagens').select('*').eq('sala', sala).order('criado_em', { ascending:false }).limit(LOTE)
+      .then(({ data, error }) => {
+        if (!vivo) return;
+        if (error) setErro('Não foi possível carregar as mensagens.');
+        const lista = (data || []).reverse();
+        setMsgs(lista); setTemMais((data || []).length === LOTE); setCarregando(false);
+        rolarFim(false);
+      });
+    marcarLida(sala);
+    return () => { vivo = false; };
+  }, [sala, marcarLida]);
+
+  // mensagens novas/editadas em tempo real
+  useEffect(() => {
+    const h = e => {
+      const p = e.detail; const m = p.new;
+      if (!m || m.sala !== sala) return;
+      if (p.eventType === 'INSERT') {
+        setMsgs(l => l.some(x => x.id === m.id) ? l : [...l, m]);
+        const el = listaRef.current;
+        const pertoDoFim = !el || el.scrollHeight - el.scrollTop - el.clientHeight < 160;
+        if (pertoDoFim || m.autor_id === user.id) rolarFim(true);
+        if (document.visibilityState === 'visible') marcarLida(sala);
+      } else if (p.eventType === 'UPDATE') {
+        setMsgs(l => l.map(x => x.id === m.id ? m : x));
+      }
+    };
+    window.addEventListener('chat-mensagem', h);
+    const aoVoltar = () => { if (document.visibilityState === 'visible' && sala) marcarLida(sala); };
+    document.addEventListener('visibilitychange', aoVoltar);
+    return () => { window.removeEventListener('chat-mensagem', h); document.removeEventListener('visibilitychange', aoVoltar); };
+  }, [sala, user.id, marcarLida]);
+
+  const carregarAnteriores = async () => {
+    if (!msgs.length) return;
+    const el = listaRef.current; const alturaAntes = el?.scrollHeight || 0;
+    const { data } = await supabase.from('chat_mensagens').select('*').eq('sala', sala)
+      .lt('criado_em', msgs[0].criado_em).order('criado_em', { ascending:false }).limit(LOTE);
+    const mais = (data || []).reverse();
+    setMsgs(l => [...mais, ...l]); setTemMais((data || []).length === LOTE);
+    setTimeout(() => { if (el) el.scrollTop = el.scrollHeight - alturaAntes; }, 30);
+  };
+
+  const enviar = async () => {
+    const t = texto.trim();
+    if (!t || enviando || !sala) return;
+    setEnviando(true); setErro('');
+    const { data, error } = await supabase.from('chat_mensagens')
+      .insert({ sala, texto: t, autor_id: user.id, autor_nome: user.nome, autor_perfil: user.perfil }).select().single();
+    setEnviando(false);
+    if (error) { setErro('Mensagem não enviada. Confira a internet e tente de novo.'); return; }
+    setTexto('');
+    setMsgs(l => l.some(x => x.id === data.id) ? l : [...l, data]);
+    rolarFim(true);
+  };
+
+  const salvarEdicao = async () => {
+    const t = editando.texto.trim();
+    if (!t) return;
+    const original = msgs.find(m => m.id === editando.id);
+    if (original && original.texto === t) { setEditando(null); return; }
+    const { data, error } = await supabase.from('chat_mensagens').update({ texto: t }).eq('id', editando.id).select().single();
+    if (error) { setErro('Não foi possível editar a mensagem.'); return; }
+    setMsgs(l => l.map(x => x.id === data.id ? data : x));
+    setEditando(null);
+  };
+
+  const pedirPermissao = async () => {
+    try { const r = await Notification.requestPermission(); setPerm(r); } catch {}
+  };
+
+  if (!salas.length) return (
+    <Card><p style={{textAlign:'center',padding:40,color:C.gray}}>Seu usuário não está ligado a nenhuma loja. Fale com o supervisor para liberar o chat.</p></Card>
+  );
+
+  const faixa = perm === 'default' ? 68 : perm === 'denied' ? 30 : 0; // espaço do aviso de notificações
+  const altura = isMobile ? `calc(100dvh - ${(['diretor','supervisor','prevenda'].includes(user.perfil) ? 250 : 210) + faixa}px)` : `calc(100vh - ${125 + faixa}px)`;
+  const varias = salas.length > 1;
+
+  // agrupa por dia para mostrar o separador de data
+  let diaAnterior = '';
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:12}}>
+      {perm === 'default' && (
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',background:C.tealBg,borderRadius:16,padding:'12px 16px'}}>
+          <span style={{fontSize:13,color:C.navy}}>Receba aviso de mensagem nova mesmo com o sistema minimizado.</span>
+          <Btn size="sm" onClick={pedirPermissao}>Ativar notificações</Btn>
+        </div>
+      )}
+      {perm === 'denied' && (
+        <div style={{fontSize:12,color:C.gray,padding:'0 4px'}}>As notificações do navegador estão bloqueadas para este site. Os avisos aparecem só com o sistema aberto.</div>
+      )}
+
+      <div style={{display:'flex',gap:16,height:altura,minHeight:380,flexDirection:isMobile?'column':'row'}}>
+        {varias && (isMobile ? (
+          <div style={{display:'flex',gap:8,overflowX:'auto',flexShrink:0,paddingBottom:2}}>
+            {salas.map(s => (
+              <button key={s} onClick={()=>setSala(s)} style={{display:'inline-flex',alignItems:'center',gap:6,whiteSpace:'nowrap',padding:'8px 14px',borderRadius:999,fontSize:12,fontWeight:700,border:`1px solid ${s===sala?C.teal:C.border}`,background:s===sala?C.teal:C.white,color:s===sala?C.white:C.navy}}>
+                {s}<ContadorChat n={s===sala?0:naoLidas[s]}/>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <Card style={{width:230,flexShrink:0,padding:10,overflowY:'auto'}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.gray,letterSpacing:'.08em',padding:'6px 10px 10px'}}>GRUPOS</div>
+            {salas.map(s => (
+              <button key={s} onClick={()=>setSala(s)} className={s===sala?'nav-item ativo':'nav-item'}
+                style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'10px 12px',marginBottom:2,fontSize:13,fontWeight:s===sala?700:500,background:s===sala?C.teal:'transparent',color:s===sala?C.white:C.navy,textAlign:'left'}}>
+                <span>{nomeSala(s)}</span><ContadorChat n={s===sala?0:naoLidas[s]}/>
+              </button>
+            ))}
+          </Card>
+        ))}
+
+        <Card style={{flex:1,minWidth:0,minHeight:0,padding:0,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+          <div style={{padding:'14px 20px',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',gap:12}}>
+            <div style={{width:36,height:36,borderRadius:12,background:C.gradiente,color:C.white,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:14,flexShrink:0}}>{sala.charAt(0)}</div>
+            <div>
+              <div style={{fontWeight:700,color:C.navy,fontSize:15}}>{nomeSala(sala)}</div>
+              <div style={{fontSize:12,color:C.gray}}>Equipe da loja, supervisão e pré-venda</div>
+            </div>
+          </div>
+
+          <div ref={listaRef} style={{flex:1,overflowY:'auto',padding:'16px 20px',background:C.bg}}>
+            {carregando ? <Spinner/> : (
+              <>
+                {temMais && <div style={{textAlign:'center',marginBottom:12}}><Btn size="sm" outline onClick={carregarAnteriores}>Carregar mensagens anteriores</Btn></div>}
+                {!msgs.length && <div style={{textAlign:'center',color:C.gray,fontSize:13,padding:'40px 0'}}>Nenhuma mensagem ainda. Comece a conversa com a equipe.</div>}
+                {msgs.map(m => {
+                  const minha = m.autor_id === user.id;
+                  const dia = diaMsg(m.criado_em);
+                  const sep = dia !== diaAnterior; diaAnterior = dia;
+                  const emEdicao = editando?.id === m.id;
+                  return (
+                    <div key={m.id}>
+                      {sep && <div style={{textAlign:'center',margin:'12px 0'}}><span style={{fontSize:11,fontWeight:700,color:C.gray,background:C.white,borderRadius:999,padding:'4px 12px'}}>{dia}</span></div>}
+                      <div style={{display:'flex',justifyContent:minha?'flex-end':'flex-start',marginBottom:8}}>
+                        <div style={{maxWidth:isMobile?'85%':'70%',background:minha?C.teal:C.white,color:minha?C.white:C.text,borderRadius:16,borderBottomRightRadius:minha?4:16,borderBottomLeftRadius:minha?16:4,padding:'8px 12px',boxShadow:'0 1px 3px rgba(0,0,0,.06)'}}>
+                          {!minha && <div style={{fontSize:12,fontWeight:700,color:C.teal,marginBottom:2}}>{m.autor_nome} <span style={{fontWeight:500,color:C.gray}}>· {PERFIS[m.autor_perfil]?.label || m.autor_perfil}</span></div>}
+                          {emEdicao ? (
+                            <div style={{minWidth:220}}>
+                              <textarea value={editando.texto} onChange={e=>setEditando({...editando,texto:e.target.value})} rows={3} autoFocus maxLength={4000}
+                                onKeyDown={e=>{ if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); salvarEdicao(); } if (e.key==='Escape') setEditando(null); }}
+                                style={{width:'100%',border:'none',borderRadius:8,padding:8,fontSize:14,resize:'vertical',color:C.text}}/>
+                              <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginTop:6}}>
+                                <button onClick={()=>setEditando(null)} style={{background:'none',color:C.white,fontSize:12,fontWeight:600,opacity:.85}}>Cancelar</button>
+                                <button onClick={salvarEdicao} style={{background:C.white,color:C.teal,fontSize:12,fontWeight:700,borderRadius:999,padding:'4px 12px'}}>Salvar</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{fontSize:14,lineHeight:1.45,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{m.texto}</div>
+                          )}
+                          <div style={{display:'flex',gap:8,justifyContent:'flex-end',alignItems:'center',marginTop:4,fontSize:11,color:minha?'rgba(255,255,255,.8)':C.gray}}>
+                            {m.editado_em && <button onClick={()=>setHistorico(m)} title="Ver o que mudou" style={{background:'none',padding:0,fontSize:11,color:'inherit',textDecoration:'underline'}}>editada</button>}
+                            {minha && !emEdicao && <button onClick={()=>setEditando({id:m.id,texto:m.texto})} style={{background:'none',padding:0,fontSize:11,color:'inherit',fontWeight:600}}>Editar</button>}
+                            <span>{horaMsg(m.criado_em)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div ref={fimRef}/>
+              </>
+            )}
+          </div>
+
+          <div style={{padding:12,borderTop:`1px solid ${C.border}`,background:C.white}}>
+            {erro && <div style={{fontSize:12,color:C.danger,marginBottom:6}}>{erro}</div>}
+            <div style={{display:'flex',gap:8,alignItems:'flex-end'}}>
+              <textarea value={texto} onChange={e=>setTexto(e.target.value)} rows={1} maxLength={4000}
+                placeholder={isMobile ? 'Mensagem' : `Mensagem para ${nomeSala(sala)}`}
+                onKeyDown={e=>{ if (e.key==='Enter' && !e.shiftKey && !isMobile) { e.preventDefault(); enviar(); } }}
+                style={{flex:1,border:`1px solid ${C.border}`,borderRadius:16,padding:'10px 14px',fontSize:14,resize:'none',maxHeight:120,minHeight:42,lineHeight:1.4}}/>
+              <Btn onClick={enviar} disabled={!texto.trim()||enviando} style={{borderRadius:999,minHeight:42}}>{enviando?'Enviando…':'Enviar'}</Btn>
+            </div>
+            {!isMobile && <div style={{fontSize:11,color:C.gray,marginTop:6}}>Enter envia · Shift+Enter quebra a linha · Mensagens não podem ser apagadas</div>}
+          </div>
+        </Card>
+      </div>
+      {historico && <HistoricoMensagem msg={historico} onClose={()=>setHistorico(null)}/>}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════
    HOOK REALTIME — escuta mudanças em tempo real
 ══════════════════════════════════════════════════════ */
 function useRealtime(table, onchange) {
@@ -3443,6 +3810,13 @@ export default function App() {
     return () => clearInterval(t);
   }, [usuarioId]);
 
+  const chat = useChatAvisos(usuario, tab);
+  useEffect(() => {
+    const h = () => setTab('chat');
+    window.addEventListener('chat-abrir', h);
+    return () => window.removeEventListener('chat-abrir', h);
+  }, []);
+
   const handleLogout = () => {
     try { localStorage.removeItem(SESSION_KEY); } catch {}
     sair();
@@ -3476,12 +3850,15 @@ export default function App() {
     relatorios:   <Relatorios selectedUnidade={lojaEfetiva}/>,
     usuarios:     <Usuarios selectedUnidade={lojaEfetiva}/>,
     lojas:        <Lojas onAlterar={recarregarLojas}/>,
+    chat:         <Chat user={usuario} chat={chat}/>,
     manual:       <Manual user={usuario}/>,
   };
 
   return (
-    <Layout user={usuario} tab={tab} setTab={setTab} onLogout={handleLogout} selectedUnidade={selectedUnidade} setSelectedUnidade={setSelectedUnidade}>
+    <Layout user={usuario} tab={tab} setTab={setTab} onLogout={handleLogout} selectedUnidade={selectedUnidade} setSelectedUnidade={setSelectedUnidade} chatN={chat.total}>
       {pages[tab] || <div>Página não encontrada</div>}
+      <AvisoChat aviso={chat.aviso} onFechar={chat.fecharAviso}
+        onAbrir={()=>{ window.dispatchEvent(new CustomEvent('chat-abrir', { detail: chat.aviso.sala })); chat.fecharAviso(); }}/>
     </Layout>
   );
 }
