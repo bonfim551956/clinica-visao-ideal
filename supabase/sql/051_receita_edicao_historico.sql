@@ -1,0 +1,5 @@
+-- 051 — Edição de receita com histórico (aplicada via MCP em 23/10/2026)
+-- receitas: + editado_em, editado_por_id, editado_por_nome, motivo_edicao
+-- receitas_historico: receita_id, alterado_em, alterado_por_id/nome, motivo, antes (jsonb), depois (jsonb); RLS de leitura igual à receita
+-- trigger trg_zz_receita_edicao (BEFORE UPDATE): se mudar grau/adição/DNP/tratamentos/observações, exige motivo,
+--   preenche quem/quando pela sessão e grava o antes → depois no histórico. Edição continua restrita ao optometrista (RLS).

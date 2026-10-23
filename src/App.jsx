@@ -1477,7 +1477,7 @@ function imprimirReceita(r) {
         <div class="assinatura-nome">${esc(r.opto_nome)}</div>
         ${cro ? `<div class="assinatura-cro">${esc(cro)}</div>` : ''}
       </div>
-      <div class="data-local">${esc(dtExtenso)}</div>
+      <div class="data-local">${esc(dtExtenso)}${r.editado_em ? `<div style="font-size:10px;color:#555;margin-top:4px">Receita retificada em ${(()=>{ const d=new Date(r.editado_em); return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} às ${pad(d.getHours())}:${pad(d.getMinutes())}`; })()}</div>` : ''}</div>
     </div>
     <div class="lembrete">
       <b>Cuide da sua visão todo ano.</b> A visão muda com o tempo, muitas vezes sem que a gente perceba.
@@ -2755,6 +2755,119 @@ function UsuarioModal({ user, onSave, onClose }) {
 /* ══════════════════════════════════════════════════════
    RECEITAS
 ══════════════════════════════════════════════════════ */
+/* Edição de receita já gerada: só o optometrista. Motivo obrigatório; cada alteração fica no histórico (antes → depois). */
+const CAMPOS_EDITAVEIS = [
+  ['od_esf','OD Esférico'],['od_cil','OD Cilíndrico'],['od_eixo','OD Eixo'],['od_dnp','OD DNP'],
+  ['oe_esf','OE Esférico'],['oe_cil','OE Cilíndrico'],['oe_eixo','OE Eixo'],['oe_dnp','OE DNP'],
+  ['od_adicao','Adição'],['tratamentos_sugeridos','Tratamentos'],['observacoes','Observações'],
+];
+const valorHist = v => Array.isArray(v) ? (v.length ? v.map(nomeTrat).join(', ') : '—') : (v === null || v === undefined || v === '' ? '—' : String(v));
+function EditarReceita({ receita, user, onSalvo, onCancelar }) {
+  const [f, setF2] = useState({
+    od_esf:receita.od_esf||'', od_cil:receita.od_cil||'', od_eixo:receita.od_eixo||'', od_add:receita.od_adicao==='N/A'?'':(receita.od_adicao||''), od_dnp:receita.od_dnp==='N/A'?'':(receita.od_dnp||''),
+    oe_esf:receita.oe_esf||'', oe_cil:receita.oe_cil||'', oe_eixo:receita.oe_eixo||'', oe_add:receita.oe_adicao==='N/A'?'':(receita.oe_adicao||''), oe_dnp:receita.oe_dnp==='N/A'?'':(receita.oe_dnp||''),
+    trat: receita.tratamentos_sugeridos||[], obs: receita.observacoes||'', motivo:'' });
+  const [erros, setErros] = useState({});
+  const [salvando, setSalvando] = useState(false);
+  const set = (k,v) => setF2(x => ({ ...x, [k]: v, ...(k==='od_add' ? { oe_add: v } : {}) }));
+  const salvar = async () => {
+    const { erros: e, valores: rx } = validarRx(f);
+    if (!f.motivo.trim()) e.motivo = 'Informe o motivo da alteração.';
+    setErros(e);
+    if (Object.keys(e).length) return;
+    const novo = {
+      od_esf:rx.od_esf, od_cil:rx.od_cil, od_eixo:rx.od_eixo, od_adicao:rx.od_add, od_dnp:rx.od_dnp,
+      oe_esf:rx.oe_esf, oe_cil:rx.oe_cil, oe_eixo:rx.oe_eixo, oe_adicao:rx.oe_add, oe_dnp:rx.oe_dnp,
+      tratamentos_sugeridos: TRATAMENTOS.map(t=>t.id).filter(id=>f.trat.includes(id)),
+      observacoes: f.obs,
+    };
+    const mudou = Object.keys(novo).some(k => JSON.stringify(novo[k] ?? '') !== JSON.stringify(receita[k] ?? ''));
+    if (!mudou) { setErros({ motivo: 'Nada foi alterado na receita.' }); return; }
+    setSalvando(true);
+    const { data, error } = await supabase.from('receitas')
+      .update({ ...novo, motivo_edicao: f.motivo.trim(), editado_por_id: user.id, editado_por_nome: user.nome })
+      .eq('id', receita.id).select().single();
+    setSalvando(false);
+    if (error) { alert('Não foi possível salvar: ' + error.message); return; }
+    onSalvo(data);
+  };
+  const cel = (k) => (
+    <td style={{padding:4}}>
+      <input value={f[k]} onChange={e=>set(k, e.target.value)} aria-label={k}
+        style={{width:'100%',minWidth:64,border:`1.5px solid ${erros[k]?C.danger:C.border}`,borderRadius:8,padding:'7px 8px',fontSize:13,textAlign:'center',background:C.white}}/>
+    </td>);
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <div className="tbl-wrap">
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+          <thead><tr style={{background:C.teal,color:C.white}}>
+            {['Olho','Esférico','Cilíndrico','Eixo','Adição (AO)','DNP'].map(h=><th key={h} style={{padding:'8px 10px',textAlign:'center'}}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            <tr><td style={{padding:'8px 10px',fontWeight:700}}>OD</td>{cel('od_esf')}{cel('od_cil')}{cel('od_eixo')}<td rowSpan={2} style={{padding:4,verticalAlign:'middle'}}><input value={f.od_add} onChange={e=>set('od_add',e.target.value)} aria-label="adição" style={{width:'100%',minWidth:64,border:`1.5px solid ${erros.od_add?C.danger:C.border}`,borderRadius:8,padding:'7px 8px',fontSize:13,textAlign:'center'}}/></td>{cel('od_dnp')}</tr>
+            <tr><td style={{padding:'8px 10px',fontWeight:700}}>OE</td>{cel('oe_esf')}{cel('oe_cil')}{cel('oe_eixo')}{cel('oe_dnp')}</tr>
+          </tbody>
+        </table>
+      </div>
+      {Object.keys(erros).filter(k=>k!=='motivo').length > 0 && <div style={{fontSize:12,color:C.danger,fontWeight:600}}>{Object.entries(erros).filter(([k])=>k!=='motivo').map(([,v])=>v).filter((v,i,a)=>a.indexOf(v)===i).join(' · ')}</div>}
+      <div>
+        <label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:6}}>Tratamentos sugeridos</label>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          {TRATAMENTOS.map(t => { const on = f.trat.includes(t.id); return (
+            <button key={t.id} type="button" role="checkbox" aria-checked={on} onClick={()=>set('trat', on ? f.trat.filter(x=>x!==t.id) : [...f.trat, t.id])}
+              style={{padding:'8px 12px',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',border:`1.5px solid ${on?C.teal:C.border}`,background:on?C.tealBg:C.white,color:C.navy}}>
+              {on ? '✓ ' : ''}{t.label}</button>); })}
+        </div>
+      </div>
+      <div>
+        <label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:6}}>Observações</label>
+        <textarea value={f.obs} onChange={e=>set('obs', maiusc(e).target.value)} rows={2} style={{width:'100%',border:`1.5px solid ${C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,resize:'vertical'}}/>
+      </div>
+      <div>
+        <label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:6}}>Motivo da alteração <span style={{color:C.danger}}>*</span></label>
+        <textarea value={f.motivo} onChange={e=>{ set('motivo', maiusc(e).target.value); setErros(x=>({...x, motivo:undefined})); }} rows={2} placeholder="Ex.: ERRO DE DIGITAÇÃO NO EIXO DO OE"
+          style={{width:'100%',border:`1.5px solid ${erros.motivo?C.danger:C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,resize:'vertical'}}/>
+        {erros.motivo && <div style={{fontSize:11,color:C.danger,marginTop:4,fontWeight:600}}>{erros.motivo}</div>}
+      </div>
+      <div style={{fontSize:12,color:C.gray}}>A alteração fica registrada com seu nome, data e hora, e o motivo. A receita impressa passa a indicar que foi retificada.</div>
+      <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+        <Btn size="sm" outline onClick={onCancelar}>Cancelar</Btn>
+        <Btn size="sm" color={C.teal} onClick={salvar} disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar alteração'}</Btn>
+      </div>
+    </div>
+  );
+}
+function HistoricoReceita({ receitaId, versao }) {
+  const [itens, setItens] = useState(null);
+  useEffect(() => {
+    supabase.from('receitas_historico').select('*').eq('receita_id', receitaId).order('alterado_em', { ascending:false })
+      .then(({ data }) => setItens(data || []));
+  }, [receitaId, versao]);
+  if (!itens || !itens.length) return null;
+  return (
+    <div style={{borderTop:`1px solid ${C.border}`,paddingTop:12}}>
+      <div style={{fontSize:12,fontWeight:700,color:C.textSm,marginBottom:8,textTransform:'uppercase',letterSpacing:'.5px'}}>Histórico de alterações</div>
+      <div style={{display:'flex',flexDirection:'column',gap:10}}>
+        {itens.map(h => {
+          const dt = new Date(h.alterado_em);
+          const quando = `${pad(dt.getDate())}/${pad(dt.getMonth()+1)}/${dt.getFullYear()} às ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+          return (
+            <div key={h.id} style={{background:C.bg,borderRadius:10,padding:'10px 12px',fontSize:13}}>
+              <div style={{fontWeight:700,color:C.text}}>{quando} · {h.alterado_por_nome}</div>
+              <div style={{color:C.textSm,marginTop:2}}>Motivo: {h.motivo}</div>
+              <ul style={{margin:'6px 0 0',paddingLeft:18,color:C.text}}>
+                {CAMPOS_EDITAVEIS.filter(([k]) => JSON.stringify((h.antes||{})[k] ?? '') !== JSON.stringify((h.depois||{})[k] ?? '')).map(([k,l]) => (
+                  <li key={k}>{l}: <span style={{textDecoration:'line-through',color:C.gray}}>{valorHist((h.antes||{})[k])}</span> → <strong>{valorHist((h.depois||{})[k])}</strong></li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Receitas({ user, selectedUnidade='' }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2762,6 +2875,8 @@ function Receitas({ user, selectedUnidade='' }) {
   const [filtros, setFiltros] = useState({ opto:'', busca:'' });
   const [detalhe, setDetalhe] = useState(null);
   const [declaracao, setDeclaracao] = useState(null);
+  const [editando, setEditando] = useState(false);
+  const [versaoHist, setVersaoHist] = useState(0);
 
   const load = useCallback(async () => {
     let q = supabase.from('receitas').select('*').order('data',{ascending:false});
@@ -2822,7 +2937,7 @@ function Receitas({ user, selectedUnidade='' }) {
                     <td style={{padding:'8px 12px',fontSize:12,color:C.textSm}}>{fmtOlho(r,'od')}</td>
                     <td style={{padding:'8px 12px',fontSize:12,color:C.textSm}}>{fmtOlho(r,'oe')}</td>
                     <td style={{padding:'8px 12px'}}>
-                      <Btn size="sm" color={C.teal} outline onClick={()=>setDetalhe(r)}>Ver</Btn>
+                      <Btn size="sm" color={C.teal} outline onClick={()=>{ setEditando(false); setDetalhe(r); }}>Ver</Btn>
                     </td>
                   </tr>
                 ))}
@@ -2833,7 +2948,9 @@ function Receitas({ user, selectedUnidade='' }) {
       )}
       {declaracao && <DeclaracaoModal receita={declaracao.receita} horaAgenda={declaracao.hora} onClose={()=>setDeclaracao(null)}/>}
       {detalhe && !declaracao && (
-        <Modal title="Receita" onClose={()=>setDetalhe(null)} width={580}>
+        <Modal title={editando ? 'Editar receita' : 'Receita'} onClose={()=>{ setDetalhe(null); setEditando(false); }} width={620}>
+          {editando ? <EditarReceita receita={detalhe} user={user} onCancelar={()=>setEditando(false)}
+            onSalvo={nova=>{ setDetalhe(nova); setEditando(false); setVersaoHist(v=>v+1); load(); }}/> :
           <div style={{display:'flex',flexDirection:'column',gap:14}}>
             {/* Cabeçalho */}
             <div style={{display:'flex',gap:16,flexWrap:'wrap',paddingBottom:12,borderBottom:`1px solid ${C.border}`}}>
@@ -2878,9 +2995,11 @@ function Receitas({ user, selectedUnidade='' }) {
                 const { data } = detalhe.agenda_id ? await supabase.from('agenda').select('hora').eq('id', detalhe.agenda_id).maybeSingle() : { data: null };
                 setDeclaracao({ receita: detalhe, hora: data?.hora || '' });
               }}>Declaração de comparecimento</Btn>
+              {user.perfil === 'opto' && <Btn size="sm" outline color={C.teal} onClick={()=>setEditando(true)}>Editar receita</Btn>}
               <Btn size="sm" color={C.teal} onClick={()=>imprimirReceita(detalhe)}>Imprimir Receita</Btn>
             </div>
-          </div>
+            <HistoricoReceita receitaId={detalhe.id} versao={versaoHist}/>
+          </div>}
         </Modal>
       )}
     </div>
