@@ -105,7 +105,7 @@ const DNP_VALS = ['N/A','28','29','30','31','32','33','34','35','36','37','38','
 const PERFIS = {
   opto:      { label:'Optometrista', cor:C.teal,    nav:['inicio','agenda','atendimento','receitas','chat','manual'] },
   comercial: { label:'Comercial',    cor:'#4DA6A4',  nav:['inicio','agenda','atendimento','receitas','chat','manual'] },
-  prevenda:  { label:'Pré-Venda',    cor:'#3F6FA0',  nav:['inicio','agenda','conversao','noshow','receitas','chat','manual'] },
+  prevenda:  { label:'Pré-Vendas',    cor:'#3F6FA0',  nav:['inicio','agenda','conversao','noshow','receitas','chat','manual'] },
   gerente:   { label:'Gerente',      cor:C.orange,   nav:['inicio','agenda','atendimento','receitas','chat','manual'] },
   supervisor:{ label:'Supervisor',   cor:'#2A5790',  nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios','lojas','chat','manual'] },
   diretor:   { label:'Diretor',      cor:C.navy,     nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios','lojas','chat','manual'] },
@@ -554,7 +554,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
 ══════════════════════════════════════════════════════ */
 // Período do painel: hoje, semana (seg–dom), mês ou personalizado → { de, ate } em YYYY-MM-DD
 /* ── Jornada do paciente: agendado → compareceu/não → comprou/não comprou ── */
-// Liga cada agendamento à receita e à conversão (a conversão vem do PDV ou da pré-venda)
+// Liga cada agendamento à receita e à conversão (a conversão vem do PDV ou de Pré-Vendas)
 async function anexarCompras(rows) {
   const ids = (rows||[]).filter(a=>a.status==='Compareceu').map(a=>a.id);
   if (!ids.length) return rows||[];
@@ -1835,7 +1835,7 @@ function Atendimento({ user, selectedUnidade='' }) {
     ]);
     setSel(x => x ? { ...x, status: 'Compareceu', paciente_nome: nomeFinal } : x);
     setReceita(data);
-    showToast('Receita gerada! A pré-venda já pode registrar a conversão.');
+    showToast('Receita gerada! O time de Pré-Vendas já pode registrar a conversão.');
     setTabAte('receita');
   };
 
@@ -2557,7 +2557,7 @@ function Relatorios({ selectedUnidade='' }) {
             <Etapa titulo="Não comprou" valor={f.naoComprou} base={f.compareceu} anterior={fa.naoComprou} cor={C.orange} inverso/>
           </div>
           <p style={{fontSize:12,color:C.gray,marginTop:16,lineHeight:1.5}}>
-            Os percentuais são sobre a etapa anterior. "Comprou" vem da venda no PDV ligada à receita do exame (ou do registro da pré-venda). Cancelados ficam fora do funil.
+            Os percentuais são sobre a etapa anterior. "Comprou" vem da venda no PDV ligada à receita do exame (ou do registro de Pré-Vendas). Cancelados ficam fora do funil.
           </p>
         </Card>
       )}
@@ -3258,7 +3258,7 @@ const MANUAL = [
     cards:[
       { t:'Usuários', d:'Cadastre pessoas com perfil e loja, redefina senhas e desative quem saiu. Inativos ficam escondidos.' },
       { t:'Lojas', d:'Adicione lojas com endereço e a agenda do Google. O botão Testar confere se a agenda está ligada.' },
-      { t:'Quem vê o quê', d:'Optometrista, comercial e gerente veem só a própria loja. Pré-venda, supervisor e diretor veem todas. Só o optometrista gera e edita receitas.' },
+      { t:'Quem vê o quê', d:'Optometrista, comercial e gerente veem só a própria loja. Pré-Vendas, supervisor e diretor veem todas. Só o optometrista gera e edita receitas.' },
     ] },
   { id:'automatico', perfis:TODOS, rotulo:'O sistema faz sozinho', titulo:'Regras automáticas',
     regras:[
@@ -3348,7 +3348,7 @@ function Manual({ user }) {
 
 /* ══════════════════════════════════════════════════════
    CHAT INTERNO — um grupo por loja
-   Colaborador da loja vê só o grupo dela; diretor, supervisor e pré-venda veem todos.
+   Colaborador da loja vê só o grupo dela; diretor, supervisor e Pré-Vendas veem todos.
    Mensagens não são apagadas; o autor pode editar (o texto anterior fica no histórico).
 ══════════════════════════════════════════════════════ */
 const salasDoUsuario = u => ['diretor','supervisor','prevenda'].includes(u?.perfil) ? [...UNIDADES] : (u?.unidade ? [u.unidade] : []);
@@ -3638,7 +3638,7 @@ function Chat({ user, chat }) {
             <div style={{width:36,height:36,borderRadius:12,background:C.gradiente,color:C.white,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:14,flexShrink:0}}>{sala.charAt(0)}</div>
             <div>
               <div style={{fontWeight:700,color:C.navy,fontSize:15}}>{nomeSala(sala)}</div>
-              <div style={{fontSize:12,color:C.gray}}>Equipe da loja, supervisão e pré-venda</div>
+              <div style={{fontSize:12,color:C.gray}}>Equipe da loja, supervisão e Pré-Vendas</div>
             </div>
           </div>
 
