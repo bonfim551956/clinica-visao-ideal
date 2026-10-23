@@ -1,0 +1,1 @@
+-- 055 — trg_agenda_opto_loja: agendamento sem optometrista recebe o opto ativo da loja (aplicada via MCP em 23/10/2026)
