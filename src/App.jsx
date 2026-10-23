@@ -92,12 +92,12 @@ const ADD_VALS = ['N/A','+0,75','+1,00','+1,25','+1,50','+1,75','+2,00','+2,25',
 const DNP_VALS = ['N/A','28','29','30','31','32','33','34','35','36','37','38','39','40'];
 
 const PERFIS = {
-  opto:      { label:'Optometrista', cor:C.teal,    nav:['inicio','agenda','atendimento','receitas'] },
-  comercial: { label:'Comercial',    cor:'#4DA6A4',  nav:['inicio','agenda','atendimento','receitas'] },
-  prevenda:  { label:'Pré-Venda',    cor:'#3F6FA0',  nav:['inicio','agenda','conversao','noshow','receitas'] },
-  gerente:   { label:'Gerente',      cor:C.orange,   nav:['inicio','agenda','atendimento','receitas'] },
-  supervisor:{ label:'Supervisor',   cor:'#2A5790',  nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios','lojas'] },
-  diretor:   { label:'Diretor',      cor:C.navy,     nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios','lojas'] },
+  opto:      { label:'Optometrista', cor:C.teal,    nav:['inicio','agenda','atendimento','receitas','manual'] },
+  comercial: { label:'Comercial',    cor:'#4DA6A4',  nav:['inicio','agenda','atendimento','receitas','manual'] },
+  prevenda:  { label:'Pré-Venda',    cor:'#3F6FA0',  nav:['inicio','agenda','conversao','noshow','receitas','manual'] },
+  gerente:   { label:'Gerente',      cor:C.orange,   nav:['inicio','agenda','atendimento','receitas','manual'] },
+  supervisor:{ label:'Supervisor',   cor:'#2A5790',  nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios','lojas','manual'] },
+  diretor:   { label:'Diretor',      cor:C.navy,     nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios','lojas','manual'] },
 };
 
 // Lojas ativas — carregadas da tabela public.unidades ao entrar (tela "Lojas"); os valores abaixo são só o ponto de partida
@@ -133,6 +133,7 @@ const NAV_ITEMS = [
   { id:'relatorios',   label:'Relatórios'    },
   { id:'usuarios',     label:'Usuários'      },
   { id:'lojas',        label:'Lojas'         },
+  { id:'manual',       label:'Manual'        },
 ];
 
 /* ── CSS global ── */
@@ -3007,6 +3008,155 @@ function Receitas({ user, selectedUnidade='' }) {
 }
 
 /* ══════════════════════════════════════════════════════
+   MANUAL — guia de uso dentro do sistema, filtrado pelo perfil de quem está logado
+══════════════════════════════════════════════════════ */
+const TODOS = ['opto','comercial','gerente','prevenda','supervisor','diretor'];
+const GESTAO = ['supervisor','diretor'];
+const MANUAL = [
+  { id:'acesso', perfis:TODOS, rotulo:'Primeiro passo', titulo:'Como entrar',
+    intro:'Cada pessoa tem o próprio usuário. Não compartilhe a senha: tudo o que é feito no sistema fica registrado no nome de quem está logado.',
+    cards:[
+      { t:'Entrar', d:'Acesse agenda.clinicavisaoideal.com, digite seu nome de usuário e sua senha e clique em Entrar.' },
+      { t:'Sair', d:'Use o botão Sair no menu ao terminar o turno, principalmente em computadores compartilhados.' },
+      { t:'Esqueceu a senha?', d:'Fale com o supervisor ou o diretor. Eles redefinem a senha na tela Usuários.' },
+    ] },
+  { id:'inicio', perfis:TODOS, rotulo:'Tela Início', titulo:'A visão geral do dia',
+    intro:'É a primeira tela depois do login. Mostra os números da loja e quem vem a seguir.',
+    cards:[
+      { t:'Período', d:'Escolha Hoje, Semana, Mês ou Personalizado. As telas começam sempre em Hoje.' },
+      { t:'Números', d:'Agendados, compareceram, não compareceram e receitas do período.' },
+      { t:'Próximas consultas', d:'Os próximos pacientes a partir de agora, com data, hora e optometrista.' },
+    ] },
+  { id:'agenda', perfis:TODOS, rotulo:'Tela Agenda', titulo:'Marcar e organizar horários',
+    intro:'Os agendamentos feitos pela IA no WhatsApp entram aqui sozinhos, a cada 5 minutos, com a etiqueta IA.',
+    cards:[
+      { t:'Novo agendamento', lista:['Clique em + Novo Agendamento.','Busque o paciente pelo nome ou cadastre um novo (nome e telefone).','Escolha data, horário, procedimento e meio de contato e salve.'] },
+      { t:'Visão Semana', d:'Mostra segunda a sábado em colunas. As setas trocam a semana. Clique num horário vazio para agendar ou num paciente para editar.', cores:true },
+      { t:'Editar ou remarcar', d:'Abra o agendamento, mude data ou horário e salve. Se foi a IA que marcou, o horário também muda no Google Agenda.' },
+    ] },
+  { id:'atendimentos', perfis:['opto','comercial','gerente','supervisor','diretor'], rotulo:'Tela Atendimentos', titulo:'A fila do dia',
+    intro:'Lista os pacientes da loja com filtros por data, optometrista, status, procedimento e quem agendou.',
+    cards:[
+      { t:'Atender', d:'Abre o atendimento do paciente: anamnese, refração e receita.' },
+      { t:'+ Encaixe', d:'Para quem chegou sem horário. Agenda e já abre o atendimento na mesma hora.' },
+      { t:'Reagendar', d:'Muda o dia e o horário sem precisar ir até a Agenda.' },
+      { t:'Ver ficha', d:'Mostra a receita de quem já foi atendido. Agendamentos cancelados ficam com os botões desativados.' },
+    ] },
+  { id:'passo', perfis:['opto','comercial','gerente','supervisor','diretor'], rotulo:'Optometrista', titulo:'Atendimento passo a passo',
+    intro:'Só o optometrista preenche a anamnese e a refração e gera a receita. Os outros perfis veem as telas apenas para consulta.',
+    passos:[
+      { t:'Anamnese', d:'Preencha o que o paciente relatar.', lista:['Data de nascimento é obrigatória: a idade sai na receita.','Queixa principal, medicamentos em uso e observações.','Tratamentos sugeridos: Antirreflexo já vem marcado. Marque Filtro de luz azul ou Fotocromático se indicar.'] },
+      { t:'Refração', d:'Digite os valores com vírgula ou ponto. O sistema formata sozinho.', lista:['Cilíndrico é sempre negativo. Se digitar positivo, ele converte.','Eixo vai de 0 a 180 e é obrigatório quando há cilíndrico.','A adição é uma só para os dois olhos (AO).','Campo vazio sai como PLANO ou N/A.'] },
+      { t:'Gerar receita', d:'Confere os campos, salva a receita e marca o paciente como Compareceu.' },
+      { t:'Imprimir', d:'Imprima a receita, já com a assinatura do optometrista. Se o paciente pedir, gere a Declaração de comparecimento: o CPF é pedido na hora e não fica guardado.' },
+      { t:'Finalizar atendimento', d:'Volta para a lista e libera o próximo paciente.' },
+    ] },
+  { id:'receitas', perfis:TODOS, rotulo:'Tela Receitas', titulo:'Consultar, corrigir e reimprimir', tituloConsulta:'Consultar e reimprimir',
+    intro:'Abre em Tudo, para achar qualquer receita da loja. Busque pelo nome do paciente ou filtre por optometrista e período. Em Ver, dá para imprimir de novo a receita ou a declaração.',
+    cards:[
+      { t:'Editar receita', tag:'Só optometrista', d:'Corrige grau, adição, DNP, tratamentos e observações de uma receita já gerada. O motivo da alteração é obrigatório.', perfis:['opto','supervisor','diretor'] },
+      { t:'Histórico de alterações', d:'Cada correção fica registrada com data, hora, quem alterou, o motivo e o valor antes e depois.' },
+      { t:'Receita retificada', d:'A receita impressa depois de uma correção traz a linha "Receita retificada em" com a data e a hora.' },
+    ] },
+  { id:'resultados', perfis:['prevenda','supervisor','diretor'], rotulo:'Resultados', titulo:'Acompanhar resultados',
+    cards:[
+      { t:'Conversão', d:'Pacientes atendidos e quem comprou depois do exame. As vendas do PDV aparecem aqui sozinhas.' },
+      { t:'No-Show', d:'Quem não compareceu, para a equipe retomar o contato e remarcar.' },
+      { t:'Relatórios', d:'Funil Visão Ideal: agendados, comparecimentos, receitas e vendas, comparados com o período anterior.', perfis:GESTAO },
+    ] },
+  { id:'gestao', perfis:GESTAO, rotulo:'Supervisor e diretor', titulo:'Usuários e lojas',
+    cards:[
+      { t:'Usuários', d:'Cadastre pessoas com perfil e loja, redefina senhas e desative quem saiu. Inativos ficam escondidos.' },
+      { t:'Lojas', d:'Adicione lojas com endereço e a agenda do Google. O botão Testar confere se a agenda está ligada.' },
+      { t:'Quem vê o quê', d:'Optometrista, comercial, gerente e pré-venda veem só a própria loja. Supervisor e diretor veem todas. Só o optometrista gera e edita receitas.' },
+    ] },
+  { id:'automatico', perfis:TODOS, rotulo:'O sistema faz sozinho', titulo:'Regras automáticas',
+    regras:[
+      ['5 min','Agenda da IA','Novos horários marcados pela IA entram na agenda a cada 5 minutos.'],
+      ['1 h','Não compareceu','Uma hora depois do horário, quem não tem receita vira Não compareceu.'],
+      ['✓','Compareceu','Gerar a receita marca o paciente como Compareceu na hora.'],
+      ['ABC','Maiúsculas','Nomes, endereços e observações são salvos sempre em letras maiúsculas.'],
+    ] },
+  { id:'duvidas', perfis:TODOS, rotulo:'Dúvidas frequentes', titulo:'Perguntas comuns',
+    faq:[
+      ['O sistema não deixa avançar para a refração.','Falta a data de nascimento na anamnese. Preencha e clique de novo em Próximo.', ['opto']],
+      ['Errei a receita depois de gerar. E agora?','Abra a receita em Receitas, clique em Editar receita, corrija e informe o motivo. A alteração fica no histórico.', ['opto','supervisor','diretor']],
+      ['Não aparece o botão Gerar Receita.','Só o optometrista gera receitas. Confira se você entrou com o seu próprio usuário.', TODOS],
+      ['Um paciente da IA não apareceu na agenda.','Aguarde até 5 minutos e recarregue a página. Se continuar faltando, avise o supervisor.', TODOS],
+      ['A impressão não abre.','O navegador bloqueou a janela. Libere as janelas pop-up para agenda.clinicavisaoideal.com e tente de novo.', TODOS],
+    ] },
+];
+const CORES_SEMANA = [['Agendado',{status:'Agendado'}],['Não compareceu',{status:'Não Compareceu'}],['Veio e não comprou',{status:'Compareceu'}],['Comprou',{status:'Compareceu',_compra:{converteu:true}}]];
+function Manual({ user }) {
+  const p = user.perfil;
+  const vale = x => !x.perfis || x.perfis.includes(p);
+  const editaReceita = ['opto','supervisor','diretor'].includes(p);
+  const secoes = MANUAL.filter(vale).map(x => x.tituloConsulta && !editaReceita ? { ...x, titulo: x.tituloConsulta } : x);
+  const telas = NAV_ITEMS.filter(n => PERFIS[p]?.nav.includes(n.id) && n.id !== 'manual').map(n => n.label);
+  const ir = id => document.getElementById('man-'+id)?.scrollIntoView({ behavior:'smooth', block:'start' });
+  const rotulo = t => <div style={{fontSize:12,fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:C.teal,marginBottom:4}}>{t}</div>;
+  const cardBase = { background:C.white, borderRadius:16, padding:20, display:'flex', flexDirection:'column', gap:6, minWidth:0, border:`1px solid ${C.border}` };
+  return (
+    <div style={{maxWidth:960}}>
+      <div style={{background:C.teal,color:C.white,borderRadius:20,padding:'28px 32px',marginBottom:20,display:'flex',flexDirection:'column',gap:8}}>
+        <div style={{fontSize:12,fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',opacity:.9}}>Manual do sistema</div>
+        <h2 style={{fontSize:28,fontWeight:800,lineHeight:1.2}}>Como usar a agenda da Visão Ideal</h2>
+        <p style={{fontSize:14,opacity:.95,maxWidth:640}}>Este manual mostra o que vale para o seu perfil: <strong>{PERFIS[p]?.label}</strong>{user.unidade ? <> · loja <strong>{user.unidade}</strong></> : ' · todas as lojas'}.</p>
+        <div style={{fontSize:13,opacity:.95}}>Suas telas: {telas.join(' · ')}</div>
+      </div>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:8}}>
+        {secoes.map(x => <button key={x.id} onClick={()=>ir(x.id)} className="btn-sec"
+          style={{padding:'7px 14px',borderRadius:999,fontSize:13,fontWeight:600,border:`1.5px solid ${C.border}`,background:C.white,color:C.textSm}}>{x.titulo}</button>)}
+      </div>
+      {secoes.map(x => (
+        <section key={x.id} id={'man-'+x.id} style={{paddingTop:28,scrollMarginTop:80}}>
+          {rotulo(x.rotulo)}
+          <h3 style={{fontSize:22,fontWeight:800,color:C.navy,marginBottom:x.intro?6:14}}>{x.titulo}</h3>
+          {x.intro && <p style={{fontSize:14,color:C.textSm,maxWidth:680,marginBottom:14,lineHeight:1.6}}>{x.intro}</p>}
+          {x.cards && <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:12}}>
+            {x.cards.filter(vale).map(c => (
+              <div key={c.t} style={cardBase}>
+                {c.tag && <span style={{alignSelf:'flex-start',fontSize:11,fontWeight:700,borderRadius:999,padding:'2px 10px',background:C.tealBg,color:C.teal}}>{c.tag}</span>}
+                <div style={{fontSize:15,fontWeight:800,color:C.navy}}>{c.t}</div>
+                {c.d && <p style={{fontSize:13,color:C.textSm,lineHeight:1.55}}>{c.d}</p>}
+                {c.lista && <ul style={{margin:0,paddingLeft:18,fontSize:13,color:C.textSm,lineHeight:1.55}}>{c.lista.map(l=><li key={l}>{l}</li>)}</ul>}
+                {c.cores && <div style={{display:'flex',flexWrap:'wrap',gap:'6px 14px',marginTop:4}}>{CORES_SEMANA.map(([l,a]) => { const [bg,fg]=corJornada(a); return <span key={l} style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12,color:C.textSm}}><span style={{width:12,height:12,borderRadius:3,background:bg,borderLeft:`3px solid ${fg}`}}/>{l}</span>; })}</div>}
+              </div>))}
+          </div>}
+          {x.passos && <ol style={{listStyle:'none',margin:0,padding:0,display:'flex',flexDirection:'column',gap:10}}>
+            {x.passos.map((c,i) => (
+              <li key={c.t} style={{...cardBase,flexDirection:'row',gap:16,alignItems:'flex-start'}}>
+                <span style={{flexShrink:0,width:32,height:32,borderRadius:'50%',background:C.tealBg,color:C.teal,fontWeight:800,fontSize:14,display:'flex',alignItems:'center',justifyContent:'center'}}>{i+1}</span>
+                <div style={{minWidth:0}}>
+                  <div style={{fontSize:15,fontWeight:800,color:C.navy}}>{c.t}</div>
+                  <p style={{fontSize:13,color:C.textSm,lineHeight:1.55,marginTop:2}}>{c.d}</p>
+                  {c.lista && <ul style={{margin:'6px 0 0',paddingLeft:18,fontSize:13,color:C.textSm,lineHeight:1.55}}>{c.lista.map(l=><li key={l}>{l}</li>)}</ul>}
+                </div>
+              </li>))}
+          </ol>}
+          {x.regras && <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:12}}>
+            {x.regras.map(([n,t,d]) => (
+              <div key={t} style={cardBase}>
+                <div style={{fontSize:26,fontWeight:800,color:C.teal,lineHeight:1}}>{n}</div>
+                <div style={{fontSize:14,fontWeight:800,color:C.navy,marginTop:4}}>{t}</div>
+                <p style={{fontSize:13,color:C.textSm,lineHeight:1.55}}>{d}</p>
+              </div>))}
+          </div>}
+          {x.faq && <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {x.faq.filter(([, , ps]) => ps.includes(p)).map(([q,a]) => (
+              <details key={q} style={{...cardBase,display:'block',padding:'14px 18px'}}>
+                <summary style={{fontWeight:700,fontSize:14,color:C.navy,cursor:'pointer'}}>{q}</summary>
+                <p style={{fontSize:13,color:C.textSm,marginTop:8,lineHeight:1.55}}>{a}</p>
+              </details>))}
+          </div>}
+        </section>
+      ))}
+      <p style={{fontSize:12,color:C.gray,padding:'32px 0 8px'}}>Dúvidas sobre o sistema: fale com o supervisor da sua loja.</p>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════
    HOOK REALTIME — escuta mudanças em tempo real
 ══════════════════════════════════════════════════════ */
 function useRealtime(table, onchange) {
@@ -3137,6 +3287,7 @@ export default function App() {
     relatorios:   <Relatorios selectedUnidade={lojaEfetiva}/>,
     usuarios:     <Usuarios selectedUnidade={lojaEfetiva}/>,
     lojas:        <Lojas onAlterar={recarregarLojas}/>,
+    manual:       <Manual user={usuario}/>,
   };
 
   return (
