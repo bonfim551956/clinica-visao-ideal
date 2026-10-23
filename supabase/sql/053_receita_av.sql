@@ -1,0 +1,1 @@
+-- 053 — receitas.od_av / oe_av (AV opcional), maiúsculas (trg_maiusculas_av) e histórico de edição incluindo AV (aplicada via MCP em 23/10/2026)

@@ -57,11 +57,15 @@ const REGRAS_RX = {
   add: v => { const t = String(v ?? '').trim(); if (t === '' || /^n\/?a$/i.test(t)) return { valor: 'N/A' };
     const n = numRx(t); if (isNaN(n) || n === null || !quarto(n) || n <= 0 || n > 4) return { erro: 'Adição: de +0,25 a +4,00, em passos de 0,25' };
     return { valor: fmtDiop(n) }; },
+  // AV (acuidade visual): opcional, texto curto como 20/20, 20/25, 1,0 ou CD
+  av: v => { const t = String(v ?? '').trim().toUpperCase().replace(/\s+/g, ''); if (t === '') return { valor: '' };
+    if (!/^[0-9A-Z/,.+-]{1,10}$/.test(t)) return { erro: 'AV: use o formato 20/20 ou decimal (1,0)' };
+    return { valor: t }; },
   dnp: v => { const t = String(v ?? '').trim(); if (t === '' || /^n\/?a$/i.test(t)) return { valor: 'N/A' };
     const n = numRx(t); if (isNaN(n) || n === null || n < 20 || n > 40 || Math.abs(n * 2 - Math.round(n * 2)) > 1e-9) return { erro: 'DNP: de 20 a 40 mm' };
     return { valor: String(n).replace('.', ',') }; },
 };
-const CAMPOS_RX = ['esf','cil','eixo','add','dnp'];
+const CAMPOS_RX = ['esf','cil','eixo','av','add','dnp'];
 // Tratamentos sugeridos na receita (antirreflexo já vem marcado)
 const TRATAMENTOS = [
   { id:'AR', label:'ANTIRREFLEXO (AR)', desc:'Reduz reflexos e melhora a nitidez' },
@@ -1473,8 +1477,8 @@ function imprimirReceita(r) {
     <table>
       <thead><tr><th style="width:60px"></th><th>Esférico</th><th>Cilíndrico</th><th>Eixo</th><th>AV</th><th>DNP (mm)</th></tr></thead>
       <tbody>
-        <tr><td class="olho">OD</td><td>${esc(r.od_esf)||'—'}</td><td>${esc(r.od_cil)||'—'}</td><td>${eixo(r.od_eixo)}</td><td></td><td>${dnp(r.od_dnp)}</td></tr>
-        <tr><td class="olho">OE</td><td>${esc(r.oe_esf)||'—'}</td><td>${esc(r.oe_cil)||'—'}</td><td>${eixo(r.oe_eixo)}</td><td></td><td>${dnp(r.oe_dnp)}</td></tr>
+        <tr><td class="olho">OD</td><td>${esc(r.od_esf)||'—'}</td><td>${esc(r.od_cil)||'—'}</td><td>${eixo(r.od_eixo)}</td><td>${esc(r.od_av)||''}</td><td>${dnp(r.od_dnp)}</td></tr>
+        <tr><td class="olho">OE</td><td>${esc(r.oe_esf)||'—'}</td><td>${esc(r.oe_cil)||'—'}</td><td>${eixo(r.oe_eixo)}</td><td>${esc(r.oe_av)||''}</td><td>${dnp(r.oe_dnp)}</td></tr>
         ${temAdicao ? (r.od_adicao === r.oe_adicao
           ? `<tr class="adicao-row"><td class="olho" colspan="2">Adição</td><td colspan="4" style="text-align:left;padding-left:16px">AO (ambos os olhos): ${esc(r.od_adicao)}</td></tr>`
           : `<tr class="adicao-row"><td class="olho" colspan="2">Adição</td><td colspan="4" style="text-align:left;padding-left:16px">OD: ${esc(r.od_adicao)||'—'} &nbsp;&nbsp; OE: ${esc(r.oe_adicao)||'—'}</td></tr>`) : ''}
@@ -1626,8 +1630,8 @@ function Atendimento({ user, selectedUnidade='' }) {
   const [sel, setSel] = useState(null);
   const [tabAte, setTabAte] = useState('anamnese');
   const [form, setForm] = useState({ anamnese:'', queixa:'', medicamentos:'', nasc:'', trat:TRAT_PADRAO, tipoLente:'',
-    od_esf:'',od_cil:'',od_eixo:'',od_add:'',od_dnp:'',
-    oe_esf:'',oe_cil:'',oe_eixo:'',oe_add:'',oe_dnp:'' });
+    od_esf:'',od_cil:'',od_eixo:'',od_av:'',od_add:'',od_dnp:'',
+    oe_esf:'',oe_cil:'',oe_eixo:'',oe_av:'',oe_add:'',oe_dnp:'' });
   const [receita, setReceita] = useState(null);
   const [declaracao, setDeclaracao] = useState(false);
   const [toast, setToast] = useState('');
@@ -1648,8 +1652,8 @@ function Atendimento({ user, selectedUnidade='' }) {
     setSel(a); setErroNasc('');
     setTabAte('anamnese');
     setForm({ anamnese:'', queixa:'', medicamentos:'', nasc:'', trat:TRAT_PADRAO, tipoLente:'',
-      od_esf:'',od_cil:'',od_eixo:'',od_add:'',od_dnp:'',
-      oe_esf:'',oe_cil:'',oe_eixo:'',oe_add:'',oe_dnp:'' });
+      od_esf:'',od_cil:'',od_eixo:'',od_av:'',od_add:'',od_dnp:'',
+      oe_esf:'',oe_cil:'',oe_eixo:'',oe_av:'',oe_add:'',oe_dnp:'' });
     setReceita(null);
   };
 
@@ -1699,8 +1703,8 @@ function Atendimento({ user, selectedUnidade='' }) {
       meio_contato: sel.meio_contato||'', agendado_por: sel.agendado_por||'',
       unidade: sel.unidade||opto.unidade||'',
       paciente_data_nascimento: form.nasc || null,
-      od_esf:rx.od_esf, od_cil:rx.od_cil, od_eixo:rx.od_eixo, od_adicao:rx.od_add, od_dnp:rx.od_dnp,
-      oe_esf:rx.oe_esf, oe_cil:rx.oe_cil, oe_eixo:rx.oe_eixo, oe_adicao:rx.oe_add, oe_dnp:rx.oe_dnp,
+      od_esf:rx.od_esf, od_cil:rx.od_cil, od_eixo:rx.od_eixo, od_av:rx.od_av, od_adicao:rx.od_add, od_dnp:rx.od_dnp,
+      oe_esf:rx.oe_esf, oe_cil:rx.oe_cil, oe_eixo:rx.oe_eixo, oe_av:rx.oe_av, oe_adicao:rx.oe_add, oe_dnp:rx.oe_dnp,
       observacoes:form.anamnese,
       tratamentos_sugeridos: TRATAMENTOS.map(t=>t.id).filter(id=>(form.trat||[]).includes(id)),
       tipo_lente: form.tipoLente,
@@ -1729,7 +1733,7 @@ function Atendimento({ user, selectedUnidade='' }) {
   };
 
   const [errosRx, setErrosRx] = useState({});
-  const PLACEHOLDER_RX = { esf:'PLANO', cil:'PLANO', eixo:'0 a 180', add:'N/A', dnp:'N/A' };
+  const PLACEHOLDER_RX = { esf:'PLANO', cil:'PLANO', eixo:'0 a 180', av:'20/20', add:'N/A', dnp:'N/A' };
   // Ao sair do campo: confere a regra e formata (ex.: "1.25" → "+1,25"; cilíndrico "0,75" → "-0,75")
   const formatarRx = fk => {
     const tipo = fk.slice(3), olho = fk.slice(0,2);
@@ -1746,7 +1750,7 @@ function Atendimento({ user, selectedUnidade='' }) {
     <td key={fk} {...extra} style={{padding:'6px 8px',verticalAlign:extra.rowSpan?'middle':'top',...(extra.rowSpan?{background:C.tealBg}:{})}}>
       {extra.rowSpan && <div style={{fontSize:11,fontWeight:700,color:C.text,textAlign:'center',marginBottom:4}}>AO (ambos os olhos)</div>}
       <input disabled={!podeReceita || !!receita} value={form[fk]} onChange={e=>{ const v=e.target.value; setF(fk,v); if (fk==='od_add') setF('oe_add',v); }} onBlur={()=>formatarRx(fk)}
-        placeholder={PLACEHOLDER_RX[fk.slice(3)]} inputMode="decimal"
+        placeholder={PLACEHOLDER_RX[fk.slice(3)]} inputMode={fk.endsWith('_av') ? 'text' : 'decimal'}
         style={{border:`1.5px solid ${errosRx[fk]?C.danger:C.border}`,borderRadius:6,padding:'7px 8px',fontSize:13,width:'100%',background:C.white,textAlign:'center'}}/>
       {errosRx[fk] && <div style={{color:C.danger,fontSize:11,marginTop:4,lineHeight:1.3}}>{errosRx[fk]}</div>}
     </td>
@@ -1871,7 +1875,7 @@ function Atendimento({ user, selectedUnidade='' }) {
             <table style={{width:'100%',borderCollapse:'collapse'}}>
               <thead><tr style={{background:C.teal,color:C.white}}>
                 <th style={{padding:'8px 12px',textAlign:'left'}}>Olho</th>
-                {['Esférico','Cilíndrico (−)','Eixo (0–180)','Adição (AO)','DNP (mm)'].map(h=><th key={h} style={{padding:'8px 12px',textAlign:'center'}}>{h}</th>)}
+                {['Esférico','Cilíndrico (−)','Eixo (0–180)','AV','Adição (AO)','DNP (mm)'].map(h=><th key={h} style={{padding:'8px 12px',textAlign:'center'}}>{h}</th>)}
               </tr></thead>
               <tbody>
                 <tr style={{background:C.bg}}>
@@ -1905,11 +1909,11 @@ function Atendimento({ user, selectedUnidade='' }) {
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:14,border:`1px solid ${C.border}`}}>
               <thead><tr style={{background:C.teal,color:C.white}}>
                 <th style={{padding:'8px 12px'}}>Olho</th>
-                {['Esférico','Cilíndrico','Eixo','Adição','DNP'].map(h=><th key={h} style={{padding:'8px 12px'}}>{h}</th>)}
+                {['Esférico','Cilíndrico','Eixo','AV','Adição','DNP'].map(h=><th key={h} style={{padding:'8px 12px'}}>{h}</th>)}
               </tr></thead>
               <tbody>
-                {[['OD','od_esf','od_cil','od_eixo','od_adicao','od_dnp'],
-                  ['OE','oe_esf','oe_cil','oe_eixo','oe_adicao','oe_dnp']].map(([lbl,...fields],i)=>{
+                {[['OD','od_esf','od_cil','od_eixo','od_av','od_adicao','od_dnp'],
+                  ['OE','oe_esf','oe_cil','oe_eixo','oe_av','oe_adicao','oe_dnp']].map(([lbl,...fields],i)=>{
                   const ao = receita.od_adicao === receita.oe_adicao;
                   return (
                   <tr key={lbl} style={{textAlign:'center'}}>
@@ -2803,15 +2807,15 @@ function UsuarioModal({ user, onSave, onClose }) {
 ══════════════════════════════════════════════════════ */
 /* Edição de receita já gerada: só o optometrista. Motivo obrigatório; cada alteração fica no histórico (antes → depois). */
 const CAMPOS_EDITAVEIS = [
-  ['od_esf','OD Esférico'],['od_cil','OD Cilíndrico'],['od_eixo','OD Eixo'],['od_dnp','OD DNP'],
-  ['oe_esf','OE Esférico'],['oe_cil','OE Cilíndrico'],['oe_eixo','OE Eixo'],['oe_dnp','OE DNP'],
+  ['od_esf','OD Esférico'],['od_cil','OD Cilíndrico'],['od_eixo','OD Eixo'],['od_av','OD AV'],['od_dnp','OD DNP'],
+  ['oe_esf','OE Esférico'],['oe_cil','OE Cilíndrico'],['oe_eixo','OE Eixo'],['oe_av','OE AV'],['oe_dnp','OE DNP'],
   ['od_adicao','Adição'],['tipo_lente','Tipo de lente'],['tratamentos_sugeridos','Tratamentos'],['observacoes','Observações'],
 ];
 const valorHist = v => Array.isArray(v) ? (v.length ? v.map(nomeTrat).join(', ') : '—') : (v === null || v === undefined || v === '' ? '—' : String(v));
 function EditarReceita({ receita, user, onSalvo, onCancelar }) {
   const [f, setF2] = useState({
-    od_esf:receita.od_esf||'', od_cil:receita.od_cil||'', od_eixo:receita.od_eixo||'', od_add:receita.od_adicao==='N/A'?'':(receita.od_adicao||''), od_dnp:receita.od_dnp==='N/A'?'':(receita.od_dnp||''),
-    oe_esf:receita.oe_esf||'', oe_cil:receita.oe_cil||'', oe_eixo:receita.oe_eixo||'', oe_add:receita.oe_adicao==='N/A'?'':(receita.oe_adicao||''), oe_dnp:receita.oe_dnp==='N/A'?'':(receita.oe_dnp||''),
+    od_esf:receita.od_esf||'', od_cil:receita.od_cil||'', od_eixo:receita.od_eixo||'', od_av:receita.od_av||'', od_add:receita.od_adicao==='N/A'?'':(receita.od_adicao||''), od_dnp:receita.od_dnp==='N/A'?'':(receita.od_dnp||''),
+    oe_esf:receita.oe_esf||'', oe_cil:receita.oe_cil||'', oe_eixo:receita.oe_eixo||'', oe_av:receita.oe_av||'', oe_add:receita.oe_adicao==='N/A'?'':(receita.oe_adicao||''), oe_dnp:receita.oe_dnp==='N/A'?'':(receita.oe_dnp||''),
     trat: receita.tratamentos_sugeridos||[], obs: receita.observacoes||'', tipo: receita.tipo_lente||'', motivo:'' });
   const [erros, setErros] = useState({});
   const [salvando, setSalvando] = useState(false);
@@ -2822,8 +2826,8 @@ function EditarReceita({ receita, user, onSalvo, onCancelar }) {
     setErros(e);
     if (Object.keys(e).length) return;
     const novo = {
-      od_esf:rx.od_esf, od_cil:rx.od_cil, od_eixo:rx.od_eixo, od_adicao:rx.od_add, od_dnp:rx.od_dnp,
-      oe_esf:rx.oe_esf, oe_cil:rx.oe_cil, oe_eixo:rx.oe_eixo, oe_adicao:rx.oe_add, oe_dnp:rx.oe_dnp,
+      od_esf:rx.od_esf, od_cil:rx.od_cil, od_eixo:rx.od_eixo, od_av:rx.od_av, od_adicao:rx.od_add, od_dnp:rx.od_dnp,
+      oe_esf:rx.oe_esf, oe_cil:rx.oe_cil, oe_eixo:rx.oe_eixo, oe_av:rx.oe_av, oe_adicao:rx.oe_add, oe_dnp:rx.oe_dnp,
       tratamentos_sugeridos: TRATAMENTOS.map(t=>t.id).filter(id=>f.trat.includes(id)),
       observacoes: f.obs,
       tipo_lente: f.tipo || null,
@@ -2848,11 +2852,11 @@ function EditarReceita({ receita, user, onSalvo, onCancelar }) {
       <div className="tbl-wrap">
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
           <thead><tr style={{background:C.teal,color:C.white}}>
-            {['Olho','Esférico','Cilíndrico','Eixo','Adição (AO)','DNP'].map(h=><th key={h} style={{padding:'8px 10px',textAlign:'center'}}>{h}</th>)}
+            {['Olho','Esférico','Cilíndrico','Eixo','AV','Adição (AO)','DNP'].map(h=><th key={h} style={{padding:'8px 10px',textAlign:'center'}}>{h}</th>)}
           </tr></thead>
           <tbody>
-            <tr><td style={{padding:'8px 10px',fontWeight:700}}>OD</td>{cel('od_esf')}{cel('od_cil')}{cel('od_eixo')}<td rowSpan={2} style={{padding:4,verticalAlign:'middle'}}><input value={f.od_add} onChange={e=>set('od_add',e.target.value)} aria-label="adição" style={{width:'100%',minWidth:64,border:`1.5px solid ${erros.od_add?C.danger:C.border}`,borderRadius:8,padding:'7px 8px',fontSize:13,textAlign:'center'}}/></td>{cel('od_dnp')}</tr>
-            <tr><td style={{padding:'8px 10px',fontWeight:700}}>OE</td>{cel('oe_esf')}{cel('oe_cil')}{cel('oe_eixo')}{cel('oe_dnp')}</tr>
+            <tr><td style={{padding:'8px 10px',fontWeight:700}}>OD</td>{cel('od_esf')}{cel('od_cil')}{cel('od_eixo')}{cel('od_av')}<td rowSpan={2} style={{padding:4,verticalAlign:'middle'}}><input value={f.od_add} onChange={e=>set('od_add',e.target.value)} aria-label="adição" style={{width:'100%',minWidth:64,border:`1.5px solid ${erros.od_add?C.danger:C.border}`,borderRadius:8,padding:'7px 8px',fontSize:13,textAlign:'center'}}/></td>{cel('od_dnp')}</tr>
+            <tr><td style={{padding:'8px 10px',fontWeight:700}}>OE</td>{cel('oe_esf')}{cel('oe_cil')}{cel('oe_eixo')}{cel('oe_av')}{cel('oe_dnp')}</tr>
           </tbody>
         </table>
       </div>
@@ -3021,7 +3025,7 @@ function Receitas({ user, selectedUnidade='' }) {
               <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
                 <thead><tr style={{background:C.teal,color:C.white}}>
                   <th style={{padding:'8px 12px',textAlign:'left'}}>Olho</th>
-                  {['Esférico','Cilíndrico','Eixo','Adição','DNP'].map(h=><th key={h} style={{padding:'8px 12px',textAlign:'center'}}>{h}</th>)}
+                  {['Esférico','Cilíndrico','Eixo','AV','Adição','DNP'].map(h=><th key={h} style={{padding:'8px 12px',textAlign:'center'}}>{h}</th>)}
                 </tr></thead>
                 <tbody>
                   {[['OD','od'],['OE','oe']].map(([lbl,p],i)=>(
@@ -3030,6 +3034,7 @@ function Receitas({ user, selectedUnidade='' }) {
                       <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_esf']||'—'}</td>
                       <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_cil']||'—'}</td>
                       <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_eixo']||'—'}</td>
+                      <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_av']||'—'}</td>
                       {detalhe.od_adicao === detalhe.oe_adicao
                         ? (i===0 && <td rowSpan={2} style={{padding:'8px 12px',textAlign:'center',background:C.tealBg}}><div style={{fontSize:11,fontWeight:700,color:C.text}}>AO</div>{detalhe.od_adicao||'—'}</td>)
                         : <td style={{padding:'8px 12px',textAlign:'center'}}>{detalhe[p+'_adicao']||'—'}</td>}
@@ -3102,7 +3107,7 @@ const MANUAL = [
     intro:'Só o optometrista preenche a anamnese e a refração e gera a receita. Os outros perfis veem as telas apenas para consulta.',
     passos:[
       { t:'Anamnese', d:'Preencha o que o paciente relatar.', lista:['Data de nascimento é obrigatória: a idade sai na receita.','Queixa principal, medicamentos em uso e observações.','Tipo de lente sugerido é obrigatório: Monofocal, Multifocal, Bifocal ou Ocupacional.','Tratamentos sugeridos: Antirreflexo já vem marcado. Marque Filtro de luz azul ou Fotocromático se indicar.'] },
-      { t:'Refração', d:'Digite os valores com vírgula ou ponto. O sistema formata sozinho.', lista:['Cilíndrico é sempre negativo. Se digitar positivo, ele converte.','Eixo vai de 0 a 180 e é obrigatório quando há cilíndrico.','A adição é uma só para os dois olhos (AO).','Campo vazio sai como PLANO ou N/A.'] },
+      { t:'Refração', d:'Digite os valores com vírgula ou ponto. O sistema formata sozinho.', lista:['Cilíndrico é sempre negativo. Se digitar positivo, ele converte.','Eixo vai de 0 a 180 e é obrigatório quando há cilíndrico.','AV (acuidade visual) de cada olho, no formato 20/20 ou decimal. É opcional.','A adição é uma só para os dois olhos (AO).','Campo vazio sai como PLANO ou N/A.'] },
       { t:'Gerar receita', d:'Confere os campos, salva a receita e marca o paciente como Compareceu.' },
       { t:'Imprimir', d:'Imprima a receita, já com a assinatura do optometrista. Se o paciente pedir, gere a Declaração de comparecimento: o CPF é pedido na hora e não fica guardado.' },
       { t:'Finalizar atendimento', d:'Volta para a lista e libera o próximo paciente.' },
