@@ -631,15 +631,20 @@ function Agenda({ user, selectedUnidade='' }) {
   const [optos, setOptos] = useState([]);
   const [selOpto, setSelOpto] = useState('');
   const per = usePeriodo('hoje');
-  // Semana: grade em colunas (seg a sáb), com setas para semana anterior/próxima
+  // Setas de navegação no Hoje (dia a dia), na Semana (grade seg a sáb) e no Mês
   const [semOff, setSemOff] = useState(0);
   useEffect(() => { setSemOff(0); }, [per.periodo]);
   const modoSemana = per.periodo === 'semana';
-  const { de: dataDe, ate: dataAte } = modoSemana ? (() => {
-    const ini = new Date(per.de + 'T12:00:00'); ini.setDate(ini.getDate() + semOff * 7);
-    const fim = new Date(ini); fim.setDate(ini.getDate() + 6);
+  const navegavel = ['hoje','semana','mes'].includes(per.periodo);
+  const { de: dataDe, ate: dataAte } = (() => {
+    if (!navegavel || !semOff) return per;
+    const base = new Date(per.de + 'T12:00:00');
+    if (per.periodo === 'hoje') { base.setDate(base.getDate() + semOff); return { de: ymd(base), ate: ymd(base) }; }
+    if (per.periodo === 'semana') { base.setDate(base.getDate() + semOff * 7); const fim = new Date(base); fim.setDate(base.getDate() + 6); return { de: ymd(base), ate: ymd(fim) }; }
+    const ini = new Date(base.getFullYear(), base.getMonth() + semOff, 1, 12), fim = new Date(base.getFullYear(), base.getMonth() + semOff + 1, 0, 12);
     return { de: ymd(ini), ate: ymd(fim) };
-  })() : per;
+  })();
+  const NAV_TXT = { hoje:['Dia anterior','Hoje','Próximo dia'], semana:['Semana anterior','Esta semana','Próxima semana'], mes:['Mês anterior','Este mês','Próximo mês'] }[per.periodo] || [];
   const umDia = dataDe === dataAte;
   const selData = dataDe;
   const [modal, setModal] = useState(null); // null | { hora, existing }
@@ -757,12 +762,12 @@ function Agenda({ user, selectedUnidade='' }) {
       </TopoTela>
       <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end',marginBottom:20}}>
         <Btn onClick={()=>setModal({hora:HORARIOS[0], data: dataDe < today() ? today() : dataDe})} color={C.teal}>+ Novo Agendamento</Btn>
-        {modoSemana && <div style={{display:'flex',alignItems:'center',gap:6,marginLeft:'auto'}}>
-          <Btn outline size="sm" onClick={()=>setSemOff(o=>o-1)} aria-label="Semana anterior">‹</Btn>
-          <Btn outline size="sm" onClick={()=>setSemOff(0)} disabled={semOff===0}>Esta semana</Btn>
-          <Btn outline size="sm" onClick={()=>setSemOff(o=>o+1)} aria-label="Próxima semana">›</Btn>
+        {navegavel && <div style={{display:'flex',alignItems:'center',gap:6,marginLeft:'auto'}}>
+          <Btn outline size="sm" onClick={()=>setSemOff(o=>o-1)} aria-label={NAV_TXT[0]} title={NAV_TXT[0]}>‹</Btn>
+          <Btn outline size="sm" onClick={()=>setSemOff(0)} disabled={semOff===0}>{NAV_TXT[1]}</Btn>
+          <Btn outline size="sm" onClick={()=>setSemOff(o=>o+1)} aria-label={NAV_TXT[2]} title={NAV_TXT[2]}>›</Btn>
         </div>}
-        {!umDia && !modoSemana && <span style={{fontSize:12,color:C.gray}}>Para ver a grade de horários, escolha "Hoje", "Semana" ou um único dia em "Personalizado".</span>}
+        {!umDia && !modoSemana && per.periodo !== 'mes' && <span style={{fontSize:12,color:C.gray}}>Para ver a grade de horários, escolha "Hoje", "Semana" ou um único dia em "Personalizado".</span>}
       </div>
       {loading ? <Spinner/> : modoSemana ? (
         <GradeSemana de={dataDe} slots={slots} mostrarLoja={!unidadeFixa}
