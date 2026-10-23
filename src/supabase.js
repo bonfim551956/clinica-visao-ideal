@@ -49,6 +49,16 @@ export async function listarUsuarios(forcar = false) {
   cacheUsuarios = { em: Date.now(), lista: data || [] };
   return cacheUsuarios.lista;
 }
+// Assinaturas ficam em área privada (bucket 'assinaturas'): o app pede links temporários (12 h) ao entrar
+let linksAssinatura = {};
+export async function carregarAssinaturas(ids) {
+  if (!ids?.length) return;
+  const { data } = await supabase.storage.from('assinaturas').createSignedUrls(ids.map((i) => i + '.png'), 43200);
+  const novo = {};
+  (data || []).forEach((d, k) => { if (d?.signedUrl) novo[ids[k]] = d.signedUrl; });
+  linksAssinatura = novo;
+}
+export const linkAssinatura = (id) => linksAssinatura[id] || '';
 // Lista de usuários já carregada (para impressão, que não pode esperar a rede antes de abrir a janela)
 export const usuariosEmCache = () => cacheUsuarios?.lista || [];
 // Lojas (tabela public.unidades): nome, endereço e ID da agenda do Google de cada loja
@@ -65,6 +75,15 @@ export async function sair() {
 }
 
 // Gestão de usuários: a função identifica quem chama pelo token da sessão
+// O próprio usuário troca a senha: confere a senha atual no servidor antes de gravar a nova
+export async function trocarMinhaSenha(atual, nova) {
+  const { data, error } = await supabase.functions.invoke('agenda-acesso', { body: { acao: 'trocar_senha', atual, nova } });
+  if (!error && data?.ok) return { ok: true };
+  let msg = 'Não foi possível trocar a senha.';
+  try { msg = (await error?.context?.json())?.erro || data?.erro || msg; } catch {}
+  return { erro: msg };
+}
+
 export async function gerirUsuario(op, usuario) {
   const { data, error } = await supabase.functions.invoke('agenda-acesso', {
     body: { acao: 'gerir', op, usuario }

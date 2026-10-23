@@ -93,16 +93,45 @@ Deno.serve(async (req) => {
       const senha = String(body.senha || '')
       if (!nome || !senha) return erro('Usuário ou senha incorretos', 401)
 
+      // Bloqueio: 5 tentativas erradas em 15 minutos travam o usuário por 15 minutos
+      const desde = new Date(Date.now() - 15 * 60000).toISOString()
+      const { count: erros } = await admin.from('login_tentativas').select('id', { count: 'exact', head: true }).eq('chave', nome).gte('em', desde)
+      if ((erros || 0) >= 5) { await espera(600); return erro('Muitas tentativas erradas. Aguarde 15 minutos e tente de novo.', 429) }
+
       const { data: ativos } = await admin.from('usuarios').select(CAMPOS).eq('ativo', true)
       const u = (ativos || []).find((x: any) => String(x.nome || '').trim().toLowerCase() === nome)
       const { data: ok } = u
         ? await admin.rpc('agenda_verificar_senha', { p_id: u.id, p_senha: senha })
         : { data: false }
-      if (!u || !ok) { await espera(600); return erro('Usuário ou senha incorretos', 401) }
+      if (!u || !ok) {
+        await admin.from('login_tentativas').insert({ chave: nome })
+        await admin.from('login_tentativas').delete().lt('em', new Date(Date.now() - 86400000).toISOString())
+        await espera(600)
+        return erro('Usuário ou senha incorretos', 401)
+      }
+      await admin.from('login_tentativas').delete().eq('chave', nome)
 
       const sessao = await abrirSessao(admin, u)
       const { data: usuario } = await admin.from('usuarios').select(CAMPOS).eq('id', u.id).single()
       return resp({ usuario, sessao })
+    }
+
+    // ── TROCAR A PRÓPRIA SENHA ─────────────────────────────
+    // Qualquer usuário ativo, com sessão. Confere a senha atual antes de gravar a nova.
+    if (body.acao === 'trocar_senha') {
+      const jwt = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
+      const { data: au } = await admin.auth.getUser(jwt)
+      if (!au?.user) return erro('Sessão expirada. Entre novamente.', 401)
+      const { data: eu } = await admin.from('usuarios').select('id, ativo').eq('auth_id', au.user.id).maybeSingle()
+      if (!eu?.ativo) return erro('Sessão expirada. Entre novamente.', 401)
+      const atual = String(body.atual || ''), nova = String(body.nova || '')
+      if (nova.length < 6) return erro('A nova senha precisa ter pelo menos 6 caracteres.')
+      if (nova === atual) return erro('A nova senha precisa ser diferente da atual.')
+      const { data: ok } = await admin.rpc('agenda_verificar_senha', { p_id: eu.id, p_senha: atual })
+      if (!ok) { await espera(600); return erro('Senha atual incorreta.', 400) }
+      const { error: e2 } = await admin.rpc('agenda_definir_senha', { p_id: eu.id, p_senha: nova })
+      if (e2) return erro(e2.message)
+      return resp({ ok: true })
     }
 
     // ── GERENCIAR USUÁRIOS ─────────────────────────────────
@@ -142,7 +171,7 @@ Deno.serve(async (req) => {
       if (dados.nome.length < 2) return erro('Informe o nome.')
       if (!PERFIS.includes(dados.perfil)) return erro('Perfil inválido.')
       if (!SEM_UNIDADE.includes(perfil) && !dados.unidade) return erro('Selecione a unidade.')
-      if (f.senha && String(f.senha).length < 4) return erro('A senha precisa ter pelo menos 4 caracteres.')
+      if (f.senha && String(f.senha).length < 6) return erro('A senha precisa ter pelo menos 6 caracteres.')
 
       const { data: todos } = await admin.from('usuarios').select('id, nome')
       const repetido = (todos || []).some((x: any) => x.id !== f.id && String(x.nome).trim().toLowerCase() === dados.nome.toLowerCase())

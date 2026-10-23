@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase, entrar, usuarioDaSessao, gerirUsuario, sair, listarUsuarios, listarUnidades, usuariosEmCache } from './supabase';
+import { supabase, entrar, usuarioDaSessao, gerirUsuario, sair, listarUsuarios, listarUnidades, usuariosEmCache, trocarMinhaSenha, carregarAssinaturas, linkAssinatura } from './supabase';
 
 /* ── helpers ── */
 const pad = n => String(n).padStart(2,'0');
@@ -325,7 +325,51 @@ function Login({ onLogin }) {
 /* ══════════════════════════════════════════════════════
    LAYOUT
 ══════════════════════════════════════════════════════ */
+/* Troca da própria senha (qualquer perfil) */
+function TrocarSenhaModal({ onClose }) {
+  const [f, setF] = useState({ atual:'', nova:'', confirma:'' });
+  const [erro, setErro] = useState('');
+  const [ok, setOk] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const set = (k,v) => { setF(x => ({ ...x, [k]: v })); setErro(''); };
+  const salvar = async e => {
+    e.preventDefault();
+    if (!f.atual) return setErro('Digite sua senha atual.');
+    if (f.nova.length < 6) return setErro('A nova senha precisa ter pelo menos 6 caracteres.');
+    if (f.nova !== f.confirma) return setErro('A confirmação não é igual à nova senha.');
+    if (f.nova === f.atual) return setErro('A nova senha precisa ser diferente da atual.');
+    setSalvando(true);
+    const r = await trocarMinhaSenha(f.atual, f.nova);
+    setSalvando(false);
+    if (r.erro) return setErro(r.erro);
+    setOk(true);
+  };
+  return (
+    <Modal title="Alterar minha senha" onClose={onClose} width={420}>
+      {ok ? (
+        <div style={{display:'flex',flexDirection:'column',gap:16}}>
+          <p style={{fontSize:14,color:C.text}}>Senha alterada. Use a nova senha no próximo acesso.</p>
+          <div style={{textAlign:'right'}}><Btn color={C.teal} onClick={onClose}>Fechar</Btn></div>
+        </div>
+      ) : (
+        <form onSubmit={salvar} style={{display:'flex',flexDirection:'column',gap:14}}>
+          <Input id="senha-atual" label="Senha atual" type="password" autoComplete="current-password" value={f.atual} onChange={e=>set('atual',e.target.value)}/>
+          <Input id="senha-nova" label="Nova senha" type="password" autoComplete="new-password" value={f.nova} onChange={e=>set('nova',e.target.value)} placeholder="Mínimo 6 caracteres"/>
+          <Input id="senha-confirma" label="Confirme a nova senha" type="password" autoComplete="new-password" value={f.confirma} onChange={e=>set('confirma',e.target.value)}/>
+          {erro && <div role="alert" style={{fontSize:13,color:C.danger,fontWeight:600}}>{erro}</div>}
+          <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+            <Btn outline type="button" onClick={onClose}>Cancelar</Btn>
+            <Btn color={C.teal} type="submit" disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar nova senha'}</Btn>
+          </div>
+        </form>
+      )}
+    </Modal>
+  );
+}
+
 function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnidade, children }) {
+  const [minhaSenha, setMinhaSenha] = useState(false);
+  const modalSenha = minhaSenha && <TrocarSenhaModal onClose={()=>setMinhaSenha(false)}/>;
   const isMobile = useIsMobile();
   const [drawer, setDrawer] = useState(false);
   const navItems = NAV_ITEMS.filter(n => PERFIS[user.perfil]?.nav.includes(n.id));
@@ -365,6 +409,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
   if (isMobile) return (
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',background:C.bg}}>
       <style>{GLOBAL_CSS}</style>
+      {modalSenha}
       {/* Mobile header */}
       <div style={{position:'fixed',top:0,left:0,right:0,background:C.white,borderBottom:`1px solid ${C.border}`,zIndex:200}}>
       <div style={{height:52,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px'}}>
@@ -387,6 +432,10 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
             <div style={{fontSize:12,opacity:.8}}>{user.nome} · {perfil?.label}</div>
           </div>
           <SideNav onItemClick={()=>setDrawer(false)}/>
+          <div style={{padding:'0 16px 16px'}}>
+            <button onClick={()=>{ setDrawer(false); setMinhaSenha(true); }}
+              style={{width:'100%',padding:'9px 10px',borderRadius:8,fontSize:13,fontWeight:600,border:`1px solid ${C.border}`,background:C.white,color:C.textSm}}>Alterar minha senha</button>
+          </div>
         </div>
       </>}
       {/* Content */}
@@ -414,6 +463,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
   return (
     <div style={{minHeight:'100vh',display:'flex',background:C.bg}}>
       <style>{GLOBAL_CSS}</style>
+      {modalSenha}
       {/* Sidebar */}
       <div style={{width:sideW,background:C.white,borderRight:`1px solid ${C.border}`,position:'fixed',top:0,left:0,bottom:0,overflowY:'auto',display:'flex',flexDirection:'column',boxShadow:'2px 0 8px rgba(0,0,0,.04)'}}>
         <div style={{height:alturaTopo,boxSizing:'border-box',flexShrink:0,background:C.white,borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',justifyContent:'center',padding:'8px 16px'}}>
@@ -431,6 +481,8 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
               {user.unidade && <div style={{color:C.gray,fontSize:10,marginTop:1}}>{user.unidade}</div>}
             </div>
           </div>
+          <button onClick={()=>setMinhaSenha(true)} className="btn-sec"
+            style={{marginTop:10,width:'100%',padding:'7px 10px',borderRadius:8,fontSize:12,fontWeight:600,border:`1px solid ${C.border}`,background:C.white,color:C.textSm,cursor:'pointer'}}>Alterar minha senha</button>
         </div>
       </div>
       {/* Main */}
@@ -505,8 +557,7 @@ function Dashboard({ user, selectedUnidade='' }) {
   const [proximos, setProximos] = useState([]);
   const [periodo, setPeriodo] = useState('hoje');
   const [custom, setCustom] = useState({ de: today(), ate: today() });
-  const [dia, setDia] = useState(today());
-  const { de, ate } = periodo === 'dia' ? { de: dia, ate: dia } : periodoDatas(periodo, custom.de, custom.ate);
+  const { de, ate } = periodoDatas(periodo, custom.de, custom.ate);
   const textoPeriodo = de === ate ? fmtDate(de) : `${fmtDate(de)} a ${fmtDate(ate)}`;
 
   useEffect(() => {
@@ -561,16 +612,13 @@ function Dashboard({ user, selectedUnidade='' }) {
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',gap:16,flexWrap:'wrap',marginBottom:20}}>
         <div>
           <h2 style={{fontSize:22,fontWeight:800,color:C.navy}}>Visão Geral</h2>
-          <p style={{color:C.gray,fontSize:13,marginTop:2}}>{periodo === 'dia' ? 'Data específica' : PERIODOS.find(p=>p[0]===periodo)[1]} · {textoPeriodo}</p>
+          <p style={{color:C.gray,fontSize:13,marginTop:2}}>{PERIODOS.find(p=>p[0]===periodo)[1]} · {textoPeriodo}</p>
         </div>
         <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'flex-end'}}>
           {periodo === 'personalizado' && <>
             <Input label="De" type="date" value={custom.de} onChange={e=>setCustom(c=>({...c,de:e.target.value, ate: c.ate < e.target.value ? e.target.value : c.ate}))}/>
             <Input label="Até" type="date" value={custom.ate} min={custom.de} onChange={e=>setCustom(c=>({...c,ate:e.target.value}))}/>
           </>}
-          {/* Seletor de data separado: escolhe um dia específico direto */}
-          <Input label="Data" type="date" value={periodo === 'dia' ? dia : ''}
-            onChange={e=>{ if (e.target.value) { setDia(e.target.value); setPeriodo('dia'); } }}/>
           <div style={{display:'flex',gap:6}}>
             {PERIODOS.map(([id,label])=>{
               const ativo = periodo === id;
@@ -1515,18 +1563,19 @@ function imprimirReceita(r) {
 }
 
 // Assinaturas digitalizadas por optometrista (id do usuário → imagem em /public/assinaturas)
-// Assinaturas por optometrista (id do cadastro). "altura" = altura em px na impressão, para assinaturas mais altas que largas
+// Assinaturas por optometrista (id do cadastro), guardadas em área privada (bucket 'assinaturas', arquivo <id>.png).
+// "altura" = altura em px na impressão, para assinaturas mais altas que largas
 const ASSINATURAS = {
-  AHAH8YRN: '/assinaturas/AHAH8YRN.png',
-  BE9D3DPW: '/assinaturas/BE9D3DPW.png',
-  TKS6UWSG: { src: '/assinaturas/TKS6UWSG.png', altura: 170 },
+  AHAH8YRN: {},
+  BE9D3DPW: {},
+  TKS6UWSG: { altura: 170 },
 };
 const imgAssinatura = (optoId, classe) => {
-  const a = ASSINATURAS[optoId]; if (!a) return '';
-  const { src, altura } = typeof a === 'string' ? { src: a } : a;
+  const a = ASSINATURAS[optoId]; const url = linkAssinatura(optoId);
+  if (!a || !url) return '';
   // assinatura com carimbo embaixo: fica inteira acima da linha, sem encostar no nome impresso
-  const estilo = altura ? ` style="height:${altura}px;max-width:none;margin-bottom:6px"` : '';
-  return `<img src="${window.location.origin}${src}" class="${classe}"${estilo} alt="Assinatura" onerror="this.style.display='none'"/>`;
+  const estilo = a.altura ? ` style="height:${a.altura}px;max-width:none;margin-bottom:6px"` : '';
+  return `<img src="${url}" class="${classe}"${estilo} alt="Assinatura" onerror="this.style.display='none'"/>`;
 };
 
 /* ══════════════════════════════════════════════════════
@@ -1665,14 +1714,23 @@ function Atendimento({ user, selectedUnidade='' }) {
   const iniciarAtendimento = (a) => {
     setSel(a); setErroNasc('');
     setTabAte('anamnese');
-    setForm({ anamnese:'', queixa:'', medicamentos:'', nasc:'', trat:TRAT_PADRAO, tipoLente:'',
+    setForm({ anamnese:'', queixa:'', medicamentos:'', nasc:'', trat:TRAT_PADRAO, tipoLente:'', nomeCompleto: a.paciente_nome || '',
       od_esf:'',od_cil:'',od_eixo:'',od_av:'',od_add:'',od_dnp:'',
       oe_esf:'',oe_cil:'',oe_eixo:'',oe_av:'',oe_add:'',oe_dnp:'' });
+    setErroNome('');
     setReceita(null);
   };
 
   // Data de nascimento é obrigatória (vem do cadastro quando já existe)
   const [erroNasc, setErroNasc] = useState('');
+  // Agendamento com um nome só (comum nos que vêm da IA): o optometrista confirma o nome completo
+  const palavras = n => String(n || '').trim().split(/\s+/).filter(Boolean).length;
+  const precisaNome = !!sel && palavras(sel.paciente_nome) < 2;
+  const [erroNome, setErroNome] = useState('');
+  const conferirNome = () => {
+    if (!precisaNome || palavras(form.nomeCompleto) >= 2) { setErroNome(''); return true; }
+    setErroNome('Informe o nome completo do paciente (nome e sobrenome).'); setTabAte('anamnese'); alert('Informe o nome completo do paciente.'); return false;
+  };
   const [erroTipo, setErroTipo] = useState('');
   const conferirTipo = () => {
     if (form.tipoLente) { setErroTipo(''); return true; }
@@ -1697,7 +1755,7 @@ function Atendimento({ user, selectedUnidade='' }) {
   const soLeitura = !podeReceita || !!receita;
   const gerarReceita = async () => {
     if (!podeReceita) { alert('Somente optometristas podem gerar receitas.'); return; }
-    if (!conferirNasc() || !conferirTipo()) return;
+    if (!conferirNome() || !conferirNasc() || !conferirTipo()) return;
     const { erros, valores: rx } = validarRx(form);
     if (Object.keys(erros).length) { setErrosRx(erros); setTabAte('refracao'); alert('Confira os campos da refração marcados em vermelho.'); return; }
     // A receita sai no nome (e CRO) do optometrista. Se quem atende não é opto (ex.: gerente), usa o opto do agendamento.
@@ -1709,7 +1767,7 @@ function Atendimento({ user, selectedUnidade='' }) {
     const agora = new Date();
     const dataHora = `${agora.getFullYear()}-${pad(agora.getMonth()+1)}-${pad(agora.getDate())} ${pad(agora.getHours())}:${pad(agora.getMinutes())}`;
     const row = {
-      id:uid(), agenda_id:sel.id, paciente_nome:sel.paciente_nome,
+      id:uid(), agenda_id:sel.id, paciente_nome: precisaNome ? form.nomeCompleto.trim().toUpperCase() : sel.paciente_nome,
       paciente_telefone:sel.paciente_telefone||'',
       opto_id:opto.id, opto_nome:opto.nome, opto_cro:opto.cro||'', opto_unidade:opto.unidade||'',
       opto_endereco:opto.endereco||ENDERECOS_UNIDADES[sel.unidade||opto.unidade]||'',
@@ -1727,8 +1785,13 @@ function Atendimento({ user, selectedUnidade='' }) {
     if (error) { alert('Erro ao gerar a receita: ' + error.message); return; }
     // guarda a data de nascimento no cadastro do paciente, se ainda não tiver
     // gerou receita = compareceu (o banco também garante isso); as duas gravações vão juntas
-    await Promise.all([salvarNascNoCadastro(), supabase.from('agenda').update({ status: 'Compareceu' }).eq('id', sel.id)]);
-    setSel(x => x ? { ...x, status: 'Compareceu' } : x);
+    const nomeFinal = row.paciente_nome;
+    await Promise.all([
+      salvarNascNoCadastro(),
+      supabase.from('agenda').update({ status: 'Compareceu', ...(precisaNome ? { paciente_nome: nomeFinal } : {}) }).eq('id', sel.id),
+      ...(precisaNome && sel.paciente_id ? [supabase.from('pacientes').update({ nome: nomeFinal }).eq('id', sel.paciente_id)] : []),
+    ]);
+    setSel(x => x ? { ...x, status: 'Compareceu', paciente_nome: nomeFinal } : x);
     setReceita(data);
     showToast('Receita gerada! A pré-venda já pode registrar a conversão.');
     setTabAte('receita');
@@ -1811,6 +1874,15 @@ function Atendimento({ user, selectedUnidade='' }) {
         <Card>
           <h4 style={{marginBottom:16,color:C.navy}}>Anamnese</h4>
           <div style={{display:'flex',flexDirection:'column',gap:14}}>
+            {precisaNome && (
+              <div style={{background:C.tealBg,borderRadius:12,padding:'14px 16px'}}>
+                <Input id="nome-completo" label={<>Nome completo do paciente <span style={{color:C.danger}}>*</span></>} value={form.nomeCompleto} disabled={soLeitura}
+                  onChange={e=>{ setF('nomeCompleto', e.target.value); setErroNome(''); }} placeholder="Nome e sobrenome"
+                  style={erroNome ? {['--borda']:C.danger} : {}}/>
+                {erroNome ? <div style={{fontSize:11,color:C.danger,marginTop:4,fontWeight:600}}>{erroNome}</div>
+                  : <div style={{fontSize:11,color:C.textSm,marginTop:4}}>O agendamento veio só com o primeiro nome. Confirme o nome completo: ele sai na receita e atualiza o cadastro.</div>}
+              </div>
+            )}
             <div style={{maxWidth:280}}>
               <Input label={<>Data de nascimento <span style={{color:C.danger}}>*</span></>} type="date" max={today()} value={form.nasc} disabled={soLeitura}
                 onChange={e=>{ setF('nasc',e.target.value); setErroNasc(''); }}
@@ -1877,7 +1949,7 @@ function Atendimento({ user, selectedUnidade='' }) {
               <div style={{fontSize:11,color:C.gray,marginTop:6}}>Os marcados saem na receita como recomendação.</div>
             </div>
             <div style={{textAlign:'right'}}>{!podeReceita && <span style={{fontSize:13,color:C.gray,fontWeight:600,marginRight:12}}>Somente o optometrista pode preencher a anamnese e a receita.</span>}
-              <Btn color={C.teal} onClick={()=>{ if (soLeitura || (conferirNasc() && conferirTipo())) setTabAte('refracao'); }}>Próximo: Refração</Btn></div>
+              <Btn color={C.teal} onClick={()=>{ if (soLeitura || (conferirNome() && conferirNasc() && conferirTipo())) setTabAte('refracao'); }}>Próximo: Refração</Btn></div>
           </div>
         </Card>
       )}
@@ -3120,7 +3192,7 @@ const MANUAL = [
   { id:'passo', perfis:['opto','comercial','gerente','supervisor','diretor'], rotulo:'Optometrista', titulo:'Atendimento passo a passo',
     intro:'Só o optometrista preenche a anamnese e a refração e gera a receita. Os outros perfis veem as telas apenas para consulta.',
     passos:[
-      { t:'Anamnese', d:'Preencha o que o paciente relatar.', lista:['Data de nascimento é obrigatória: a idade sai na receita.','Queixa principal, medicamentos em uso e observações.','Tipo de lente sugerido é obrigatório: Monofocal, Multifocal, Bifocal ou Ocupacional.','Tratamentos sugeridos: Antirreflexo já vem marcado. Marque Filtro de luz azul ou Fotocromático se indicar.'] },
+      { t:'Anamnese', d:'Preencha o que o paciente relatar.', lista:['Se o agendamento veio só com o primeiro nome (comum nos da IA), o sistema pede o nome completo do paciente.','Data de nascimento é obrigatória: a idade sai na receita.','Queixa principal, medicamentos em uso e observações.','Tipo de lente sugerido é obrigatório: Monofocal, Multifocal, Bifocal ou Ocupacional.','Tratamentos sugeridos: Antirreflexo já vem marcado. Marque Filtro de luz azul ou Fotocromático se indicar.'] },
       { t:'Refração', d:'Digite os valores com vírgula ou ponto. O sistema formata sozinho.', lista:['Cilíndrico é sempre negativo. Se digitar positivo, ele converte.','Eixo vai de 0 a 180 e é obrigatório quando há cilíndrico.','AV (acuidade visual) de cada olho, no formato 20/20 ou decimal. É opcional.','A adição é uma só para os dois olhos (AO).','Campo vazio sai como PLANO ou N/A.'] },
       { t:'Gerar receita', d:'Confere os campos, salva a receita e marca o paciente como Compareceu.' },
       { t:'Imprimir', d:'Imprima a receita, já com a assinatura do optometrista. Se o paciente pedir, gere a Declaração de comparecimento: o CPF é pedido na hora e não fica guardado.' },
@@ -3328,6 +3400,14 @@ export default function App() {
   }, []);
   const usuarioId = usuario?.id;
   useEffect(() => { if (usuarioId) { recarregarLojas(); listarUsuarios(); } else setLojasProntas(false); }, [usuarioId, recarregarLojas]);
+  // Links temporários das assinaturas (renovados a cada 6 h enquanto o sistema estiver aberto)
+  useEffect(() => {
+    if (!usuarioId) return;
+    const ids = Object.keys(ASSINATURAS);
+    carregarAssinaturas(ids);
+    const t = setInterval(() => carregarAssinaturas(ids), 6 * 3600 * 1000);
+    return () => clearInterval(t);
+  }, [usuarioId]);
 
   const handleLogout = () => {
     try { localStorage.removeItem(SESSION_KEY); } catch {}

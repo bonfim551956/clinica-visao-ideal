@@ -1,0 +1,8 @@
+-- 054 — Correções da auditoria de segurança (aplicada via MCP em 23/10/2026)
+-- 3) conversoes: leitura na loja; gravação só pré-venda/supervisor/diretor (agenda_pode_vendas) — o PDV grava por função própria
+-- 4) receitas: política restritiva impede DELETE (só criar/editar, com histórico)
+-- 5) pacientes.unidade + trg_paciente_loja; cada loja vê só seus pacientes (ou os que têm agendamento na loja); '*' vê todos
+-- 7) login_tentativas (bloqueio após 5 erros em 15 min, usado pela função agenda-acesso)
+-- 8) bucket privado 'assinaturas' (leitura só para usuário logado do sistema); app usa links temporários de 12 h
+-- 9) revoga permissões de anon e TRUNCATE que sobravam
+-- Funções: agenda-acesso (trocar_senha, senha mínima 6, bloqueio de login); calendar-sync (debug/testar só supervisor/diretor)

@@ -101,17 +101,22 @@ Deno.serve(async (req: Request) => {
   let inseridos = 0, marcados = 0, atualizados = 0, canceladosN = 0
   const erros: string[] = []
 
+  // Teste de agenda e diagnóstico mostram dados das agendas: só supervisor/diretor logados
+  const ehGestor = async () => {
+    const jwt = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
+    const { data: au } = await admin.auth.getUser(jwt)
+    const { data: eu } = au?.user ? await admin.from('usuarios').select('perfil, ativo').eq('auth_id', au.user.id).maybeSingle() : { data: null }
+    return !!eu?.ativo && ['supervisor', 'diretor'].includes(eu.perfil)
+  }
+  if ((body?.testar || body?.debug) && !(await ehGestor())) return json({ ok: false, erro: 'Sem permissão.' }, 403)
+
   let token: string
   try { token = await googleToken(JSON.parse(raw)) } catch (e) { return json({ ok: false, erro: String(e) }, 500) }
   const gHeaders = { Authorization: `Bearer ${token}` }
   const eventosPorUnidade: Record<string, number> = {}
 
-  // Teste de uma agenda (tela Lojas): só supervisor/diretor. Diz se a conta de serviço lê a agenda e quantos agendamentos da IA há.
+  // Teste de uma agenda (tela Lojas). Diz se a conta de serviço lê a agenda e quantos agendamentos da IA há.
   if (body?.testar) {
-    const jwt = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
-    const { data: au } = await admin.auth.getUser(jwt)
-    const { data: eu } = au?.user ? await admin.from('usuarios').select('perfil, ativo').eq('auth_id', au.user.id).maybeSingle() : { data: null }
-    if (!eu?.ativo || !['supervisor', 'diretor'].includes(eu.perfil)) return json({ ok: false, erro: 'Sem permissão.' }, 403)
     let conta = ''; try { conta = JSON.parse(raw).client_email } catch { /* */ }
     const calId = String(body.testar).trim()
     const url = new URL(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`)
