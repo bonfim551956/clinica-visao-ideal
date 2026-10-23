@@ -69,6 +69,13 @@ const TRATAMENTOS = [
   { id:'FOTOCROMÁTICO', label:'FOTOCROMÁTICO', desc:'Escurece no sol e clareia em ambientes internos' },
 ];
 const TRAT_PADRAO = ['AR'];
+// Tipo de lente sugerido (escolha obrigatória na anamnese)
+const TIPOS_LENTE = [
+  { id:'MONOFOCAL',   label:'MONOFOCAL',   desc:'Um único grau: para longe ou para perto' },
+  { id:'MULTIFOCAL',  label:'MULTIFOCAL',  desc:'Longe, intermediário e perto, sem linha' },
+  { id:'BIFOCAL',     label:'BIFOCAL',     desc:'Longe e perto, com divisão visível' },
+  { id:'OCUPACIONAL', label:'OCUPACIONAL', desc:'Perto e meia distância: tela e leitura' },
+];
 const nomeTrat = id => TRATAMENTOS.find(t=>t.id===String(id).toUpperCase())?.label || String(id).toUpperCase();
 const validarRx = form => {
   const erros = {}, valores = {};
@@ -320,7 +327,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
   const navItems = NAV_ITEMS.filter(n => PERFIS[user.perfil]?.nav.includes(n.id));
   const perfil = PERFIS[user.perfil];
 
-  const podeVerTodasUnidades = ['diretor','supervisor'].includes(user.perfil);
+  const podeVerTodasUnidades = ['diretor','supervisor','prevenda'].includes(user.perfil);
   // Seletor de loja no mesmo padrão das listas do sistema (só para quem vê todas as unidades)
   const unidadeFilter = () => !podeVerTodasUnidades ? null : (
     <Select value={selectedUnidade} onChange={e=>setSelectedUnidade(e.target.value)} style={{minWidth:200}}
@@ -1433,8 +1440,8 @@ function imprimirReceita(r) {
     table tbody tr:nth-child(even){background:#fff}
     .olho{font-weight:800;font-size:14px;background:#fff!important}
     .adicao-row td{background:#fff!important;color:#1A1A1A;font-weight:700}
-    .trat{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px}
-    .trat-item{font-size:13px;font-weight:700;color:#1A1A1A;background:#fff;border:1px solid #999;border-radius:6px;padding:6px 12px}
+    .sugestoes{display:flex;gap:40px;flex-wrap:wrap;margin-bottom:22px}
+    .sug-valor{font-size:14px;font-weight:700;color:#1A1A1A;line-height:1.5}
     .obs-box{font-size:13px;line-height:1.6;color:#1A1A1A;background:#fff;border:1px solid #bbb;border-radius:6px;padding:10px 14px;margin-bottom:22px}
     .assinatura-area{display:flex;align-items:flex-end;justify-content:space-between;margin:28px 0 20px;gap:24px}
     .assinatura-col{display:flex;flex-direction:column;align-items:center;gap:4px}
@@ -1468,8 +1475,10 @@ function imprimirReceita(r) {
           : `<tr class="adicao-row"><td class="olho" colspan="2">Adição</td><td colspan="4" style="text-align:left;padding-left:16px">OD: ${esc(r.od_adicao)||'—'} &nbsp;&nbsp; OE: ${esc(r.oe_adicao)||'—'}</td></tr>`) : ''}
       </tbody>
     </table>
-    ${(r.tratamentos_sugeridos||[]).length ? `<div class="section-title">Tratamentos recomendados para as lentes</div>
-      <div class="trat">${r.tratamentos_sugeridos.map(t=>`<span class="trat-item">✓ ${esc(nomeTrat(t))}</span>`).join('')}</div>` : ''}
+    ${r.tipo_lente || (r.tratamentos_sugeridos||[]).length ? `<div class="sugestoes">
+      ${r.tipo_lente ? `<div><div class="section-title">Tipo de lente sugerido</div><div class="sug-valor">${esc(r.tipo_lente)}</div></div>` : ''}
+      ${(r.tratamentos_sugeridos||[]).length ? `<div><div class="section-title">Tratamentos sugeridos</div><div class="sug-valor">${r.tratamentos_sugeridos.map(t=>esc(nomeTrat(t))).join(' &nbsp;·&nbsp; ')}</div></div>` : ''}
+    </div>` : ''}
     ${r.observacoes ? `<div class="section-title">Observações</div><div class="obs-box">${esc(r.observacoes)}</div>` : ''}
     <div class="assinatura-area">
       <div class="assinatura-col">
@@ -1478,7 +1487,7 @@ function imprimirReceita(r) {
         <div class="assinatura-nome">${esc(r.opto_nome)}</div>
         ${cro ? `<div class="assinatura-cro">${esc(cro)}</div>` : ''}
       </div>
-      <div class="data-local">${esc(dtExtenso)}${r.editado_em ? `<div style="font-size:10px;color:#555;margin-top:4px">Receita retificada em ${(()=>{ const d=new Date(r.editado_em); return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} às ${pad(d.getHours())}:${pad(d.getMinutes())}`; })()}</div>` : ''}</div>
+      <div class="data-local">${esc(dtExtenso)}</div>
     </div>
     <div class="lembrete">
       <b>Cuide da sua visão todo ano.</b> A visão muda com o tempo, muitas vezes sem que a gente perceba.
@@ -1611,7 +1620,7 @@ function DeclaracaoModal({ receita, horaAgenda, onClose }) {
 function Atendimento({ user, selectedUnidade='' }) {
   const [sel, setSel] = useState(null);
   const [tabAte, setTabAte] = useState('anamnese');
-  const [form, setForm] = useState({ anamnese:'', queixa:'', medicamentos:'', nasc:'', trat:TRAT_PADRAO,
+  const [form, setForm] = useState({ anamnese:'', queixa:'', medicamentos:'', nasc:'', trat:TRAT_PADRAO, tipoLente:'',
     od_esf:'',od_cil:'',od_eixo:'',od_add:'',od_dnp:'',
     oe_esf:'',oe_cil:'',oe_eixo:'',oe_add:'',oe_dnp:'' });
   const [receita, setReceita] = useState(null);
@@ -1633,7 +1642,7 @@ function Atendimento({ user, selectedUnidade='' }) {
   const iniciarAtendimento = (a) => {
     setSel(a); setErroNasc('');
     setTabAte('anamnese');
-    setForm({ anamnese:'', queixa:'', medicamentos:'', nasc:'', trat:TRAT_PADRAO,
+    setForm({ anamnese:'', queixa:'', medicamentos:'', nasc:'', trat:TRAT_PADRAO, tipoLente:'',
       od_esf:'',od_cil:'',od_eixo:'',od_add:'',od_dnp:'',
       oe_esf:'',oe_cil:'',oe_eixo:'',oe_add:'',oe_dnp:'' });
     setReceita(null);
@@ -1641,6 +1650,11 @@ function Atendimento({ user, selectedUnidade='' }) {
 
   // Data de nascimento é obrigatória (vem do cadastro quando já existe)
   const [erroNasc, setErroNasc] = useState('');
+  const [erroTipo, setErroTipo] = useState('');
+  const conferirTipo = () => {
+    if (form.tipoLente) { setErroTipo(''); return true; }
+    setErroTipo('Escolha o tipo de lente sugerido.'); setTabAte('anamnese'); alert('Escolha o tipo de lente sugerido.'); return false;
+  };
   const conferirNasc = () => {
     const n = form.nasc;
     let msg = '';
@@ -1660,7 +1674,7 @@ function Atendimento({ user, selectedUnidade='' }) {
   const soLeitura = !podeReceita || !!receita;
   const gerarReceita = async () => {
     if (!podeReceita) { alert('Somente optometristas podem gerar receitas.'); return; }
-    if (!conferirNasc()) return;
+    if (!conferirNasc() || !conferirTipo()) return;
     const { erros, valores: rx } = validarRx(form);
     if (Object.keys(erros).length) { setErrosRx(erros); setTabAte('refracao'); alert('Confira os campos da refração marcados em vermelho.'); return; }
     // A receita sai no nome (e CRO) do optometrista. Se quem atende não é opto (ex.: gerente), usa o opto do agendamento.
@@ -1684,6 +1698,7 @@ function Atendimento({ user, selectedUnidade='' }) {
       oe_esf:rx.oe_esf, oe_cil:rx.oe_cil, oe_eixo:rx.oe_eixo, oe_adicao:rx.oe_add, oe_dnp:rx.oe_dnp,
       observacoes:form.anamnese,
       tratamentos_sugeridos: TRATAMENTOS.map(t=>t.id).filter(id=>(form.trat||[]).includes(id)),
+      tipo_lente: form.tipoLente,
     };
     const {data, error} = await supabase.from('receitas').insert(row).select().single();
     if (error) { alert('Erro ao gerar a receita: ' + error.message); return; }
@@ -1790,6 +1805,31 @@ function Atendimento({ user, selectedUnidade='' }) {
               <textarea disabled={soLeitura} value={form.anamnese} onChange={e=>setF('anamnese',maiusc(e).target.value)} rows={3}
                 style={{width:'100%',border:`1.5px solid ${C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,resize:'vertical'}}/></div>
             <div>
+              <label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:8}}>Tipo de lente sugerido <span style={{color:C.danger}}>*</span></label>
+              <div role="radiogroup" style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+                {TIPOS_LENTE.map(t=>{
+                  const on = form.tipoLente === t.id;
+                  return (
+                    <button key={t.id} type="button" role="radio" aria-checked={on}
+                      disabled={soLeitura} onClick={()=>{ if (!soLeitura) { setF('tipoLente', t.id); setErroTipo(''); } }}
+                      style={{flex:'1 1 160px',display:'flex',alignItems:'flex-start',gap:12,textAlign:'left',padding:'14px 16px',borderRadius:12,cursor:soLeitura?'default':'pointer',opacity:soLeitura&&!on?.6:1,
+                        border:`1.5px solid ${on?C.teal:(erroTipo?C.danger:C.border)}`,background:on?C.tealBg:C.white,transition:'all .15s'}}>
+                      <span style={{flexShrink:0,width:20,height:20,borderRadius:'50%',marginTop:1,display:'flex',alignItems:'center',justifyContent:'center',
+                        border:`1.5px solid ${on?C.teal:C.border}`,background:C.white}}>
+                        {on && <span style={{width:10,height:10,borderRadius:'50%',background:C.teal}}/>}
+                      </span>
+                      <span>
+                        <span style={{display:'block',fontSize:14,fontWeight:700,color:C.navy}}>{t.label}</span>
+                        <span style={{display:'block',fontSize:12,color:C.gray,marginTop:2}}>{t.desc}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {erroTipo ? <div style={{fontSize:11,color:C.danger,marginTop:6,fontWeight:600}}>{erroTipo}</div>
+                : <div style={{fontSize:11,color:C.gray,marginTop:6}}>Obrigatório · sai na receita como sugestão</div>}
+            </div>
+            <div>
               <label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:8}}>Tratamentos sugeridos para as lentes</label>
               <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
                 {TRATAMENTOS.map(t=>{
@@ -1814,7 +1854,7 @@ function Atendimento({ user, selectedUnidade='' }) {
               <div style={{fontSize:11,color:C.gray,marginTop:6}}>Os marcados saem na receita como recomendação.</div>
             </div>
             <div style={{textAlign:'right'}}>{!podeReceita && <span style={{fontSize:13,color:C.gray,fontWeight:600,marginRight:12}}>Somente o optometrista pode preencher a anamnese e a receita.</span>}
-              <Btn color={C.teal} onClick={()=>{ if (soLeitura || conferirNasc()) setTabAte('refracao'); }}>Próximo: Refração</Btn></div>
+              <Btn color={C.teal} onClick={()=>{ if (soLeitura || (conferirNasc() && conferirTipo())) setTabAte('refracao'); }}>Próximo: Refração</Btn></div>
           </div>
         </Card>
       )}
@@ -2734,7 +2774,7 @@ function UsuarioModal({ user, onSave, onClose }) {
         <Input label="Nome" value={form.nome} onChange={e=>set('nome',e.target.value)} placeholder="Nome completo"/>
         <Select label="Perfil" value={form.perfil} onChange={e=>set('perfil',e.target.value)}
           options={Object.entries(PERFIS).map(([v,p])=>({value:v,label:p.label}))}/>
-        {!['diretor','supervisor'].includes(form.perfil) && (<>
+        {!['diretor','supervisor','prevenda'].includes(form.perfil) && (<>
           <Select label="Unidade" value={form.unidade} onChange={e=>handleUnidade(e.target.value)}
             options={[{value:'',label:'Selecionar unidade'},...UNIDADES.map(u=>({value:u,label:u}))]}/>
           <Input label="Endereço da Unidade" value={form.endereco} onChange={e=>set('endereco',e.target.value)}
@@ -2760,14 +2800,14 @@ function UsuarioModal({ user, onSave, onClose }) {
 const CAMPOS_EDITAVEIS = [
   ['od_esf','OD Esférico'],['od_cil','OD Cilíndrico'],['od_eixo','OD Eixo'],['od_dnp','OD DNP'],
   ['oe_esf','OE Esférico'],['oe_cil','OE Cilíndrico'],['oe_eixo','OE Eixo'],['oe_dnp','OE DNP'],
-  ['od_adicao','Adição'],['tratamentos_sugeridos','Tratamentos'],['observacoes','Observações'],
+  ['od_adicao','Adição'],['tipo_lente','Tipo de lente'],['tratamentos_sugeridos','Tratamentos'],['observacoes','Observações'],
 ];
 const valorHist = v => Array.isArray(v) ? (v.length ? v.map(nomeTrat).join(', ') : '—') : (v === null || v === undefined || v === '' ? '—' : String(v));
 function EditarReceita({ receita, user, onSalvo, onCancelar }) {
   const [f, setF2] = useState({
     od_esf:receita.od_esf||'', od_cil:receita.od_cil||'', od_eixo:receita.od_eixo||'', od_add:receita.od_adicao==='N/A'?'':(receita.od_adicao||''), od_dnp:receita.od_dnp==='N/A'?'':(receita.od_dnp||''),
     oe_esf:receita.oe_esf||'', oe_cil:receita.oe_cil||'', oe_eixo:receita.oe_eixo||'', oe_add:receita.oe_adicao==='N/A'?'':(receita.oe_adicao||''), oe_dnp:receita.oe_dnp==='N/A'?'':(receita.oe_dnp||''),
-    trat: receita.tratamentos_sugeridos||[], obs: receita.observacoes||'', motivo:'' });
+    trat: receita.tratamentos_sugeridos||[], obs: receita.observacoes||'', tipo: receita.tipo_lente||'', motivo:'' });
   const [erros, setErros] = useState({});
   const [salvando, setSalvando] = useState(false);
   const set = (k,v) => setF2(x => ({ ...x, [k]: v, ...(k==='od_add' ? { oe_add: v } : {}) }));
@@ -2781,6 +2821,7 @@ function EditarReceita({ receita, user, onSalvo, onCancelar }) {
       oe_esf:rx.oe_esf, oe_cil:rx.oe_cil, oe_eixo:rx.oe_eixo, oe_adicao:rx.oe_add, oe_dnp:rx.oe_dnp,
       tratamentos_sugeridos: TRATAMENTOS.map(t=>t.id).filter(id=>f.trat.includes(id)),
       observacoes: f.obs,
+      tipo_lente: f.tipo || null,
     };
     const mudou = Object.keys(novo).some(k => JSON.stringify(novo[k] ?? '') !== JSON.stringify(receita[k] ?? ''));
     if (!mudou) { setErros({ motivo: 'Nada foi alterado na receita.' }); return; }
@@ -2812,6 +2853,15 @@ function EditarReceita({ receita, user, onSalvo, onCancelar }) {
       </div>
       {Object.keys(erros).filter(k=>k!=='motivo').length > 0 && <div style={{fontSize:12,color:C.danger,fontWeight:600}}>{Object.entries(erros).filter(([k])=>k!=='motivo').map(([,v])=>v).filter((v,i,a)=>a.indexOf(v)===i).join(' · ')}</div>}
       <div>
+        <label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:6}}>Tipo de lente sugerido</label>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          {TIPOS_LENTE.map(t => { const on = f.tipo === t.id; return (
+            <button key={t.id} type="button" role="radio" aria-checked={on} onClick={()=>set('tipo', t.id)}
+              style={{padding:'8px 12px',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',border:`1.5px solid ${on?C.teal:C.border}`,background:on?C.tealBg:C.white,color:C.navy}}>
+              {on ? '● ' : ''}{t.label}</button>); })}
+        </div>
+      </div>
+      <div>
         <label style={{fontSize:12,fontWeight:600,color:C.textSm,display:'block',marginBottom:6}}>Tratamentos sugeridos</label>
         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
           {TRATAMENTOS.map(t => { const on = f.trat.includes(t.id); return (
@@ -2830,7 +2880,7 @@ function EditarReceita({ receita, user, onSalvo, onCancelar }) {
           style={{width:'100%',border:`1.5px solid ${erros.motivo?C.danger:C.border}`,borderRadius:8,padding:'8px 12px',fontSize:14,resize:'vertical'}}/>
         {erros.motivo && <div style={{fontSize:11,color:C.danger,marginTop:4,fontWeight:600}}>{erros.motivo}</div>}
       </div>
-      <div style={{fontSize:12,color:C.gray}}>A alteração fica registrada com seu nome, data e hora, e o motivo. A receita impressa passa a indicar que foi retificada.</div>
+      <div style={{fontSize:12,color:C.gray}}>A alteração fica registrada no histórico com seu nome, data e hora, e o motivo.</div>
       <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
         <Btn size="sm" outline onClick={onCancelar}>Cancelar</Btn>
         <Btn size="sm" color={C.teal} onClick={salvar} disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar alteração'}</Btn>
@@ -2984,6 +3034,7 @@ function Receitas({ user, selectedUnidade='' }) {
                 </tbody>
               </table>
             </div>
+            {detalhe.tipo_lente && <div style={{fontSize:13}}><span style={{fontSize:12,fontWeight:700,color:C.textSm}}>Tipo de lente sugerido:</span> <strong style={{color:C.navy}}>{detalhe.tipo_lente}</strong></div>}
             {(detalhe.tratamentos_sugeridos||[]).length > 0 && (
               <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                 <span style={{fontSize:12,fontWeight:700,color:C.textSm}}>Tratamentos recomendados:</span>
@@ -3045,7 +3096,7 @@ const MANUAL = [
   { id:'passo', perfis:['opto','comercial','gerente','supervisor','diretor'], rotulo:'Optometrista', titulo:'Atendimento passo a passo',
     intro:'Só o optometrista preenche a anamnese e a refração e gera a receita. Os outros perfis veem as telas apenas para consulta.',
     passos:[
-      { t:'Anamnese', d:'Preencha o que o paciente relatar.', lista:['Data de nascimento é obrigatória: a idade sai na receita.','Queixa principal, medicamentos em uso e observações.','Tratamentos sugeridos: Antirreflexo já vem marcado. Marque Filtro de luz azul ou Fotocromático se indicar.'] },
+      { t:'Anamnese', d:'Preencha o que o paciente relatar.', lista:['Data de nascimento é obrigatória: a idade sai na receita.','Queixa principal, medicamentos em uso e observações.','Tipo de lente sugerido é obrigatório: Monofocal, Multifocal, Bifocal ou Ocupacional.','Tratamentos sugeridos: Antirreflexo já vem marcado. Marque Filtro de luz azul ou Fotocromático se indicar.'] },
       { t:'Refração', d:'Digite os valores com vírgula ou ponto. O sistema formata sozinho.', lista:['Cilíndrico é sempre negativo. Se digitar positivo, ele converte.','Eixo vai de 0 a 180 e é obrigatório quando há cilíndrico.','A adição é uma só para os dois olhos (AO).','Campo vazio sai como PLANO ou N/A.'] },
       { t:'Gerar receita', d:'Confere os campos, salva a receita e marca o paciente como Compareceu.' },
       { t:'Imprimir', d:'Imprima a receita, já com a assinatura do optometrista. Se o paciente pedir, gere a Declaração de comparecimento: o CPF é pedido na hora e não fica guardado.' },
@@ -3054,9 +3105,9 @@ const MANUAL = [
   { id:'receitas', perfis:TODOS, rotulo:'Tela Receitas', titulo:'Consultar, corrigir e reimprimir', tituloConsulta:'Consultar e reimprimir',
     intro:'Abre em Tudo, para achar qualquer receita da loja. Busque pelo nome do paciente ou filtre por optometrista e período. Em Ver, dá para imprimir de novo a receita ou a declaração.',
     cards:[
-      { t:'Editar receita', tag:'Só optometrista', d:'Corrige grau, adição, DNP, tratamentos e observações de uma receita já gerada. O motivo da alteração é obrigatório.', perfis:['opto','supervisor','diretor'] },
+      { t:'Editar receita', tag:'Só optometrista', d:'Corrige grau, adição, DNP, tipo de lente, tratamentos e observações de uma receita já gerada. O motivo da alteração é obrigatório.', perfis:['opto','supervisor','diretor'] },
       { t:'Histórico de alterações', d:'Cada correção fica registrada com data, hora, quem alterou, o motivo e o valor antes e depois.' },
-      { t:'Receita retificada', d:'A receita impressa depois de uma correção traz a linha "Receita retificada em" com a data e a hora.' },
+      { t:'Impressão', d:'A receita impressa sai sempre com os dados atuais. As correções ficam só no histórico do sistema.' },
     ] },
   { id:'resultados', perfis:['prevenda','supervisor','diretor'], rotulo:'Resultados', titulo:'Acompanhar resultados',
     cards:[
@@ -3068,7 +3119,7 @@ const MANUAL = [
     cards:[
       { t:'Usuários', d:'Cadastre pessoas com perfil e loja, redefina senhas e desative quem saiu. Inativos ficam escondidos.' },
       { t:'Lojas', d:'Adicione lojas com endereço e a agenda do Google. O botão Testar confere se a agenda está ligada.' },
-      { t:'Quem vê o quê', d:'Optometrista, comercial, gerente e pré-venda veem só a própria loja. Supervisor e diretor veem todas. Só o optometrista gera e edita receitas.' },
+      { t:'Quem vê o quê', d:'Optometrista, comercial e gerente veem só a própria loja. Pré-venda, supervisor e diretor veem todas. Só o optometrista gera e edita receitas.' },
     ] },
   { id:'automatico', perfis:TODOS, rotulo:'O sistema faz sozinho', titulo:'Regras automáticas',
     regras:[
@@ -3079,7 +3130,7 @@ const MANUAL = [
     ] },
   { id:'duvidas', perfis:TODOS, rotulo:'Dúvidas frequentes', titulo:'Perguntas comuns',
     faq:[
-      ['O sistema não deixa avançar para a refração.','Falta a data de nascimento na anamnese. Preencha e clique de novo em Próximo.', ['opto']],
+      ['O sistema não deixa avançar para a refração.','Falta a data de nascimento ou o tipo de lente sugerido na anamnese. Preencha e clique de novo em Próximo.', ['opto']],
       ['Errei a receita depois de gerar. E agora?','Abra a receita em Receitas, clique em Editar receita, corrija e informe o motivo. A alteração fica no histórico.', ['opto','supervisor','diretor']],
       ['Não aparece o botão Gerar Receita.','Só o optometrista gera receitas. Confira se você entrou com o seu próprio usuário.', TODOS],
       ['Um paciente da IA não apareceu na agenda.','Aguarde até 5 minutos e recarregue a página. Se continuar faltando, avise o supervisor.', TODOS],
@@ -3269,7 +3320,7 @@ export default function App() {
 
   const navPerm = PERFIS[usuario.perfil]?.nav || [];
   // Quem não vê todas as lojas (opto, comercial, gerente) fica sempre preso à própria loja
-  const veTodas = ['diretor','supervisor'].includes(usuario.perfil);
+  const veTodas = ['diretor','supervisor','prevenda'].includes(usuario.perfil);
   const lojaEfetiva = veTodas ? selectedUnidade : (usuario.unidade || '__sem_loja__');
   if (!navPerm.includes(tab)) return (
     <Layout user={usuario} tab={tab} setTab={setTab} onLogout={handleLogout} selectedUnidade={selectedUnidade} setSelectedUnidade={setSelectedUnidade}>

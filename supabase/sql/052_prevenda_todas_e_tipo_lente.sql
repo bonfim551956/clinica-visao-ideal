@@ -1,0 +1,4 @@
+-- 052 (aplicada via MCP em 23/10/2026)
+-- Pré-venda volta a ver todas as lojas: agenda_escopo_unidade() devolve '*' para diretor, supervisor e prevenda
+-- receitas.tipo_lente (MONOFOCAL / MULTIFOCAL / BIFOCAL / OCUPACIONAL), obrigatório na tela
+-- fn_receita_edicao passa a registrar também tipo_lente no histórico

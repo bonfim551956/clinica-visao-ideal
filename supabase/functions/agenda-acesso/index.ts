@@ -10,8 +10,8 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const GESTORES = ['supervisor', 'diretor']
 const PERFIS = ['opto', 'comercial', 'prevenda', 'gerente', 'supervisor', 'diretor']
-// Só supervisor e diretor ficam sem loja (veem todas); os demais perfis pertencem a uma loja
-const SEM_UNIDADE = ['diretor', 'supervisor']
+// Supervisor, diretor e pré-venda ficam sem loja (veem todas); os demais perfis pertencem a uma loja
+const SEM_UNIDADE = ['diretor', 'supervisor', 'prevenda']
 const CAMPOS = 'id,nome,perfil,cro,ativo,unidade,endereco,auth_id'
 const DOMINIO_AUTH = 'agenda.idealize'
 
