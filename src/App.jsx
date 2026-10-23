@@ -1515,7 +1515,7 @@ function imprimirReceita(r) {
 }
 
 // Assinaturas digitalizadas por optometrista (id do usuário → imagem em /public/assinaturas)
-const ASSINATURAS = { AHAH8YRN: '/assinaturas/AHAH8YRN.png' };
+const ASSINATURAS = { AHAH8YRN: '/assinaturas/AHAH8YRN.png', BE9D3DPW: '/assinaturas/BE9D3DPW.png' };
 const imgAssinatura = (optoId, classe) => ASSINATURAS[optoId]
   ? `<img src="${window.location.origin}${ASSINATURAS[optoId]}" class="${classe}" alt="Assinatura" onerror="this.style.display='none'"/>` : '';
 
