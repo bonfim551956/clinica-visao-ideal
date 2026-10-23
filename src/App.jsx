@@ -1515,9 +1515,19 @@ function imprimirReceita(r) {
 }
 
 // Assinaturas digitalizadas por optometrista (id do usuário → imagem em /public/assinaturas)
-const ASSINATURAS = { AHAH8YRN: '/assinaturas/AHAH8YRN.png', BE9D3DPW: '/assinaturas/BE9D3DPW.png' };
-const imgAssinatura = (optoId, classe) => ASSINATURAS[optoId]
-  ? `<img src="${window.location.origin}${ASSINATURAS[optoId]}" class="${classe}" alt="Assinatura" onerror="this.style.display='none'"/>` : '';
+// Assinaturas por optometrista (id do cadastro). "altura" = altura em px na impressão, para assinaturas mais altas que largas
+const ASSINATURAS = {
+  AHAH8YRN: '/assinaturas/AHAH8YRN.png',
+  BE9D3DPW: '/assinaturas/BE9D3DPW.png',
+  TKS6UWSG: { src: '/assinaturas/TKS6UWSG.png', altura: 170 },
+};
+const imgAssinatura = (optoId, classe) => {
+  const a = ASSINATURAS[optoId]; if (!a) return '';
+  const { src, altura } = typeof a === 'string' ? { src: a } : a;
+  // assinatura com carimbo embaixo: fica inteira acima da linha, sem encostar no nome impresso
+  const estilo = altura ? ` style="height:${altura}px;max-width:none;margin-bottom:6px"` : '';
+  return `<img src="${window.location.origin}${src}" class="${classe}"${estilo} alt="Assinatura" onerror="this.style.display='none'"/>`;
+};
 
 /* ══════════════════════════════════════════════════════
    DECLARAÇÃO DE COMPARECIMENTO
