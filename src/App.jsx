@@ -319,7 +319,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
   const navItems = NAV_ITEMS.filter(n => PERFIS[user.perfil]?.nav.includes(n.id));
   const perfil = PERFIS[user.perfil];
 
-  const podeVerTodasUnidades = ['diretor','supervisor','prevenda'].includes(user.perfil);
+  const podeVerTodasUnidades = ['diretor','supervisor'].includes(user.perfil);
   // Seletor de loja no mesmo padrão das listas do sistema (só para quem vê todas as unidades)
   const unidadeFilter = () => !podeVerTodasUnidades ? null : (
     <Select value={selectedUnidade} onChange={e=>setSelectedUnidade(e.target.value)} style={{minWidth:200}}
@@ -2733,7 +2733,7 @@ function UsuarioModal({ user, onSave, onClose }) {
         <Input label="Nome" value={form.nome} onChange={e=>set('nome',e.target.value)} placeholder="Nome completo"/>
         <Select label="Perfil" value={form.perfil} onChange={e=>set('perfil',e.target.value)}
           options={Object.entries(PERFIS).map(([v,p])=>({value:v,label:p.label}))}/>
-        {!['diretor','supervisor','prevenda'].includes(form.perfil) && (<>
+        {!['diretor','supervisor'].includes(form.perfil) && (<>
           <Select label="Unidade" value={form.unidade} onChange={e=>handleUnidade(e.target.value)}
             options={[{value:'',label:'Selecionar unidade'},...UNIDADES.map(u=>({value:u,label:u}))]}/>
           <Input label="Endereço da Unidade" value={form.endereco} onChange={e=>set('endereco',e.target.value)}
@@ -3000,7 +3000,7 @@ export default function App() {
 
   const navPerm = PERFIS[usuario.perfil]?.nav || [];
   // Quem não vê todas as lojas (opto, comercial, gerente) fica sempre preso à própria loja
-  const veTodas = ['diretor','supervisor','prevenda'].includes(usuario.perfil);
+  const veTodas = ['diretor','supervisor'].includes(usuario.perfil);
   const lojaEfetiva = veTodas ? selectedUnidade : (usuario.unidade || '__sem_loja__');
   if (!navPerm.includes(tab)) return (
     <Layout user={usuario} tab={tab} setTab={setTab} onLogout={handleLogout} selectedUnidade={selectedUnidade} setSelectedUnidade={setSelectedUnidade}>
