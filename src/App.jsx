@@ -367,7 +367,36 @@ function TrocarSenhaModal({ onClose }) {
   );
 }
 
+// Confere a cada 2 minutos se saiu versão nova do sistema (o nome do arquivo principal muda a cada publicação)
+const arquivoAtual = () => (document.querySelector('script[src*="/static/js/main."]')?.getAttribute('src') || '').match(/main\.[a-z0-9]+\.js/)?.[0] || '';
+function useNovaVersao() {
+  const [nova, setNova] = useState(false);
+  useEffect(() => {
+    const atual = arquivoAtual();
+    if (!atual) return; // em desenvolvimento não há arquivo com versão
+    const conferir = async () => {
+      try {
+        const html = await (await fetch('/index.html?v=' + Date.now(), { cache: 'no-store' })).text();
+        const publicado = html.match(/main\.[a-z0-9]+\.js/)?.[0];
+        if (publicado && publicado !== atual) setNova(true);
+      } catch { /* sem internet: tenta de novo depois */ }
+    };
+    const t = setInterval(conferir, 120000);
+    const aoVoltar = () => { if (document.visibilityState === 'visible') conferir(); };
+    document.addEventListener('visibilitychange', aoVoltar);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', aoVoltar); };
+  }, []);
+  return nova;
+}
+const AvisoVersao = () => (
+  <button onClick={()=>window.location.reload()} title="Recarrega o sistema na versão nova"
+    style={{display:'inline-flex',alignItems:'center',gap:8,padding:'6px 12px',borderRadius:999,border:`1.5px solid ${C.orange}`,background:C.orangeBg,color:C.orange,fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
+    <span style={{width:8,height:8,borderRadius:'50%',background:C.orange}}/>Nova versão disponível · Atualizar
+  </button>
+);
+
 function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnidade, children }) {
+  const novaVersao = useNovaVersao();
   const [minhaSenha, setMinhaSenha] = useState(false);
   const modalSenha = minhaSenha && <TrocarSenhaModal onClose={()=>setMinhaSenha(false)}/>;
   const isMobile = useIsMobile();
@@ -417,6 +446,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
         <img src="/logo-visao-ideal.png" alt="Visão Ideal" style={{height:36,objectFit:'contain'}}/>
         <Badge color={perfil?.cor||C.teal}>{perfil?.label}</Badge>
       </div>
+      {novaVersao && <div style={{padding:'0 12px 8px',display:'flex',justifyContent:'center'}}><AvisoVersao/></div>}
       {podeVerTodasUnidades && (
       <div style={{padding:'6px 12px 8px',overflowX:'auto',display:'flex',gap:6,borderTop:`1px solid ${C.border}11`}}>
         {unidadeFilter()}
@@ -439,7 +469,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
         </div>
       </>}
       {/* Content */}
-      <div style={{flex:1,minWidth:0,marginTop:podeVerTodasUnidades?88:52,padding:'16px 12px 80px'}}>
+      <div style={{flex:1,minWidth:0,marginTop:(podeVerTodasUnidades?88:52)+(novaVersao?40:0),padding:'16px 12px 80px'}}>
         {children}
       </div>
       {/* Bottom nav */}
@@ -498,6 +528,7 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
               </div>
             </div>
             <div style={{display:'flex',alignItems:'center',gap:12}}>
+              {novaVersao && <AvisoVersao/>}
               <Badge color={perfil?.cor||C.teal}>{perfil?.label}</Badge>
               {podeVerTodasUnidades ? unidadeFilter() : user.unidade && <span style={{fontSize:12,color:C.gray}}>{user.unidade}</span>}
             </div>
@@ -569,9 +600,10 @@ function Dashboard({ user, selectedUnidade='' }) {
         applyU(noPeriodo(supabase.from('agenda').select('status'))),
         applyU(noPeriodo(supabase.from('receitas').select('id'))),
         applyU(noPeriodo(supabase.from('conversoes').select('converteu,valor_venda'))),
-        // Próximas: sempre a partir de agora (independe do período), mais cedo primeiro
+        // Próximas: só as que ainda vão acontecer, dentro do período escolhido (Hoje = só hoje)
+        ate < today() ? Promise.resolve({ data: [] }) :
         applyU(supabase.from('agenda').select('*').eq('status','Agendado')
-          .gte('data', today()).order('data').order('hora').limit(40)),
+          .gte('data', de > today() ? de : today()).lte('data', ate).order('data').order('hora').limit(300)),
       ]);
       const agenda = (ag.data || []).filter(a => a.status !== 'Cancelado');
       const cvs = conv.data || [];
@@ -590,7 +622,7 @@ function Dashboard({ user, selectedUnidade='' }) {
         taxaConv: cvs.length ? Math.round((totalConv/cvs.length)*100) : 0,
       });
       const agora = new Date(); const hhmm = `${String(agora.getHours()).padStart(2,'0')}:${String(agora.getMinutes()).padStart(2,'0')}`;
-      setProximos((prox.data||[]).filter(a => a.data > today() || String(a.hora||'').slice(0,5) >= hhmm).slice(0,10));
+      setProximos((prox.data||[]).filter(a => a.data > today() || String(a.hora||'').slice(0,5) >= hhmm));
       setLoading(false);
     };
     load();
@@ -643,8 +675,9 @@ function Dashboard({ user, selectedUnidade='' }) {
       <Card style={{padding:24}}>
         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
           <h3 style={{fontSize:15,fontWeight:700,color:C.navy}}>Próximas Consultas</h3>
+          {proximos.length > 0 && <span style={{fontSize:12,color:C.gray,fontWeight:600}}>{proximos.length} pendente(s) no período</span>}
         </div>
-        {proximos.length === 0 ? <p style={{color:C.gray,textAlign:'center',padding:20}}>Nenhum agendamento encontrado</p> : (
+        {proximos.length === 0 ? <p style={{color:C.gray,textAlign:'center',padding:20}}>Nenhuma consulta pendente no período</p> : (
           <div className="tbl-wrap">
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
               <thead>
