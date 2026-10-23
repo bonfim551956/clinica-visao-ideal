@@ -49,6 +49,8 @@ export async function listarUsuarios(forcar = false) {
   cacheUsuarios = { em: Date.now(), lista: data || [] };
   return cacheUsuarios.lista;
 }
+// Lista de usuários já carregada (para impressão, que não pode esperar a rede antes de abrir a janela)
+export const usuariosEmCache = () => cacheUsuarios?.lista || [];
 // Lojas (tabela public.unidades): nome, endereço e ID da agenda do Google de cada loja
 export async function listarUnidades() {
   const { data, error } = await supabase.from('unidades').select('*').order('ordem').order('nome');

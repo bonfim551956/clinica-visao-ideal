@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase, entrar, usuarioDaSessao, gerirUsuario, sair, listarUsuarios, listarUnidades } from './supabase';
+import { supabase, entrar, usuarioDaSessao, gerirUsuario, sair, listarUsuarios, listarUnidades, usuariosEmCache } from './supabase';
 
 /* ── helpers ── */
 const pad = n => String(n).padStart(2,'0');
@@ -1412,7 +1412,11 @@ const idadeEm = (nasc, ref) => {
   return a >= 0 ? `${a} ${a === 1 ? 'ano' : 'anos'}` : '';
 };
 const esc = v => String(v ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const fmtCro = cro => { const c = String(cro||'').trim(); return !c ? '' : /^cro/i.test(c) ? c : `CRO-SP ${c}`; };
+// Nome e registro do optometrista exatamente como estão no cadastro (sem acrescentar nada); se o cadastro não estiver carregado, usa o que ficou gravado na receita
+const cadastroOpto = r => {
+  const u = usuariosEmCache().find(x => x.id === r.opto_id);
+  return { nome: (u?.nome || r.opto_nome || '').trim(), registro: String((u ? u.cro : r.opto_cro) || '').trim() };
+};
 
 function imprimirReceita(r) {
   const logoUrl = window.location.origin + '/logo-visao-ideal.png';
@@ -1421,7 +1425,7 @@ function imprimirReceita(r) {
   const unidade = r.unidade || r.opto_unidade || 'SÃO VICENTE';
   const dtExtenso = unidade + ', ' + new Date((r.data || today()) + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
   const idade = idadeEm(r.paciente_data_nascimento, dAt || r.data);
-  const cro = fmtCro(r.opto_cro);
+  const { nome: nomeOpto, registro: cro } = cadastroOpto(r);
   const endereco = r.opto_endereco || ENDERECOS_UNIDADES[unidade] || ENDERECOS_UNIDADES['SÃO VICENTE'];
   const eixo = v => v && v !== '—' ? esc(v) + '°' : '—';
   const dnp = v => v && v !== 'N/A' ? esc(v) : '—';
@@ -1493,7 +1497,7 @@ function imprimirReceita(r) {
       <div class="assinatura-col">
         ${imgAssinatura(r.opto_id, 'assinatura-img')}
         <div class="assinatura-linha"></div>
-        <div class="assinatura-nome">${esc(r.opto_nome)}</div>
+        <div class="assinatura-nome">${esc(nomeOpto)}</div>
         ${cro ? `<div class="assinatura-cro">${esc(cro)}</div>` : ''}
       </div>
       <div class="data-local">${esc(dtExtenso)}</div>
@@ -1534,7 +1538,7 @@ function imprimirDeclaracao(r, { cpf, inicio, fim }) {
   const unidade = r.unidade || r.opto_unidade || 'SÃO VICENTE';
   const endereco = r.opto_endereco || ENDERECOS_UNIDADES[unidade] || ENDERECOS_UNIDADES['SÃO VICENTE'];
   const dataEmissao = new Date(dAt + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
-  const cro = fmtCro(r.opto_cro);
+  const { nome: nomeOpto, registro: cro } = cadastroOpto(r);
   const w = window.open('', '_blank');
   if (!w) { alert('Permita popups neste site para imprimir a declaração.'); return; }
   w.document.write(`<!DOCTYPE html><html><head><title>Declaração de Comparecimento</title><meta charset="utf-8"/>
@@ -1571,8 +1575,8 @@ function imprimirDeclaracao(r, { cpf, inicio, fim }) {
     <div class="assinatura">
       ${imgAssinatura(r.opto_id, 'assinatura-img')}
       <div class="linha"></div>
-      <div class="nome">${esc(r.opto_nome)}</div>
-      <div class="reg">Optometrista — CBO 3223${cro ? ' · ' + esc(cro) : ''}</div>
+      <div class="nome">${esc(nomeOpto)}</div>
+      ${cro ? `<div class="reg">${esc(cro)}</div>` : ''}
       <div class="carimbo">Carimbo e assinatura</div>
     </div>
     <div class="footer">Clínica Visão Ideal &nbsp;·&nbsp; ${esc(endereco)}</div>
@@ -3313,7 +3317,7 @@ export default function App() {
     return lista;
   }, []);
   const usuarioId = usuario?.id;
-  useEffect(() => { if (usuarioId) recarregarLojas(); else setLojasProntas(false); }, [usuarioId, recarregarLojas]);
+  useEffect(() => { if (usuarioId) { recarregarLojas(); listarUsuarios(); } else setLojasProntas(false); }, [usuarioId, recarregarLojas]);
 
   const handleLogout = () => {
     try { localStorage.removeItem(SESSION_KEY); } catch {}
