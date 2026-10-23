@@ -95,7 +95,7 @@ const PERFIS = {
   opto:      { label:'Optometrista', cor:C.teal,    nav:['inicio','agenda','atendimento','receitas'] },
   comercial: { label:'Comercial',    cor:'#4DA6A4',  nav:['inicio','agenda','atendimento','receitas'] },
   prevenda:  { label:'Pré-Venda',    cor:'#3F6FA0',  nav:['inicio','agenda','conversao','noshow','receitas'] },
-  gerente:   { label:'Gerente',      cor:C.orange,   nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios'] },
+  gerente:   { label:'Gerente',      cor:C.orange,   nav:['inicio','agenda','atendimento','receitas'] },
   supervisor:{ label:'Supervisor',   cor:'#2A5790',  nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios','lojas'] },
   diretor:   { label:'Diretor',      cor:C.navy,     nav:['inicio','agenda','atendimento','receitas','conversao','noshow','relatorios','usuarios','lojas'] },
 };
@@ -121,7 +121,7 @@ const aplicarUnidades = lista => {
 };
 
 // Perfis que veem os KPIs comerciais (Conversões, Faturamento, No-Show, Taxa Conv.)
-const PERFIS_COMERCIAL = ['prevenda','supervisor','diretor','gerente'];
+const PERFIS_COMERCIAL = ['prevenda','supervisor','diretor'];
 
 const NAV_ITEMS = [
   { id:'inicio',       label:'Início'        },
