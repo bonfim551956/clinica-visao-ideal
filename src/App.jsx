@@ -3165,7 +3165,8 @@ const MANUAL = [
     cards:[
       { t:'Entrar', d:'Acesse agenda.clinicavisaoideal.com, digite seu nome de usuário e sua senha e clique em Entrar.' },
       { t:'Sair', d:'Use o botão Sair no menu ao terminar o turno, principalmente em computadores compartilhados.' },
-      { t:'Esqueceu a senha?', d:'Fale com o supervisor ou o diretor. Eles redefinem a senha na tela Usuários.' },
+      { t:'Trocar a senha', d:'Clique em Alterar minha senha, embaixo do seu nome no menu. Digite a senha atual e a nova, com pelo menos 6 caracteres.' },
+      { t:'Esqueceu a senha?', d:'Fale com o supervisor ou o diretor. Eles redefinem a senha na tela Usuários. Depois de 5 tentativas erradas, o acesso fica bloqueado por 15 minutos.' },
     ] },
   { id:'inicio', perfis:TODOS, rotulo:'Tela Início', titulo:'A visão geral do dia',
     intro:'É a primeira tela depois do login. Mostra os números da loja e quem vem a seguir.',
