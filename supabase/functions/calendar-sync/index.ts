@@ -75,7 +75,7 @@ function montarLinha(ev: any, unidade: string) {
     opto_nome: '',
     data, hora,
     procedimento: 'CONSULTA',
-    meio_contato: 'WHATSAPP',
+    meio_contato: 'VISÃO IDEAL',
     agendado_por: 'IA',
     status: 'Agendado',
     observacoes: desc,

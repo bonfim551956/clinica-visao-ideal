@@ -3079,7 +3079,7 @@ const MANUAL = [
       { t:'Próximas consultas', d:'Os próximos pacientes a partir de agora, com data, hora e optometrista.' },
     ] },
   { id:'agenda', perfis:TODOS, rotulo:'Tela Agenda', titulo:'Marcar e organizar horários',
-    intro:'Os agendamentos feitos pela IA no WhatsApp entram aqui sozinhos, a cada 5 minutos, com a etiqueta IA.',
+    intro:'Os agendamentos feitos pela IA entram aqui sozinhos, a cada 5 minutos, com a etiqueta IA e o meio de contato VISÃO IDEAL.',
     cards:[
       { t:'Novo agendamento', lista:['Clique em + Novo Agendamento.','Busque o paciente pelo nome ou cadastre um novo (nome e telefone).','Escolha data, horário, procedimento e meio de contato e salve.'] },
       { t:'Visão Semana', d:'Mostra segunda a sábado em colunas. As setas trocam a semana. Clique num horário vazio para agendar ou num paciente para editar.', cores:true },
