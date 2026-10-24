@@ -1859,7 +1859,7 @@ function Atendimento({ user, selectedUnidade='' }) {
   const iniciarAtendimento = (a) => {
     setSel(a); setErroNasc('');
     setTabAte('anamnese');
-    setForm({ anamnese:'', queixa:'', medicamentos:'', nasc:'', trat:TRAT_PADRAO, tipoLente:'', nomeCompleto: a.paciente_nome || '',
+    setForm({ anamnese:'', queixa:'', medicamentos:'', nasc:'', trat:TRAT_PADRAO, tipoLente:'', nomeCompleto: /^SEM NOME/.test(String(a.paciente_nome||'')) ? '' : (a.paciente_nome || ''),
       od_esf:'',od_cil:'',od_eixo:'',od_av:'',od_add:'',od_dnp:'',
       oe_esf:'',oe_cil:'',oe_eixo:'',oe_av:'',oe_add:'',oe_dnp:'' });
     setErroNome('');
@@ -1870,10 +1870,11 @@ function Atendimento({ user, selectedUnidade='' }) {
   const [erroNasc, setErroNasc] = useState('');
   // Agendamento com um nome só (comum nos que vêm da IA): o optometrista confirma o nome completo
   const palavras = n => String(n || '').trim().split(/\s+/).filter(Boolean).length;
-  const precisaNome = !!sel && palavras(sel.paciente_nome) < 2;
+  // nome de uma palavra só ou nome que a IA mandou só com emoji (gravado como 'SEM NOME - VERIFICAR')
+  const precisaNome = !!sel && (palavras(sel.paciente_nome) < 2 || /^SEM NOME/.test(String(sel.paciente_nome||'')));
   const [erroNome, setErroNome] = useState('');
   const conferirNome = () => {
-    if (!precisaNome || palavras(form.nomeCompleto) >= 2) { setErroNome(''); return true; }
+    if (!precisaNome || (palavras(form.nomeCompleto) >= 2 && !/^SEM NOME/i.test(form.nomeCompleto.trim()))) { setErroNome(''); return true; }
     setErroNome('Informe o nome completo do paciente (nome e sobrenome).'); setTabAte('anamnese'); alert('Informe o nome completo do paciente.'); return false;
   };
   const [erroTipo, setErroTipo] = useState('');
