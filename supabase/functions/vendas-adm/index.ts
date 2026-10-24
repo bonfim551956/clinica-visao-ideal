@@ -1,7 +1,10 @@
 // vendas-adm — liga as vendas registradas no Sistema ADM às receitas da clínica e gera a conversão.
 // Lê o ADM (só leitura, OS do tipo venda/hora/contato) e grava na clínica:
-//   • telefone + nome conferem, mesma loja, venda até 30 dias após o exame → conversão automática (origem ADM)
-//   • só telefone ou só nome confere → sugestão "Para conferir" (Pré-Vendas confirma ou descarta)
+//   • mesma loja, venda até 30 dias após o exame, e:
+//       telefone + nome conferem → conversão automática (origem ADM)
+//       mesmo telefone, nome de outra pessoa (compra em família) → automática
+//       mesmo nome, telefone diferente, quando um dos telefones é de outra pessoa da família (OS já verificada ou outro paciente) → automática
+//   • só o nome confere, com telefone desconhecido → sugestão "Para conferir" (Pré-Vendas confirma ou descarta)
 //   • OS cancelada no ADM → a conversão é desfeita
 //   • 30 dias sem venda → "Não convertido" (origem PRAZO)
 // Conversão registrada à mão (origem MANUAL ou vazia) nunca é alterada aqui.
@@ -97,22 +100,50 @@ async function sincronizar(admin: any) {
 
   const res = { receitas: (receitas || []).length, vendas_adm: vendas.length, convertidas: 0, desfeitas: 0, nao_convertidas: 0, sugestoes_novas: 0 }
 
-  for (const r of receitas || []) {
+  // Dados de cada receita. Conversão manual fica de fora da integração (mas a pessoa conta para a regra de família).
+  const info = (receitas || []).map((r: any) => {
     const conv = convDe[r.id]
     const origem = String(conv?.origem || '').toUpperCase()
-    if (conv && !['ADM', 'PRAZO'].includes(origem)) continue   // registro manual: não mexe
-    const loja = String(r.unidade || '').toUpperCase()
-    const nome = r.paciente_nome || r.agenda?.paciente_nome
-    const tel = tel8(r.agenda?.paciente_telefone) || tel8(telPac[r.agenda?.paciente_id])
-    const fim = somaDias(r.data, PRAZO_DIAS)
-    const noPrazo = (v: Venda) => v.loja === loja && v.dt >= r.data && v.dt <= fim && v.valor > 0
-    const livre = (v: Venda) => !ocupada[v.id] || ocupada[v.id] === r.id
+    return {
+      r, conv, origem, manual: !!conv && !['ADM', 'PRAZO'].includes(origem),
+      loja: String(r.unidade || '').toUpperCase(),
+      nome: r.paciente_nome || r.agenda?.paciente_nome,
+      tel: tel8(r.agenda?.paciente_telefone) || tel8(telPac[r.agenda?.paciente_id]),
+      fim: somaDias(r.data, PRAZO_DIAS),
+    }
+  })
+  type Info = typeof info[number]
+  const noPrazo = (i: Info, v: Venda) => v.loja === i.loja && v.dt >= i.r.data && v.dt <= i.fim && v.valor > 0 && !v.cancelada
+  const livre = (i: Info, v: Venda) => !ocupada[v.id] || ocupada[v.id] === i.r.id
+  const links: Record<string, Venda[]> = {}
+  const liga = (i: Info, v: Venda) => { (links[i.r.id] ||= []).push(v); ocupada[v.id] = i.r.id }
+  const gerenciadas = info.filter(i => !i.manual)
 
-    // vendas ligadas: automáticas (telefone + nome) e sugestões confirmadas
-    const confirmadas = (sugs || []).filter((s: any) => s.receita_id === r.id && s.status === 'CONFIRMADA').map((s: any) => vendaPorId[s.os_id]).filter(Boolean)
-    const automaticas = vendas.filter(v => noPrazo(v) && !v.cancelada && livre(v) && tel && v.tel === tel && nomeConfere(nome, v.cliente))
-    const ligadas = [...new Map([...automaticas, ...confirmadas].filter(v => !v.cancelada).map(v => [v.id, v])).values()]
-    for (const v of ligadas) ocupada[v.id] = r.id
+  // 0. sugestões já confirmadas por Pré-Vendas
+  for (const i of gerenciadas) for (const s of (sugs || []).filter((s: any) => s.receita_id === i.r.id && s.status === 'CONFIRMADA')) {
+    const v = vendaPorId[s.os_id]; if (v && !v.cancelada) liga(i, v)
+  }
+  // 1. telefone e nome conferem
+  for (const i of gerenciadas) for (const v of vendas)
+    if (noPrazo(i, v) && livre(i, v) && i.tel && v.tel === i.tel && nomeConfere(i.nome, v.cliente)) liga(i, v)
+  // 2. família: mesmo telefone, OS no nome de outra pessoa (marido, esposa, filhos).
+  //    Se a OS estiver no nome de outro paciente que fez exame na loja, ela fica com esse paciente.
+  const nomeDeOutroPaciente = (i: Info, v: Venda) => info.some(o => o !== i && o.loja === i.loja && nomeConfere(o.nome, v.cliente))
+  for (const i of gerenciadas) for (const v of vendas)
+    if (noPrazo(i, v) && livre(i, v) && i.tel && v.tel === i.tel && !nomeDeOutroPaciente(i, v)) liga(i, v)
+  // 3. família: OS no nome do paciente, com telefone diferente, quando um dos telefones é de outra pessoa da família:
+  //    a) o telefone da OS é de uma OS já verificada ou de outro paciente da loja com exame; ou
+  //    b) o telefone do agendamento do paciente é o de uma OS já verificada (a família agendou com um número só)
+  const telConhecido = new Set<string>(), telVerificado = new Set<string>()
+  for (const id of Object.keys(ocupada)) { const v = vendaPorId[id]; if (v?.tel) { telConhecido.add(v.loja + '|' + v.tel); telVerificado.add(v.loja + '|' + v.tel) } }
+  for (const i of info) if (i.tel) telConhecido.add(i.loja + '|' + i.tel)
+  for (const i of gerenciadas) for (const v of vendas)
+    if (noPrazo(i, v) && livre(i, v) && nomeConfere(i.nome, v.cliente) &&
+        ((v.tel && telConhecido.has(v.loja + '|' + v.tel)) || (i.tel && telVerificado.has(i.loja + '|' + i.tel)))) liga(i, v)
+
+  for (const i of gerenciadas) {
+    const { r, conv, origem, loja, nome, tel, fim } = i
+    const ligadas = [...new Map((links[r.id] || []).map(v => [v.id, v])).values()]
 
     if (ligadas.length) {
       const valor = Math.round(ligadas.reduce((s, v) => s + v.valor, 0) * 100) / 100
@@ -152,7 +183,7 @@ async function sincronizar(admin: any) {
     // sugestões "Para conferir": só telefone ou só nome confere
     const jaSugeridas = new Set((sugs || []).filter((s: any) => s.receita_id === r.id).map((s: any) => s.os_id))
     for (const v of vendas) {
-      if (!noPrazo(v) || v.cancelada || !livre(v) || jaSugeridas.has(v.id)) continue
+      if (!noPrazo(i, v) || !livre(i, v) || jaSugeridas.has(v.id)) continue
       const telOk = !!tel && v.tel === tel, nomeOk = nomeConfere(nome, v.cliente)
       if (telOk === nomeOk) continue  // os dois (já tratado acima) ou nenhum
       const { error } = await admin.from('vendas_sugestoes').insert({

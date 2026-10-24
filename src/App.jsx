@@ -3357,7 +3357,7 @@ const MANUAL = [
     cards:[
       { t:'Conversão', d:'Pacientes atendidos e quem comprou depois do exame. As vendas do ADM (pedido, hora e lentes de contato) entram sozinhas a cada 15 minutos, com o valor da OS. O botão Buscar vendas agora faz a busca na hora.' },
       { t:'Status do paciente', d:'Quem finaliza o atendimento fica como Compareceu. Vira Convertido quando a venda é encontrada no ADM, confirmada ou registrada à mão, e Não convertido só depois de 30 dias sem venda ou quando Pré-Vendas marca Não.' },
-      { t:'Para conferir', d:'Quando só o telefone ou só o nome da venda confere com o paciente, a venda aparece neste quadro. Confirme se é a mesma pessoa ou descarte.' },
+      { t:'Para conferir', d:'Quando só o nome confere e o telefone da OS não é de ninguém da família, a venda aparece neste quadro. Confirme se é a mesma pessoa ou descarte.' },
       { t:'Registro manual', d:'Use Registrar ou Editar quando a venda não foi encontrada. Conversão registrada à mão nunca é alterada pela integração. A coluna Origem mostra ADM (com o número da OS), Manual ou Prazo de 30 dias.' },
       { t:'No-Show', d:'Quem não compareceu, para a equipe retomar o contato e remarcar.' },
       { t:'Relatórios', d:'Funil Visão Ideal: agendados, comparecimentos, receitas e vendas, comparados com o período anterior.', perfis:GESTAO },
@@ -3382,7 +3382,7 @@ const MANUAL = [
       ['✓','Compareceu','Gerar a receita marca o paciente como Compareceu na hora.'],
       ['ABC','Maiúsculas','Nomes, endereços e observações são salvos sempre em letras maiúsculas.'],
       ['OPT','Optometrista','Todo agendamento recebe o optometrista cadastrado na loja.'],
-      ['15 min','Vendas do ADM','Venda de pedido, hora ou lentes de contato da mesma loja, até 30 dias depois do exame, com telefone e nome conferindo, vira conversão com o valor da OS.'],
+      ['15 min','Vendas do ADM','Venda de pedido, hora ou lentes de contato da mesma loja, até 30 dias depois do exame, vira conversão com o valor da OS quando telefone e nome conferem, ou em compra de família: mesmo telefone com nome de outra pessoa, ou nome do paciente com o telefone de alguém da família.'],
       ['30 dias','Não convertido','Passados 30 dias do exame sem venda no ADM, o paciente fica como Não convertido.'],
       ['OS','Venda cancelada','Se a OS for cancelada no ADM, a conversão é desfeita sozinha.'],
       ['↻','Nova versão','Quando sair atualização, aparece Nova versão disponível no topo. Clique para atualizar.'],
