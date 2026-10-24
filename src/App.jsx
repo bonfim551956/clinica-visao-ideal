@@ -1551,6 +1551,11 @@ function ListaAtendimentos({ user, onAtender, selectedUnidade='' }) {
                     </td>
                     <td style={{padding:'8px 12px'}}>
                       <StatusJornada a={a}/>
+                      {/* Excluir fica junto do status para não depender da largura da tabela */}
+                      {user.perfil === 'diretor' && a.status !== 'Compareceu' && a.status !== 'Cancelado' && (
+                        <button onClick={()=>setExcluir(a)} title="Excluir atendimento duplicado"
+                          style={{display:'block',marginTop:4,background:'none',border:'none',padding:0,color:C.danger,fontSize:12,fontWeight:700,cursor:'pointer',textDecoration:'underline'}}>Excluir</button>
+                      )}
                     </td>
                     <td style={{padding:'8px 12px'}}>
                       <div style={{display:'flex',gap:6}}>
@@ -1565,9 +1570,6 @@ function ListaAtendimentos({ user, onAtender, selectedUnidade='' }) {
                         })()}
                         <Btn outline size="sm" color={C.teal} disabled={a.status==='Compareceu'} title={a.status==='Compareceu' ? 'Paciente já atendido' : ''}
                           style={{width:112,padding:'7px 0'}} onClick={()=>a.status!=='Compareceu' && setReagendar(a)}>Reagendar</Btn>
-                        {user.perfil === 'diretor' && a.status !== 'Compareceu' && a.status !== 'Cancelado' && (
-                          <Btn outline size="sm" color={C.danger} style={{padding:'7px 12px',color:C.danger}} title="Excluir atendimento duplicado" onClick={()=>setExcluir(a)}>Excluir</Btn>
-                        )}
                       </div>
                     </td>
                   </tr>
