@@ -554,8 +554,9 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
 ══════════════════════════════════════════════════════ */
 // Período do painel: hoje, semana (seg–dom), mês ou personalizado → { de, ate } em YYYY-MM-DD
 /* ── Jornada do paciente: agendado → compareceu/não compareceu → convertido/não convertido ──
-   Compareceu fica neutro até a venda: Convertido quando há venda (ADM, conferida ou manual);
-   Não convertido só depois de 30 dias sem venda ou quando Pré-Vendas marca Não. */
+   Compareceu fica neutro no dia do exame. Convertido quando há venda (ADM, conferida ou manual);
+   Pendente quando há venda do ADM "Para conferir"; Não convertido a partir do dia seguinte sem venda
+   (volta a Convertido sozinho se a venda aparecer nos 30 dias) ou quando Pré-Vendas marca Não. */
 // Liga cada agendamento à receita e à conversão (a conversão vem do PDV ou de Pré-Vendas)
 async function anexarCompras(rows) {
   const ids = (rows||[]).filter(a=>a.status==='Compareceu').map(a=>a.id);
@@ -564,11 +565,17 @@ async function anexarCompras(rows) {
   const { data: recs } = await supabase.from('receitas').select('id,agenda_id,conversoes(converteu,valor_venda)').in('agenda_id', ids);
   const porAgenda = {};
   (recs||[]).forEach(r => (r.conversoes||[]).forEach(c => { if (!porAgenda[r.agenda_id] || c.converteu) porAgenda[r.agenda_id] = c; }));
-  return rows.map(a => a.status==='Compareceu' ? { ...a, _compra: porAgenda[a.id] || null } : a);
+  // vendas do ADM aguardando Pré-Vendas confirmar ("Para conferir")
+  const recIds = (recs||[]).map(r => r.id);
+  const { data: pend } = recIds.length ? await supabase.from('vendas_sugestoes').select('receita_id').eq('status','PENDENTE').in('receita_id', recIds) : { data: [] };
+  const recPendente = new Set((pend||[]).map(p => p.receita_id));
+  const pendAgenda = new Set((recs||[]).filter(r => recPendente.has(r.id)).map(r => r.agenda_id));
+  return rows.map(a => a.status==='Compareceu' ? { ...a, _compra: porAgenda[a.id] || null, _pendente: pendAgenda.has(a.id) } : a);
 }
 const jornada = a => {
   if (a.status === 'Compareceu') {
     if (a._compra?.converteu) return { label:'Convertido', cor:C.success, valor:a._compra.valor_venda };
+    if (a._pendente) return { label:'Pendente', cor:C.orange };
     if (a._compra && a._compra.converteu === false) return { label:'Não convertido', cor:'#9A5200' };
     return { label:'Compareceu', cor:'#3F5A80' };
   }
@@ -1039,7 +1046,7 @@ function Agenda({ user, selectedUnidade='' }) {
 const DIAS_SEMANA = ['DOM','SEG','TER','QUA','QUI','SEX','SÁB'];
 const corJornada = a => {
   const j = jornada(a);
-  return { Convertido:['#E7F4EC','#1E7A3C'], 'Não convertido':['#FFF1E2','#9A5200'], Compareceu:['#EEF1F6','#3F5A80'], 'Não compareceu':['#FDECEE','#B02A37'], Cancelado:['#F0F0EE','#5A5A5A'] }[j.label] || ['#E6F2F4','#1F5F70'];
+  return { Convertido:['#E7F4EC','#1E7A3C'], 'Não convertido':['#FFF1E2','#9A5200'], Compareceu:['#EEF1F6','#3F5A80'], Pendente:['#E9EEF6','#2A5790'], 'Não compareceu':['#FDECEE','#B02A37'], Cancelado:['#F0F0EE','#5A5A5A'] }[j.label] || ['#E6F2F4','#1F5F70'];
 };
 function GradeSemana({ de, slots, mostrarLoja, onAbrir, onNovo }) {
   const dias = Array.from({length:7},(_,i)=>{ const d=new Date(de+'T12:00:00'); d.setDate(d.getDate()+i); return ymd(d); });
@@ -1101,7 +1108,7 @@ function GradeSemana({ de, slots, mostrarLoja, onAbrir, onNovo }) {
         </table>
       </div>
       <div style={{display:'flex',gap:16,flexWrap:'wrap',padding:'12px 16px',borderTop:`1px solid ${C.border}`,fontSize:12,color:C.textSm}}>
-        {[['Agendado',{status:'Agendado'}],['Compareceu',{status:'Compareceu'}],['Convertido',{status:'Compareceu',_compra:{converteu:true}}],['Não convertido',{status:'Compareceu',_compra:{converteu:false}}],['Não compareceu',{status:'Não Compareceu'}]].map(([l,a])=>{
+        {[['Agendado',{status:'Agendado'}],['Compareceu',{status:'Compareceu'}],['Pendente (conferir venda)',{status:'Compareceu',_pendente:true}],['Convertido',{status:'Compareceu',_compra:{converteu:true}}],['Não convertido',{status:'Compareceu',_compra:{converteu:false}}],['Não compareceu',{status:'Não Compareceu'}]].map(([l,a])=>{
           const [bg,fg] = corJornada(a);
           return <span key={l} style={{display:'inline-flex',alignItems:'center',gap:6}}><span style={{width:12,height:12,borderRadius:3,background:bg,borderLeft:`3px solid ${fg}`}}/>{l}</span>;
         })}
@@ -2365,13 +2372,13 @@ function Conversao({ user, selectedUnidade='' }) {
   );
 }
 
-// Origem da conversão: ADM (automática, com nº das OS), prazo de 30 dias ou registro manual
+// Origem da conversão: ADM (automática, com nº das OS), sem venda no ADM ou registro manual
 const origemConv = c => {
   if (!c) return '—';
   const o = String(c.origem || '').toUpperCase();
   const os = (Array.isArray(c.venda_ids) ? c.venda_ids : []).map(v => v.os).filter(Boolean);
   if (o === 'ADM') return `ADM${os.length ? ' · OS ' + os.join(', ') : ''}`;
-  if (o === 'PRAZO') return 'Prazo de 30 dias';
+  if (o === 'PRAZO') return 'Sem venda no ADM';
   return 'Manual';
 };
 
@@ -2426,7 +2433,7 @@ function NoShow({ user, selectedUnidade='' }) {
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(''),3000); };
 
   const load = useCallback(async () => {
-    // Não compareceu + não convertido (30 dias sem venda ou marcado por Pré-Vendas)
+    // Não compareceu + não convertido (sem venda após o dia do exame ou marcado por Pré-Vendas)
     let q = supabase.from('agenda').select('*').in('status', ['Não Compareceu','Compareceu']).order('data',{ascending:false}).order('hora');
     if (per.de) q = q.gte('data', per.de).lte('data', per.ate);
     const unidade = user.unidade || selectedUnidade;
@@ -2752,7 +2759,7 @@ function Relatorios({ selectedUnidade='' }) {
             <Etapa titulo="Não convertido" valor={f.naoComprou} base={f.compareceu} anterior={fa.naoComprou} cor={C.orange} inverso/>
           </div>
           <p style={{fontSize:12,color:C.gray,marginTop:16,lineHeight:1.5}}>
-            Os percentuais são sobre a etapa anterior. "Convertido" vem da venda no ADM ligada à receita do exame (ou do registro de Pré-Vendas). "Aguardando venda" é quem compareceu e ainda está dentro dos 30 dias. "Não convertido" é quem passou dos 30 dias sem venda ou foi marcado por Pré-Vendas. Cancelados ficam fora do funil.
+            Os percentuais são sobre a etapa anterior. "Convertido" vem da venda no ADM ligada à receita do exame (ou do registro de Pré-Vendas). "Aguardando venda" é quem foi atendido hoje ou tem venda do ADM para conferir. "Não convertido" é quem passou do dia do exame sem venda (vira Convertido se a venda aparecer em até 30 dias) ou foi marcado por Pré-Vendas. Cancelados ficam fora do funil.
           </p>
         </Card>
       )}
@@ -3447,9 +3454,9 @@ const MANUAL = [
   { id:'resultados', perfis:['prevenda','supervisor','diretor'], rotulo:'Resultados', titulo:'Acompanhar resultados',
     cards:[
       { t:'Conversão', d:'Pacientes atendidos e quem comprou depois do exame. As vendas do ADM (pedido, hora e lentes de contato) entram sozinhas a cada 15 minutos, com o valor da OS. O botão Buscar vendas agora faz a busca na hora.' },
-      { t:'Status do paciente', d:'Quem finaliza o atendimento fica como Compareceu. Vira Convertido quando a venda é encontrada no ADM, confirmada ou registrada à mão, e Não convertido só depois de 30 dias sem venda ou quando Pré-Vendas marca Não.' },
+      { t:'Status do paciente', d:'Quem finaliza o atendimento fica como Compareceu. Vira Convertido quando a venda é encontrada no ADM, confirmada ou registrada à mão. Se a venda estiver em Para conferir, fica Pendente até Pré-Vendas decidir. Sem venda, vira Não convertido no dia seguinte e volta a Convertido sozinho se a venda aparecer em até 30 dias.' },
       { t:'Para conferir', d:'Quando só o nome confere e o telefone da OS não é de ninguém da família, a venda aparece neste quadro. Confirme se é a mesma pessoa ou descarte.' },
-      { t:'Registro manual', d:'Use Registrar ou Editar quando a venda não foi encontrada. Conversão registrada à mão nunca é alterada pela integração. A coluna Origem mostra ADM (com o número da OS), Manual ou Prazo de 30 dias.' },
+      { t:'Registro manual', d:'Use Registrar ou Editar quando a venda não foi encontrada. Conversão registrada à mão nunca é alterada pela integração. A coluna Origem mostra ADM (com o número da OS), Manual ou Sem venda no ADM.' },
       { t:'No-Show', d:'Quem não compareceu, para a equipe retomar o contato e remarcar.' },
       { t:'Relatórios', d:'Funil Visão Ideal: agendados, comparecimentos, receitas e vendas, comparados com o período anterior.', perfis:GESTAO },
     ] },
@@ -3474,7 +3481,7 @@ const MANUAL = [
       ['ABC','Maiúsculas','Nomes, endereços e observações são salvos sempre em letras maiúsculas.'],
       ['OPT','Optometrista','Todo agendamento recebe o optometrista cadastrado na loja.'],
       ['15 min','Vendas do ADM','Venda de pedido, hora ou lentes de contato da mesma loja, até 30 dias depois do exame, vira conversão com o valor da OS quando telefone e nome conferem, ou em compra de família: mesmo telefone com nome de outra pessoa, ou nome do paciente com o telefone de alguém da família.'],
-      ['30 dias','Não convertido','Passados 30 dias do exame sem venda no ADM, o paciente fica como Não convertido.'],
+      ['0h','Não convertido','À meia-noite, quem foi atendido no dia e não tem venda no ADM vira Não convertido. Se a venda aparecer em até 30 dias, vira Convertido sozinho. Com venda em Para conferir, fica Pendente até Pré-Vendas decidir.'],
       ['OS','Venda cancelada','Se a OS for cancelada no ADM, a conversão é desfeita sozinha.'],
       ['↻','Nova versão','Quando sair atualização, aparece Nova versão disponível no topo. Clique para atualizar.'],
     ] },
@@ -3488,7 +3495,7 @@ const MANUAL = [
       ['A impressão não abre.','O navegador bloqueou a janela. Libere as janelas pop-up para agenda.clinicavisaoideal.com e tente de novo.', TODOS],
     ] },
 ];
-const CORES_SEMANA = [['Agendado',{status:'Agendado'}],['Compareceu',{status:'Compareceu'}],['Convertido',{status:'Compareceu',_compra:{converteu:true}}],['Não convertido',{status:'Compareceu',_compra:{converteu:false}}],['Não compareceu',{status:'Não Compareceu'}]];
+const CORES_SEMANA = [['Agendado',{status:'Agendado'}],['Compareceu',{status:'Compareceu'}],['Pendente (conferir venda)',{status:'Compareceu',_pendente:true}],['Convertido',{status:'Compareceu',_compra:{converteu:true}}],['Não convertido',{status:'Compareceu',_compra:{converteu:false}}],['Não compareceu',{status:'Não Compareceu'}]];
 function Manual({ user }) {
   const p = user.perfil;
   const vale = x => !x.perfis || x.perfis.includes(p);

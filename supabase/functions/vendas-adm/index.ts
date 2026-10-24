@@ -6,7 +6,9 @@
 //       mesmo nome, telefone diferente, quando um dos telefones é de outra pessoa da família (OS já verificada ou outro paciente) → automática
 //   • só o nome confere, com telefone desconhecido → sugestão "Para conferir" (Pré-Vendas confirma ou descarta)
 //   • OS cancelada no ADM → a conversão é desfeita
-//   • 30 dias sem venda → "Não convertido" (origem PRAZO)
+//   • sem venda até o fim do dia do exame → "Não convertido" (origem PRAZO); se a venda aparecer
+//     nos 30 dias, vira Convertido sozinho
+//   • com sugestão "Para conferir" pendente → fica Pendente (sem Não convertido) até Pré-Vendas decidir
 // Conversão registrada à mão (origem MANUAL ou vazia) nunca é alterada aqui.
 // Ações: { acao: 'sincronizar' } (padrão; também chamada pelo agendador a cada 15 min)
 //        { acao: 'confirmar' | 'descartar', id }  → só Pré-Vendas, supervisor e diretor
@@ -142,7 +144,7 @@ async function sincronizar(admin: any) {
         ((v.tel && telConhecido.has(v.loja + '|' + v.tel)) || (i.tel && telVerificado.has(i.loja + '|' + i.tel)))) liga(i, v)
 
   for (const i of gerenciadas) {
-    const { r, conv, origem, loja, nome, tel, fim } = i
+    const { r, conv, origem, loja, nome, tel } = i
     const ligadas = [...new Map((links[r.id] || []).map(v => [v.id, v])).values()]
 
     if (ligadas.length) {
@@ -164,24 +166,18 @@ async function sincronizar(admin: any) {
       continue
     }
 
-    // nada ligado: desfaz conversão automática (OS cancelada) e, passado o prazo, marca não convertido
+    // nada ligado: desfaz conversão automática (OS cancelada)
     if (conv && origem === 'ADM') {
       await admin.from('conversoes').delete().eq('id', conv.id)
       res.desfeitas++
     }
-    if (hoje > fim && !(conv && origem === 'PRAZO')) {
-      await admin.from('conversoes').upsert({
-        id: (conv && origem === 'ADM') ? novoId() : (conv?.id || novoId()), receita_id: r.id, paciente_nome: nome, opto_nome: r.opto_nome,
-        data: fim, converteu: false, valor_venda: 0, produto: '', prevenda_id: null, prevenda_nome: 'AUTOMÁTICO (PRAZO)',
-        unidade: loja, origem: 'PRAZO', venda_ids: [],
-      }, { onConflict: 'receita_id' })
-      res.nao_convertidas++
-    } else if (conv && origem === 'PRAZO' && hoje <= fim) {
-      await admin.from('conversoes').delete().eq('id', conv.id)
-    }
 
-    // sugestões "Para conferir": só telefone ou só nome confere
+    // sugestões "Para conferir": só um dos dados confere
     const jaSugeridas = new Set((sugs || []).filter((s: any) => s.receita_id === r.id).map((s: any) => s.os_id))
+    let pendente = (sugs || []).some((s: any) => {
+      const v = vendaPorId[s.os_id]
+      return s.receita_id === r.id && s.status === 'PENDENTE' && !!v && !v.cancelada && livre(i, v)
+    })
     for (const v of vendas) {
       if (!noPrazo(i, v) || !livre(i, v) || jaSugeridas.has(v.id)) continue
       const telOk = !!tel && v.tel === tel, nomeOk = nomeConfere(nome, v.cliente)
@@ -191,7 +187,21 @@ async function sincronizar(admin: any) {
         cliente: v.cliente, telefone_fim: v.tel.slice(-4), dt_venda: v.dt, valor: v.valor,
         motivo: telOk ? 'TELEFONE_IGUAL_NOME_DIFERENTE' : 'NOME_IGUAL_TELEFONE_DIFERENTE',
       })
-      if (!error) res.sugestoes_novas++
+      if (!error) { res.sugestoes_novas++; pendente = true }
+    }
+
+    // Não convertido: a partir do dia seguinte ao exame, sem venda e sem nada para conferir.
+    // Com sugestão pendente fica Pendente (sem conversão) até Pré-Vendas confirmar ou descartar.
+    const deveMarcar = hoje > r.data && !pendente
+    if (deveMarcar && !(conv && origem === 'PRAZO')) {
+      await admin.from('conversoes').upsert({
+        id: (conv && origem === 'ADM') ? novoId() : (conv?.id || novoId()), receita_id: r.id, paciente_nome: nome, opto_nome: r.opto_nome,
+        data: hoje, converteu: false, valor_venda: 0, produto: '', prevenda_id: null, prevenda_nome: 'AUTOMÁTICO (SEM VENDA)',
+        unidade: loja, origem: 'PRAZO', venda_ids: [],
+      }, { onConflict: 'receita_id' })
+      res.nao_convertidas++
+    } else if (!deveMarcar && conv && origem === 'PRAZO') {
+      await admin.from('conversoes').delete().eq('id', conv.id)
     }
   }
 
