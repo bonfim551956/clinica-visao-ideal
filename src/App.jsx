@@ -553,7 +553,9 @@ function Layout({ user, tab, setTab, onLogout, selectedUnidade, setSelectedUnida
    DASHBOARD
 ══════════════════════════════════════════════════════ */
 // Período do painel: hoje, semana (seg–dom), mês ou personalizado → { de, ate } em YYYY-MM-DD
-/* ── Jornada do paciente: agendado → compareceu/não → comprou/não comprou ── */
+/* ── Jornada do paciente: agendado → compareceu/não compareceu → convertido/não convertido ──
+   Compareceu fica neutro até a venda: Convertido quando há venda (ADM, conferida ou manual);
+   Não convertido só depois de 30 dias sem venda ou quando Pré-Vendas marca Não. */
 // Liga cada agendamento à receita e à conversão (a conversão vem do PDV ou de Pré-Vendas)
 async function anexarCompras(rows) {
   const ids = (rows||[]).filter(a=>a.status==='Compareceu').map(a=>a.id);
@@ -565,7 +567,11 @@ async function anexarCompras(rows) {
   return rows.map(a => a.status==='Compareceu' ? { ...a, _compra: porAgenda[a.id] || null } : a);
 }
 const jornada = a => {
-  if (a.status === 'Compareceu') return a._compra?.converteu ? { label:'Comprou', cor:C.success, valor:a._compra.valor_venda } : { label:'Não comprou', cor:C.orange };
+  if (a.status === 'Compareceu') {
+    if (a._compra?.converteu) return { label:'Convertido', cor:C.success, valor:a._compra.valor_venda };
+    if (a._compra && a._compra.converteu === false) return { label:'Não convertido', cor:'#9A5200' };
+    return { label:'Compareceu', cor:'#3F5A80' };
+  }
   if (a.status === 'Não Compareceu') return { label:'Não compareceu', cor:C.danger };
   if (a.status === 'Cancelado') return { label:'Cancelado', cor:C.gray };
   return { label:'Agendado', cor:C.teal };
@@ -987,7 +993,7 @@ function Agenda({ user, selectedUnidade='' }) {
 const DIAS_SEMANA = ['DOM','SEG','TER','QUA','QUI','SEX','SÁB'];
 const corJornada = a => {
   const j = jornada(a);
-  return { Comprou:['#E7F4EC','#1E7A3C'], 'Não comprou':['#FFF1E2','#9A5200'], 'Não compareceu':['#FDECEE','#B02A37'], Cancelado:['#F0F0EE','#5A5A5A'] }[j.label] || ['#E6F2F4','#1F5F70'];
+  return { Convertido:['#E7F4EC','#1E7A3C'], 'Não convertido':['#FFF1E2','#9A5200'], Compareceu:['#EEF1F6','#3F5A80'], 'Não compareceu':['#FDECEE','#B02A37'], Cancelado:['#F0F0EE','#5A5A5A'] }[j.label] || ['#E6F2F4','#1F5F70'];
 };
 function GradeSemana({ de, slots, mostrarLoja, onAbrir, onNovo }) {
   const dias = Array.from({length:7},(_,i)=>{ const d=new Date(de+'T12:00:00'); d.setDate(d.getDate()+i); return ymd(d); });
@@ -1049,7 +1055,7 @@ function GradeSemana({ de, slots, mostrarLoja, onAbrir, onNovo }) {
         </table>
       </div>
       <div style={{display:'flex',gap:16,flexWrap:'wrap',padding:'12px 16px',borderTop:`1px solid ${C.border}`,fontSize:12,color:C.textSm}}>
-        {[['Agendado',{status:'Agendado'}],['Não compareceu',{status:'Não Compareceu'}],['Compareceu e não comprou',{status:'Compareceu'}],['Comprou',{status:'Compareceu',_compra:{converteu:true}}]].map(([l,a])=>{
+        {[['Agendado',{status:'Agendado'}],['Compareceu',{status:'Compareceu'}],['Convertido',{status:'Compareceu',_compra:{converteu:true}}],['Não convertido',{status:'Compareceu',_compra:{converteu:false}}],['Não compareceu',{status:'Não Compareceu'}]].map(([l,a])=>{
           const [bg,fg] = corJornada(a);
           return <span key={l} style={{display:'inline-flex',alignItems:'center',gap:6}}><span style={{width:12,height:12,borderRadius:3,background:bg,borderLeft:`3px solid ${fg}`}}/>{l}</span>;
         })}
@@ -1383,7 +1389,7 @@ function ListaAtendimentos({ user, onAtender, selectedUnidade='' }) {
   };
   const conta = st => rows.filter(a=>a.status===st).length;
   const comprou = rows.filter(a=>a._compra?.converteu).length;
-  const resumo = `${rows.length} registro(s) · ${conta('Agendado')} aguardando · ${conta('Não Compareceu')} não compareceu · ${conta('Compareceu')} atendido(s), ${comprou} comprou`;
+  const resumo = `${rows.length} registro(s) · ${conta('Agendado')} aguardando · ${conta('Não Compareceu')} não compareceu · ${conta('Compareceu')} atendido(s), ${comprou} convertido(s)`;
   const podeAtender = PERFIS[user.perfil]?.nav.includes('atendimento');
   const salvarReagendamento = async ({ data, hora }) => {
     const a = reagendar;
@@ -2330,14 +2336,14 @@ function NoShow({ user, selectedUnidade='' }) {
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(''),3000); };
 
   const load = useCallback(async () => {
-    // Não compareceu + compareceu e não comprou (mesma regra da Agenda)
+    // Não compareceu + não convertido (30 dias sem venda ou marcado por Pré-Vendas)
     let q = supabase.from('agenda').select('*').in('status', ['Não Compareceu','Compareceu']).order('data',{ascending:false}).order('hora');
     if (per.de) q = q.gte('data', per.de).lte('data', per.ate);
     const unidade = user.unidade || selectedUnidade;
     if (unidade) q = q.eq('unidade', unidade);
     const { data } = await q;
     const comCompra = await anexarCompras(data||[]);
-    setRows(comCompra.filter(a => a.status === 'Não Compareceu' || (a.status === 'Compareceu' && !a._compra?.converteu)));
+    setRows(comCompra.filter(a => a.status === 'Não Compareceu' || (a.status === 'Compareceu' && a._compra && a._compra.converteu === false)));
     setLoading(false);
   }, [per.de, per.ate, selectedUnidade, user]);
 
@@ -2370,14 +2376,14 @@ function NoShow({ user, selectedUnidade='' }) {
     <div>
       <Toast msg={toast}/>
       {reagendar && <ReagendarModal item={reagendar} onSave={salvarReagendamento} onClose={()=>setReagendar(null)}/>}
-      <TopoTela titulo="No-Show" subtitulo={`${textoPeriodo(per.de, per.ate)} · ${nNao} não compareceu · ${lista.length - nNao} compareceu e não comprou`}>
+      <TopoTela titulo="No-Show" subtitulo={`${textoPeriodo(per.de, per.ate)} · ${nNao} não compareceu · ${lista.length - nNao} não convertido(s)`}>
         <FiltroPeriodo p={per} comTudo/>
       </TopoTela>
       <Card style={{marginBottom:16}}>
         <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end'}}>
           <Busca value={filtros.busca} onChange={v=>setFiltros(f=>({...f,busca:v}))}/>
           <Select label="Motivo" value={filtros.motivo} onChange={e=>setFiltros(f=>({...f,motivo:e.target.value}))}
-            options={[{value:'',label:'Todos'},{value:'Não compareceu',label:'Não compareceu'},{value:'Não comprou',label:'Compareceu e não comprou'}]}/>
+            options={[{value:'',label:'Todos'},{value:'Não compareceu',label:'Não compareceu'},{value:'Não convertido',label:'Não convertido'}]}/>
           <Select label="Optometrista" value={filtros.opto} onChange={e=>setFiltros(f=>({...f,opto:e.target.value}))}
             options={[{value:'',label:'Todos'},...optos.map(n=>({value:n,label:n}))]}/>
           <Select label="Agendado por" value={filtros.resp} onChange={e=>setFiltros(f=>({...f,resp:e.target.value}))}
@@ -2484,14 +2490,17 @@ const montarFunil = (ag, rec, conv) => {
   const recPorAgenda = {}; rec.forEach(r => { if (r.agenda_id) recPorAgenda[r.agenda_id] = r.id; });
   const convPorReceita = {}; conv.forEach(c => { if (!convPorReceita[c.receita_id] || c.converteu) convPorReceita[c.receita_id] = c; });
   const compareceu = lista.filter(a => a.status === 'Compareceu');
-  const compras = compareceu.map(a => convPorReceita[recPorAgenda[a.id]]).filter(c => c?.converteu);
+  const convDe = a => convPorReceita[recPorAgenda[a.id]];
+  const compras = compareceu.map(convDe).filter(c => c?.converteu);
+  const naoConv = compareceu.map(convDe).filter(c => c && c.converteu === false).length;
   return {
     agendados: lista.length,
     aguardando: lista.filter(a => a.status === 'Agendado').length,
     compareceu: compareceu.length,
     naoCompareceu: lista.filter(a => a.status === 'Não Compareceu').length,
     comprou: compras.length,
-    naoComprou: compareceu.length - compras.length,
+    naoComprou: naoConv,
+    aguardandoVenda: compareceu.length - compras.length - naoConv,
     faturamento: compras.reduce((s, c) => s + Number(c.valor_venda || 0), 0),
   };
 };
@@ -2643,16 +2652,17 @@ function Relatorios({ selectedUnidade='' }) {
             <Etapa titulo="Não compareceu" valor={f.naoCompareceu} base={f.agendados} anterior={fa.naoCompareceu} cor={C.danger} inverso/>
           </div>
           <Seta/>
-          {/* 3. Comprou x Não comprou */}
+          {/* 3. Convertido x aguardando x não convertido */}
           <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-            <Etapa titulo="Comprou" valor={f.comprou} base={f.compareceu} anterior={fa.comprou} cor={C.success}>
+            <Etapa titulo="Convertido" valor={f.comprou} base={f.compareceu} anterior={fa.comprou} cor={C.success}>
               <div style={{fontSize:14,fontWeight:700,color:C.navy,marginTop:8}}>{fmtMoney(f.faturamento)}</div>
               <Delta atual={f.faturamento} anterior={fa.faturamento} dinheiro/>
             </Etapa>
-            <Etapa titulo="Não comprou" valor={f.naoComprou} base={f.compareceu} anterior={fa.naoComprou} cor={C.orange} inverso/>
+            <Etapa titulo="Aguardando venda" valor={f.aguardandoVenda} base={f.compareceu} anterior={fa.aguardandoVenda} cor={'#3F5A80'}/>
+            <Etapa titulo="Não convertido" valor={f.naoComprou} base={f.compareceu} anterior={fa.naoComprou} cor={C.orange} inverso/>
           </div>
           <p style={{fontSize:12,color:C.gray,marginTop:16,lineHeight:1.5}}>
-            Os percentuais são sobre a etapa anterior. "Comprou" vem da venda no PDV ligada à receita do exame (ou do registro de Pré-Vendas). Cancelados ficam fora do funil.
+            Os percentuais são sobre a etapa anterior. "Convertido" vem da venda no ADM ligada à receita do exame (ou do registro de Pré-Vendas). "Aguardando venda" é quem compareceu e ainda está dentro dos 30 dias. "Não convertido" é quem passou dos 30 dias sem venda ou foi marcado por Pré-Vendas. Cancelados ficam fora do funil.
           </p>
         </Card>
       )}
@@ -3346,6 +3356,7 @@ const MANUAL = [
   { id:'resultados', perfis:['prevenda','supervisor','diretor'], rotulo:'Resultados', titulo:'Acompanhar resultados',
     cards:[
       { t:'Conversão', d:'Pacientes atendidos e quem comprou depois do exame. As vendas do ADM (pedido, hora e lentes de contato) entram sozinhas a cada 15 minutos, com o valor da OS. O botão Buscar vendas agora faz a busca na hora.' },
+      { t:'Status do paciente', d:'Quem finaliza o atendimento fica como Compareceu. Vira Convertido quando a venda é encontrada no ADM, confirmada ou registrada à mão, e Não convertido só depois de 30 dias sem venda ou quando Pré-Vendas marca Não.' },
       { t:'Para conferir', d:'Quando só o telefone ou só o nome da venda confere com o paciente, a venda aparece neste quadro. Confirme se é a mesma pessoa ou descarte.' },
       { t:'Registro manual', d:'Use Registrar ou Editar quando a venda não foi encontrada. Conversão registrada à mão nunca é alterada pela integração. A coluna Origem mostra ADM (com o número da OS), Manual ou Prazo de 30 dias.' },
       { t:'No-Show', d:'Quem não compareceu, para a equipe retomar o contato e remarcar.' },
@@ -3386,7 +3397,7 @@ const MANUAL = [
       ['A impressão não abre.','O navegador bloqueou a janela. Libere as janelas pop-up para agenda.clinicavisaoideal.com e tente de novo.', TODOS],
     ] },
 ];
-const CORES_SEMANA = [['Agendado',{status:'Agendado'}],['Não compareceu',{status:'Não Compareceu'}],['Veio e não comprou',{status:'Compareceu'}],['Comprou',{status:'Compareceu',_compra:{converteu:true}}]];
+const CORES_SEMANA = [['Agendado',{status:'Agendado'}],['Compareceu',{status:'Compareceu'}],['Convertido',{status:'Compareceu',_compra:{converteu:true}}],['Não convertido',{status:'Compareceu',_compra:{converteu:false}}],['Não compareceu',{status:'Não Compareceu'}]];
 function Manual({ user }) {
   const p = user.perfil;
   const vale = x => !x.perfis || x.perfis.includes(p);
