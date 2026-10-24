@@ -3345,9 +3345,18 @@ const MANUAL = [
     ] },
   { id:'resultados', perfis:['prevenda','supervisor','diretor'], rotulo:'Resultados', titulo:'Acompanhar resultados',
     cards:[
-      { t:'Conversão', d:'Pacientes atendidos e quem comprou depois do exame. As vendas do PDV aparecem aqui sozinhas.' },
+      { t:'Conversão', d:'Pacientes atendidos e quem comprou depois do exame. As vendas do ADM (pedido, hora e lentes de contato) entram sozinhas a cada 15 minutos, com o valor da OS. O botão Buscar vendas agora faz a busca na hora.' },
+      { t:'Para conferir', d:'Quando só o telefone ou só o nome da venda confere com o paciente, a venda aparece neste quadro. Confirme se é a mesma pessoa ou descarte.' },
+      { t:'Registro manual', d:'Use Registrar ou Editar quando a venda não foi encontrada. Conversão registrada à mão nunca é alterada pela integração. A coluna Origem mostra ADM (com o número da OS), Manual ou Prazo de 30 dias.' },
       { t:'No-Show', d:'Quem não compareceu, para a equipe retomar o contato e remarcar.' },
       { t:'Relatórios', d:'Funil Visão Ideal: agendados, comparecimentos, receitas e vendas, comparados com o período anterior.', perfis:GESTAO },
+    ] },
+  { id:'chat', perfis:TODOS, rotulo:'Tela Chat', titulo:'Conversar com a equipe',
+    intro:'Cada loja tem um grupo. A equipe da loja conversa só no grupo dela; Pré-Vendas, supervisor e diretor participam de todos.',
+    cards:[
+      { t:'Mensagens', d:'Digite e aperte Enter para enviar (Shift+Enter quebra a linha). As mensagens chegam na hora para todos do grupo.' },
+      { t:'Avisos', d:'Mensagem nova mostra um número no menu e no topo da tela, toca um som e aparece um aviso no canto. Clique em Ativar notificações para receber o aviso também com o sistema minimizado.' },
+      { t:'Editar e apagar', d:'Você pode editar as suas mensagens; o texto anterior fica guardado em editada. Mensagens não podem ser apagadas.' },
     ] },
   { id:'gestao', perfis:GESTAO, rotulo:'Supervisor e diretor', titulo:'Usuários e lojas',
     cards:[
@@ -3361,6 +3370,11 @@ const MANUAL = [
       ['1 h','Não compareceu','Uma hora depois do horário, quem não tem receita vira Não compareceu.'],
       ['✓','Compareceu','Gerar a receita marca o paciente como Compareceu na hora.'],
       ['ABC','Maiúsculas','Nomes, endereços e observações são salvos sempre em letras maiúsculas.'],
+      ['OPT','Optometrista','Todo agendamento recebe o optometrista cadastrado na loja.'],
+      ['15 min','Vendas do ADM','Venda de pedido, hora ou lentes de contato da mesma loja, até 30 dias depois do exame, com telefone e nome conferindo, vira conversão com o valor da OS.'],
+      ['30 dias','Não convertido','Passados 30 dias do exame sem venda no ADM, o paciente fica como Não convertido.'],
+      ['OS','Venda cancelada','Se a OS for cancelada no ADM, a conversão é desfeita sozinha.'],
+      ['↻','Nova versão','Quando sair atualização, aparece Nova versão disponível no topo. Clique para atualizar.'],
     ] },
   { id:'duvidas', perfis:TODOS, rotulo:'Dúvidas frequentes', titulo:'Perguntas comuns',
     faq:[
@@ -3368,6 +3382,7 @@ const MANUAL = [
       ['Errei a receita depois de gerar. E agora?','Abra a receita em Receitas, clique em Editar receita, corrija e informe o motivo. A alteração fica no histórico.', ['opto','supervisor','diretor']],
       ['Não aparece o botão Gerar Receita.','Só o optometrista gera receitas. Confira se você entrou com o seu próprio usuário.', TODOS],
       ['Um paciente da IA não apareceu na agenda.','Aguarde até 5 minutos e recarregue a página. Se continuar faltando, avise o supervisor.', TODOS],
+      ['A venda do paciente não virou conversão.','Confira no ADM se a OS tem o telefone do paciente, se é da mesma loja e se a data está dentro de 30 dias do exame. Veja também o quadro Para conferir. Se não aparecer, registre à mão.', ['prevenda','supervisor','diretor']],
       ['A impressão não abre.','O navegador bloqueou a janela. Libere as janelas pop-up para agenda.clinicavisaoideal.com e tente de novo.', TODOS],
     ] },
 ];
