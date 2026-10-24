@@ -1617,6 +1617,7 @@ const ASSINATURAS = {
   AHAH8YRN: {},
   BE9D3DPW: {},
   TKS6UWSG: { altura: 170 },
+  KHFY3J2S: { altura: 110 },
 };
 const imgAssinatura = (optoId, classe) => {
   const a = ASSINATURAS[optoId]; const url = linkAssinatura(optoId);
