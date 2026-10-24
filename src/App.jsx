@@ -2087,6 +2087,44 @@ function Conversao({ user, selectedUnidade='' }) {
   // Realtime: nova receita ou conversão aparece automaticamente
   useRealtime('receitas', () => load());
   useRealtime('conversoes', () => load());
+  useRealtime('vendas_sugestoes', () => carregarSugestoes());
+
+  // Integração com o ADM: sugestões "Para conferir" e última busca
+  const [sugestoes, setSugestoes] = useState([]);
+  const [ultimaBusca, setUltimaBusca] = useState(null);
+  const [buscando, setBuscando] = useState(false);
+  const [decidindo, setDecidindo] = useState(null);
+  const carregarSugestoes = useCallback(async () => {
+    let q = supabase.from('vendas_sugestoes').select('*').eq('status','PENDENTE').order('dt_venda');
+    if (selectedUnidade) q = q.eq('unidade', selectedUnidade);
+    const [{ data }, { data: integ }] = await Promise.all([q, supabase.from('integracao_adm').select('ultima_execucao').eq('id',1).maybeSingle()]);
+    setSugestoes(data || []); setUltimaBusca(integ?.ultima_execucao || null);
+  }, [selectedUnidade]);
+  useEffect(() => { carregarSugestoes(); }, [carregarSugestoes]);
+  const chamarADM = async body => {
+    const { data, error } = await supabase.functions.invoke('vendas-adm', { body });
+    if (!error && data?.ok) return { ok: true, resumo: data.resumo };
+    let msg = 'Não foi possível falar com o ADM agora.';
+    try { msg = (await error?.context?.json())?.erro || data?.erro || msg; } catch {}
+    return { erro: msg };
+  };
+  const buscarAgora = async () => {
+    setBuscando(true);
+    const r = await chamarADM({ acao: 'sincronizar' });
+    setBuscando(false);
+    if (r.erro) { showToast(r.erro); return; }
+    const n = r.resumo?.convertidas || 0;
+    showToast(n ? `${n} conversão(ões) gerada(s) a partir do ADM.` : 'Vendas do ADM conferidas. Nada novo.');
+    load(); carregarSugestoes();
+  };
+  const decidir = async (s, acao) => {
+    setDecidindo(s.id + acao);
+    const r = await chamarADM({ acao, id: s.id });
+    setDecidindo(null);
+    if (r.erro) { showToast(r.erro); return; }
+    showToast(acao === 'confirmar' ? 'Venda confirmada — conversão gerada.' : 'Sugestão descartada.');
+    load(); carregarSugestoes();
+  };
 
   const load = useCallback(async () => {
     let q = supabase.from('receitas').select('*,agenda(*)').order('data',{ascending:false});
@@ -2113,6 +2151,8 @@ function Conversao({ user, selectedUnidade='' }) {
       valor_venda:dados.valor||0, produto:dados.produto||'',
       prevenda_id:user.id, prevenda_nome:user.nome,
       unidade: rows.find(r=>r.id===receitaId)?.unidade || existing?.unidade || null,
+      // registro à mão: a integração com o ADM não altera mais esta conversão
+      origem:'MANUAL', venda_ids: existing?.venda_ids || null,
     };
     if (existing) await supabase.from('conversoes').update(row).eq('id',existing.id);
     else await supabase.from('conversoes').insert(row);
@@ -2134,6 +2174,45 @@ function Conversao({ user, selectedUnidade='' }) {
       <TopoTela titulo="Conversão" subtitulo={textoPeriodo(per.de, per.ate)}>
         <FiltroPeriodo p={per} comTudo/>
       </TopoTela>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',marginBottom:16,padding:'12px 16px',background:C.tealBg,borderRadius:16}}>
+        <div style={{fontSize:13,color:C.navy}}>
+          <strong>Vendas do ADM</strong> entram sozinhas a cada 15 minutos.
+          <span style={{color:C.textSm}}> {ultimaBusca ? `Última busca: ${new Date(ultimaBusca).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}` : 'Ainda não buscou.'}</span>
+        </div>
+        <Btn size="sm" onClick={buscarAgora} disabled={buscando}>{buscando ? 'Buscando…' : 'Buscar vendas agora'}</Btn>
+      </div>
+      {sugestoes.length > 0 && (
+        <Card style={{marginBottom:16,borderLeft:`4px solid ${C.orange}`}}>
+          <div style={{display:'flex',alignItems:'baseline',gap:10,marginBottom:4}}>
+            <h3 style={{fontSize:16,fontWeight:700,color:C.navy}}>Para conferir</h3>
+            <Badge color={C.orange}>{sugestoes.length}</Badge>
+          </div>
+          <p style={{fontSize:12,color:C.textSm,marginBottom:12}}>Vendas do ADM em que só o telefone ou só o nome confere com o paciente. Confirme se é a mesma pessoa.</p>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            {sugestoes.map(sg => (
+              <div key={sg.id} style={{display:'flex',gap:16,alignItems:'center',flexWrap:'wrap',padding:'12px 14px',background:C.bg,borderRadius:12}}>
+                <div style={{flex:'1 1 200px',minWidth:0}}>
+                  <div style={{fontSize:11,color:C.gray,fontWeight:700,letterSpacing:'.04em'}}>PACIENTE DO EXAME</div>
+                  <div style={{fontWeight:600,color:C.navy}}>{sg.paciente_nome}</div>
+                  {!selectedUnidade && <div style={{fontSize:12,color:C.gray}}>{sg.unidade}</div>}
+                </div>
+                <div style={{flex:'1 1 240px',minWidth:0}}>
+                  <div style={{fontSize:11,color:C.gray,fontWeight:700,letterSpacing:'.04em'}}>VENDA NO ADM · OS {sg.os_numero}</div>
+                  <div style={{fontWeight:600,color:C.navy}}>{sg.cliente}</div>
+                  <div style={{fontSize:12,color:C.textSm}}>{fmtDate(sg.dt_venda)} · {sg.os_tipo} · <strong style={{color:C.navy}}>{fmtMoney(sg.valor)}</strong>{sg.telefone_fim ? ` · tel. final ${sg.telefone_fim}` : ''}</div>
+                </div>
+                <div style={{flex:'1 1 160px',fontSize:12,color:C.orange,fontWeight:600}}>
+                  {sg.motivo === 'TELEFONE_IGUAL_NOME_DIFERENTE' ? 'Mesmo telefone, nome diferente' : 'Mesmo nome, telefone diferente'}
+                </div>
+                <div style={{display:'flex',gap:8}}>
+                  <Btn size="sm" color={C.success} disabled={!!decidindo} onClick={()=>decidir(sg,'confirmar')}>{decidindo===sg.id+'confirmar'?'…':'Confirmar'}</Btn>
+                  <Btn size="sm" outline disabled={!!decidindo} onClick={()=>decidir(sg,'descartar')}>{decidindo===sg.id+'descartar'?'…':'Descartar'}</Btn>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
       <div className="resp-grid-4" style={{marginBottom:16}}>
         {[['Receitas no período', lista.length],['Convertidas', convTotal],['Valor vendido', fmtMoney(valorTotal)],['Pendentes', pendentes]].map(([l,v])=>(
           <Card key={l} style={{padding:'20px 18px'}}><div style={{fontSize:28,fontWeight:800,color:C.navy,lineHeight:1}}>{v}</div><div style={{fontSize:12,color:C.navy,fontWeight:600,marginTop:4}}>{l}</div></Card>
@@ -2153,12 +2232,12 @@ function Conversao({ user, selectedUnidade='' }) {
           <div className="tbl-wrap">
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
               <thead><tr style={{background:C.teal,color:C.white}}>
-                {['Data','Paciente','Optometrista','OD Esf','OE Esf','Status','Valor',''].map(h=>(
+                {['Data','Paciente','Optometrista','OD Esf','OE Esf','Status','Valor','Origem',''].map(h=>(
                   <th key={h} style={{padding:'9px 12px',textAlign:'left',whiteSpace:'nowrap'}}>{h}</th>
                 ))}
               </tr></thead>
               <tbody>
-                {lista.length===0 && <tr><td colSpan={8} style={{padding:24,textAlign:'center',color:C.gray}}>Nenhuma receita no período</td></tr>}
+                {lista.length===0 && <tr><td colSpan={9} style={{padding:24,textAlign:'center',color:C.gray}}>Nenhuma receita no período</td></tr>}
                 {lista.map((r,i)=>(
                   <tr key={r.id} style={{background:i%2===0?C.white:C.bg,borderBottom:`1px solid ${C.border}`}}>
                     <td style={{padding:'8px 12px'}}>{fmtDate(r.data)}</td>
@@ -2172,6 +2251,7 @@ function Conversao({ user, selectedUnidade='' }) {
                         : <Badge color={C.gray}>Pendente</Badge>}
                     </td>
                     <td style={{padding:'8px 12px'}}>{r.conversao?.converteu ? fmtMoney(r.conversao.valor_venda) : '—'}</td>
+                    <td style={{padding:'8px 12px',fontSize:12,color:C.textSm,whiteSpace:'nowrap'}}>{origemConv(r.conversao)}</td>
                     <td style={{padding:'8px 12px'}}>
                       <Btn size="sm" color={C.teal} onClick={()=>setModal(r)}>
                         {r.conversao ? 'Editar' : 'Registrar'}
@@ -2189,6 +2269,16 @@ function Conversao({ user, selectedUnidade='' }) {
   );
 }
 
+// Origem da conversão: ADM (automática, com nº das OS), prazo de 30 dias ou registro manual
+const origemConv = c => {
+  if (!c) return '—';
+  const o = String(c.origem || '').toUpperCase();
+  const os = (Array.isArray(c.venda_ids) ? c.venda_ids : []).map(v => v.os).filter(Boolean);
+  if (o === 'ADM') return `ADM${os.length ? ' · OS ' + os.join(', ') : ''}`;
+  if (o === 'PRAZO') return 'Prazo de 30 dias';
+  return 'Manual';
+};
+
 function ConvModal({ receita, onSave, onClose }) {
   const conv = receita.conversao;
   const [converteu, setConverteu] = useState(conv?.converteu ?? null);
@@ -2200,6 +2290,11 @@ function ConvModal({ receita, onSave, onClose }) {
         <p style={{fontWeight:600,color:C.navy,marginBottom:4}}>{receita.paciente_nome}</p>
         <p style={{fontSize:12,color:C.gray}}>OD: {receita.od_esf} / OE: {receita.oe_esf} · {fmtDate(receita.data)}</p>
       </div>
+      {['ADM','PRAZO'].includes(String(conv?.origem||'').toUpperCase()) && (
+        <div style={{background:C.tealBg,borderRadius:12,padding:12,marginBottom:16,fontSize:13,color:C.navy}}>
+          Gerada automaticamente ({origemConv(conv)}). Se salvar aqui, passa a ser registro manual e a integração com o ADM não altera mais esta conversão.
+        </div>
+      )}
       <p style={{fontWeight:600,marginBottom:12,color:C.navy}}>Converteu a venda?</p>
       <div style={{display:'flex',gap:12,marginBottom:20}}>
         <button onClick={()=>setConverteu(true)} style={{flex:1,padding:'20px',border:`3px solid ${converteu===true?C.success:C.border}`,borderRadius:16,background:converteu===true?C.success+'11':C.white,color:converteu===true?C.success:C.gray,fontWeight:700,fontSize:16,cursor:'pointer'}}>
