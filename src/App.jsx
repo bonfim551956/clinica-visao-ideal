@@ -726,6 +726,42 @@ function Dashboard({ user, selectedUnidade='' }) {
 /* ══════════════════════════════════════════════════════
    AGENDA
 ══════════════════════════════════════════════════════ */
+/* ── Paciente já agendado no mesmo dia e loja: evita encaixe/agendamento duplicado ── */
+const tokNome = s => String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z ]/g,' ')
+  .split(/\s+/).filter(t => t.length >= 2 && !['DA','DE','DO','DAS','DOS','E'].includes(t));
+const mesmoNome = (a, b) => {
+  const p = tokNome(a), c = tokNome(b);
+  if (!p.length || !c.length || p[0] !== c[0]) return false;
+  if (p.length === 1 || c.length === 1) return true;
+  return p.slice(1).some(t => c.slice(1).includes(t));
+};
+const fone8 = t => String(t||'').replace(/\D/g,'').slice(-8);
+async function agendamentoNoDia({ data, unidade, pacienteId, nome, telefone, ignorarId }) {
+  if (!data || !unidade) return null;
+  const { data: lista } = await supabase.from('agenda').select('*').eq('data', data).eq('unidade', unidade).neq('status','Cancelado').order('hora');
+  const t = fone8(telefone);
+  return (lista||[]).find(a => a.id !== ignorarId && (
+    (pacienteId && a.paciente_id === pacienteId) || mesmoNome(a.paciente_nome, nome) || (t.length === 8 && fone8(a.paciente_telefone) === t)
+  )) || null;
+}
+function AvisoDuplicado({ dup, nome, onAbrir, textoAbrir, onCriar, textoCriar, onClose }) {
+  return (
+    <Modal title="Paciente já agendado neste dia" onClose={onClose} width={480}>
+      <p style={{fontSize:14,color:C.navy,lineHeight:1.5,marginBottom:12}}>
+        <strong>{dup.paciente_nome}</strong> já tem horário em {fmtDate(dup.data)} às <strong>{String(dup.hora||'').slice(0,5)}</strong>
+        {dup.agendado_por ? ` (agendado por ${dup.agendado_por})` : ''} · {jornada(dup).label}.
+      </p>
+      {!mesmoNome(dup.paciente_nome, nome) && <p style={{fontSize:13,color:C.textSm,marginBottom:12}}>O nome é diferente de {nome}, mas o telefone é o mesmo. Pode ser alguém da mesma família.</p>}
+      <p style={{fontSize:13,color:C.textSm,marginBottom:20}}>Para não duplicar o atendimento, use o horário que já existe.</p>
+      <div style={{display:'flex',gap:10,justifyContent:'flex-end',flexWrap:'wrap'}}>
+        <Btn outline onClick={onClose}>Voltar</Btn>
+        <Btn outline onClick={onCriar}>{textoCriar}</Btn>
+        {onAbrir && <Btn onClick={onAbrir}>{textoAbrir}</Btn>}
+      </div>
+    </Modal>
+  );
+}
+
 function Agenda({ user, selectedUnidade='' }) {
   const [slots, setSlots] = useState([]);
   const [optos, setOptos] = useState([]);
@@ -781,6 +817,7 @@ function Agenda({ user, selectedUnidade='' }) {
 
   const getSlot = hora => slots.find(s=>s.hora===hora);
 
+  const [duplicado, setDuplicado] = useState(null);
   const handleSave = async (form) => {
     const pac = pacientes.find(p=>p.id===form.pacienteId)||{nome:form.pacienteNome};
     // Loja do agendamento: a do usuário, a do filtro global ou a escolhida no formulário
@@ -790,6 +827,10 @@ function Agenda({ user, selectedUnidade='' }) {
     const opto = user.perfil === 'opto' ? user : optos.find(o => o.unidade === unidadeAlvo);
     const horaFinal = form.hora || modal?.hora;
     const dataFinal = form.data || modal?.data || selData;
+    if (!modal?.existing && !form._forcar) {
+      const dup = await agendamentoNoDia({ data: dataFinal, unidade: unidadeAlvo, pacienteId: form.pacienteId, nome: pac?.nome || form.pacienteNome, telefone: form.telefone || pac?.telefone });
+      if (dup) { setDuplicado({ dup, form, nome: pac?.nome || form.pacienteNome }); return; }
+    }
     const rowData = {
       paciente_id: form.pacienteId||null,
       paciente_nome: pac?.nome||form.pacienteNome,
@@ -985,6 +1026,11 @@ function Agenda({ user, selectedUnidade='' }) {
       {modal && <AgendaModal hora={modal.hora} data={modal.data} existing={modal.existing} encaixe={modal.encaixe} pacientes={pacientes} optos={optos}
         pedirUnidade={!(user.unidade || selectedUnidade)}
         onSave={handleSave} onDelete={handleDelete} onClose={()=>setModal(null)}/>}
+      {duplicado && <AvisoDuplicado dup={duplicado.dup} nome={duplicado.nome}
+        textoAbrir={`Abrir o das ${String(duplicado.dup.hora||'').slice(0,5)}`}
+        onAbrir={()=>{ const d = duplicado.dup; setDuplicado(null); setModal({ hora: d.hora, data: d.data, existing: d }); }}
+        textoCriar="Agendar mesmo assim" onCriar={()=>{ const f = duplicado.form; setDuplicado(null); handleSave({ ...f, _forcar: true }); }}
+        onClose={()=>setDuplicado(null)}/>}
     </div>
   );
 }
@@ -1369,9 +1415,15 @@ function ListaAtendimentos({ user, onAtender, selectedUnidade='' }) {
     const { data } = await supabase.from('pacientes').select('*').order('nome');
     setPacientes(data || []);
   };
+  const [duplicado, setDuplicado] = useState(null);
   const salvarEncaixe = async (form) => {
     const unidadeAlvo = user.unidade || selectedUnidade || form.unidade || '';
     if (!unidadeAlvo) { alert('Selecione a unidade do agendamento.'); return; }
+    if (!form._forcar) {
+      const p0 = pacientes.find(p => p.id === form.pacienteId);
+      const dup = await agendamentoNoDia({ data: today(), unidade: unidadeAlvo, pacienteId: form.pacienteId, nome: p0?.nome || form.pacienteNome, telefone: form.telefone || p0?.telefone });
+      if (dup) { setDuplicado({ dup, form, nome: p0?.nome || form.pacienteNome }); return; }
+    }
     const ativos = (await listarUsuarios()).filter(u => u.perfil === 'opto' && u.ativo);
     const opto = user.perfil === 'opto' ? user : ativos.find(o => o.unidade === unidadeAlvo);
     const pac = pacientes.find(p => p.id === form.pacienteId);
@@ -1386,6 +1438,19 @@ function ListaAtendimentos({ user, onAtender, selectedUnidade='' }) {
     setEncaixe(null);
     showToast('Encaixe criado. Abrindo o atendimento…');
     onAtender(row);
+  };
+  // Excluir atendimento duplicado: só diretor, e só quem ainda não tem receita
+  const [excluir, setExcluir] = useState(null);
+  const confirmarExclusao = async () => {
+    const a = excluir;
+    // agendamento da IA fica como Cancelado (senão a sincronização do Google traz de volta)
+    const { error } = a.google_event_id
+      ? await supabase.from('agenda').update({ status: 'Cancelado' }).eq('id', a.id)
+      : await supabase.from('agenda').delete().eq('id', a.id);
+    setExcluir(null);
+    if (error) { alert('Não foi possível excluir: ' + error.message); return; }
+    showToast(a.google_event_id ? 'Agendamento da IA cancelado.' : 'Atendimento excluído.');
+    load();
   };
   const conta = st => rows.filter(a=>a.status===st).length;
   const comprou = rows.filter(a=>a._compra?.converteu).length;
@@ -1435,6 +1500,25 @@ function ListaAtendimentos({ user, onAtender, selectedUnidade='' }) {
         </div>
       </Card>
       {reagendar && <ReagendarModal item={reagendar} onSave={salvarReagendamento} onClose={()=>setReagendar(null)}/>}
+      {duplicado && <AvisoDuplicado dup={duplicado.dup} nome={duplicado.nome}
+        textoAbrir={duplicado.dup.status === 'Compareceu' ? `Ver ficha do das ${String(duplicado.dup.hora||'').slice(0,5)}` : `Atender o das ${String(duplicado.dup.hora||'').slice(0,5)}`}
+        onAbrir={()=>{ const d = duplicado.dup; setDuplicado(null); setEncaixe(null); onAtender(d); }}
+        textoCriar="Criar encaixe mesmo assim" onCriar={()=>{ const f = duplicado.form; setDuplicado(null); salvarEncaixe({ ...f, _forcar: true }); }}
+        onClose={()=>setDuplicado(null)}/>}
+      {excluir && (
+        <Modal title="Excluir atendimento" onClose={()=>setExcluir(null)} width={460}>
+          <p style={{fontSize:14,color:C.navy,lineHeight:1.5,marginBottom:12}}>
+            Excluir o atendimento de <strong>{excluir.paciente_nome}</strong> em {fmtDate(excluir.data)} às {String(excluir.hora||'').slice(0,5)}?
+          </p>
+          <p style={{fontSize:13,color:C.textSm,marginBottom:20}}>
+            {excluir.google_event_id ? 'Este horário veio da IA: ele fica como Cancelado, para não voltar na próxima sincronização com o Google Agenda.' : 'Use para atendimentos duplicados. Esta ação não pode ser desfeita.'}
+          </p>
+          <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+            <Btn outline onClick={()=>setExcluir(null)}>Voltar</Btn>
+            <Btn color={C.danger} onClick={confirmarExclusao}>Excluir</Btn>
+          </div>
+        </Modal>
+      )}
       {loading ? <Spinner/> : (
         <Card>
           {rows.length===0 && <p style={{textAlign:'center',color:C.gray,padding:20}}>Nenhum agendamento encontrado</p>}
@@ -1481,6 +1565,9 @@ function ListaAtendimentos({ user, onAtender, selectedUnidade='' }) {
                         })()}
                         <Btn outline size="sm" color={C.teal} disabled={a.status==='Compareceu'} title={a.status==='Compareceu' ? 'Paciente já atendido' : ''}
                           style={{width:112,padding:'7px 0'}} onClick={()=>a.status!=='Compareceu' && setReagendar(a)}>Reagendar</Btn>
+                        {user.perfil === 'diretor' && a.status !== 'Compareceu' && a.status !== 'Cancelado' && (
+                          <Btn outline size="sm" color={C.danger} style={{padding:'7px 12px',color:C.danger}} title="Excluir atendimento duplicado" onClick={()=>setExcluir(a)}>Excluir</Btn>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -3334,7 +3421,8 @@ const MANUAL = [
     intro:'Lista os pacientes da loja com filtros por data, optometrista, status, procedimento e quem agendou.',
     cards:[
       { t:'Atender', d:'Abre o atendimento do paciente: anamnese, refração e receita.' },
-      { t:'+ Encaixe', d:'Para quem chegou sem horário. Agenda e já abre o atendimento na mesma hora.' },
+      { t:'+ Encaixe', d:'Para quem chegou sem horário. Agenda e já abre o atendimento na mesma hora. Se o paciente já tiver horário no dia, o sistema avisa e oferece abrir o atendimento que já existe.' },
+      { t:'Excluir', tag:'Só diretor', d:'Remove um atendimento duplicado que ainda não tem receita. Horário que veio da IA fica como Cancelado.', perfis:['diretor'] },
       { t:'Reagendar', d:'Muda o dia e o horário sem precisar ir até a Agenda.' },
       { t:'Ver ficha', d:'Mostra a receita de quem já foi atendido. Agendamentos cancelados ficam com os botões desativados.' },
     ] },
