@@ -2202,7 +2202,20 @@ function Conversao({ user, selectedUnidade='' }) {
     let q = supabase.from('vendas_sugestoes').select('*').eq('status','PENDENTE').order('dt_venda');
     if (selectedUnidade) q = q.eq('unidade', selectedUnidade);
     const [{ data }, { data: integ }] = await Promise.all([q, supabase.from('integracao_adm').select('ultima_execucao').eq('id',1).maybeSingle()]);
-    setSugestoes(data || []); setUltimaBusca(integ?.ultima_execucao || null);
+    // telefone usado no agendamento (4 últimos números), para achar a conversa no WhatsApp
+    const recIds = [...new Set((data||[]).map(x => x.receita_id))];
+    const telRec = {};
+    if (recIds.length) {
+      const { data: recs } = await supabase.from('receitas').select('id,agenda:agenda_id(paciente_telefone,paciente_id)').in('id', recIds);
+      const semTel = (recs||[]).filter(r => !String(r.agenda?.paciente_telefone||'').replace(/\D/g,'') && r.agenda?.paciente_id);
+      const { data: pacs } = semTel.length ? await supabase.from('pacientes').select('id,telefone').in('id', semTel.map(r => r.agenda.paciente_id)) : { data: [] };
+      const telPac = {}; (pacs||[]).forEach(p => { telPac[p.id] = p.telefone; });
+      (recs||[]).forEach(r => {
+        const d = String(r.agenda?.paciente_telefone || telPac[r.agenda?.paciente_id] || '').replace(/\D/g,'');
+        if (d.length >= 4) telRec[r.id] = d.slice(-4);
+      });
+    }
+    setSugestoes((data || []).map(x => ({ ...x, telAgenda: telRec[x.receita_id] || '' }))); setUltimaBusca(integ?.ultima_execucao || null);
   }, [selectedUnidade]);
   useEffect(() => { carregarSugestoes(); }, [carregarSugestoes]);
   const chamarADM = async body => {
@@ -2298,7 +2311,7 @@ function Conversao({ user, selectedUnidade='' }) {
                 <div style={{flex:'1 1 200px',minWidth:0}}>
                   <div style={{fontSize:11,color:C.gray,fontWeight:700,letterSpacing:'.04em'}}>PACIENTE DO EXAME</div>
                   <div style={{fontWeight:600,color:C.navy}}>{sg.paciente_nome}</div>
-                  {!selectedUnidade && <div style={{fontSize:12,color:C.gray}}>{sg.unidade}</div>}
+                  <div style={{fontSize:12,color:C.textSm}}>{sg.telAgenda ? `Agendado com tel. final ${sg.telAgenda}` : 'Agendamento sem telefone'}{!selectedUnidade ? ` · ${sg.unidade}` : ''}</div>
                 </div>
                 <div style={{flex:'1 1 240px',minWidth:0}}>
                   <div style={{fontSize:11,color:C.gray,fontWeight:700,letterSpacing:'.04em'}}>VENDA NO ADM · OS {sg.os_numero}</div>
